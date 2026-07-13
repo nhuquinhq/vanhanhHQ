@@ -170,14 +170,15 @@ select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 10px rgba(34,2
 #mask{display:none;position:fixed;inset:0;background:rgba(3,8,18,.55);z-index:99;backdrop-filter:blur(2px)}
 @media(max-width:1000px){
  body{min-width:0;overflow-x:hidden}
- /* viewport-fit=cover + PWA: né tai thỏ/Dynamic Island & thanh home bằng safe-area-inset */
- .mbtn{display:flex;align-items:center;justify-content:center;top:calc(12px + env(safe-area-inset-top));left:calc(12px + env(safe-area-inset-left))}
+ /* viewport-fit=cover + PWA: né tai thỏ/Dynamic Island & thanh home bằng safe-area-inset.
+    Đệm trên = inset + 16px để máy tai thỏ cao (14/15/16 Pro Max) không bị dán sát cạnh trên */
+ .mbtn{display:flex;align-items:center;justify-content:center;top:calc(env(safe-area-inset-top,0px) + 16px);left:calc(env(safe-area-inset-left,0px) + 12px)}
  body.menuopen{overflow:hidden}
  body.menuopen #mask{display:block}
  .side{position:fixed;left:0;top:0;bottom:0;height:100dvh;width:280px;z-index:100;transform:translateX(-105%);transition:transform .22s ease;
-  padding:calc(12px + env(safe-area-inset-top)) 11px calc(12px + env(safe-area-inset-bottom)) calc(11px + env(safe-area-inset-left))}
+  padding:calc(env(safe-area-inset-top,0px) + 16px) 11px calc(env(safe-area-inset-bottom,0px) + 12px) calc(env(safe-area-inset-left,0px) + 11px)}
  body.menuopen .side{transform:none;box-shadow:12px 0 40px rgba(0,0,0,.5)}
- .main{padding:calc(10px + env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) calc(24px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left))}
+ .main{padding:calc(env(safe-area-inset-top,0px) + 16px) max(10px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 24px) max(10px,env(safe-area-inset-left,0px))}
  /* iOS tự phóng to trang khi focus ô nhập có chữ <16px → khoá 16px để không vỡ layout */
  select,input,textarea{font-size:16px!important}
  .top{padding:12px;gap:10px}
