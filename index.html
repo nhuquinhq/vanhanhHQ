@@ -749,14 +749,15 @@ const PAGES={
    const p2Ins=[
     `Tổng Die/Thiệt hại <b>${fmt(dieT)}</b> trong ${scopeLabel()}${wD&&wD[1]>0?`, lớn nhất ở <b>${wD[0]}</b> (${pct(wD[1]/(dieT||1))} tổng die)`:''}.`,
     tmn2.length>1&&sD2?`Xu hướng die theo tháng: đỉnh <b>${insT(tmn2,sD2.hi)}</b> (${fmt(dieM2[sD2.hi])}), đáy <b>${insT(tmn2,sD2.lo)}</b> (${dieM2[sD2.lo]?fmt(dieM2[sD2.lo]):'0'})${sD2.mom!=null?`; tháng gần nhất ${insUD(sD2.mom,true)}`:''}${sD2.k>=2?`; đã ${sD2.dir>0?'tăng':'giảm'} <b>${sD2.k} tháng liên tiếp</b>`:''}.`:null,
-    sc.don>0?`Robux Dồn thu hồi <b>${fmt(sc.don)}</b>${sDon&&sDon.mom!=null?` — tháng gần nhất ${insUD(sDon.mom)}`:''}; tỷ lệ mất thực Die/(Die+Dồn) = <b>${pct(dieT/((dieT+sc.don)||1))}</b>.`:null,
+    sc.don>0?`Robux Dồn thu hồi <b>${fmt(sc.don)}</b>${sDon&&sDon.mom!=null?` — tháng gần nhất ${insUD(sDon.mom)}`:''}; tỷ lệ mất thực Die/CO Nhập = <b>${pct(dieT/(sc.totalNhap||1))}</b>; tỷ lệ dồn Dồn/CO Nhập = <b>${pct(sc.don/(sc.totalNhap||1))}</b>.`:null,
     insNote(tmn2),
    ];
-   host.innerHTML=`<div class="kpis">
+   host.innerHTML=`<div class="kpis" style="grid-template-columns:repeat(5,1fr)">
      ${kpi("Tổng Die / Thiệt hại",fmt(dieT),scopeLabel())}
      ${kpi("Die Robux",fmt(sc.die["Robux"]),"lớn nhất")}
      ${kpi("Robux Dồn (thu hồi)",fmt(sc.don),"tái sử dụng")}
-     ${kpi("Die / (Die+Dồn)",pct(dieT/((dieT+sc.don)||1)),"tỷ lệ mất thực")}</div>
+     ${kpi("Die / CO Nhập",pct(dieT/(sc.totalNhap||1)),"tỷ lệ mất thực")}
+     ${kpi("Dồn / CO Nhập",pct(sc.don/(sc.totalNhap||1)),"tỷ lệ dồn")}</div>
     <div class="grid3">${cc("Die theo SPDV","p1a")}${cc("Die theo "+lvl(),"p1b")}${cc("Dồn Robux theo "+lvl(),"p1c")}</div>
     <div class="card"><h3>Bảng Die & Dồn theo SPDV — ${scopeLabel()}</h3><div class="scroll"><table class="tbl"><thead><tr><th>SPDV</th><th class="n">Die</th><th class="n">Dồn</th></tr></thead><tbody>
     ${SPDV.map(s=>`<tr><td>${s}</td><td class="n">${fmtn(sc.die[s])}</td><td class="n">${s==='Robux'?fmtn(sc.don):'-'}</td></tr>`).join('')}</tbody></table></div></div>
