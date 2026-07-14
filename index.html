@@ -1028,12 +1028,12 @@ const PAGES={
      renderP5Table();
    });
  }},
- PVH6:{title:"PVH6 · Tồn kho & tuổi tồn — Gift Card (Hub)",meta:"Mỗi dòng file = 1 code tồn · CO tồn = Σ đơn giá ($) × tỷ giá trên file · tuổi tồn = cột Ngày lưu kho · DPO (công nợ NCC) làm đợt sau",render(host){
-   host.innerHTML=spinner("Đang đọc Báo cáo tồn kho Giftcard Hub…");
-   tonKhoData().then(T=>{
+ PVH6:{title:"PVH6 · Tồn kho & tuổi tồn",meta:"Gift Card (Hub): mỗi dòng file = 1 code tồn · tuổi tồn = cột Ngày lưu kho · Tồn kho chi tiết: file TỒN KHO HQGROUP (tab Tổng tồn HQ)",render(host){
+   host.innerHTML=spinner("Đang đọc Tồn kho Giftcard Hub + Tồn kho chi tiết…");
+   Promise.all([tonKhoData(),khoCTData()]).then(([T,K])=>{
      if(!T){const sample=TONKHO_ROWS||[];
        const prev=sample.length?`<div class="card" style="margin-top:12px"><h3>Dữ liệu thô đọc về (12 dòng đầu × 12 cột) — chụp màn hình gửi lại nếu vẫn lỗi</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:12},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:12},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,16))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'';
-       host.innerHTML=`<div class="note"><b>Không đọc được file Tồn kho</b>${sample.length?' — đọc được dữ liệu nhưng không dò ra cột (cần: Danh mục · Đơn giá · Ngày lưu kho/Thời gian tạo)':' — không tải được CSV (file chưa Publish to web hoặc link đổi)'}.<br><button class="btn" style="margin-top:8px" onclick="TONKHO=undefined;TONKHO_ROWS=null;render()">↻ Thử lại</button></div>${prev}`;return;}
+       host.innerHTML=`<div class="note"><b>Không đọc được file Tồn kho Giftcard</b>${sample.length?' — đọc được dữ liệu nhưng không dò ra cột (cần: Danh mục · Đơn giá · Ngày lưu kho/Thời gian tạo)':' — không tải được CSV (file chưa Publish to web hoặc link đổi)'}.<br><button class="btn" style="margin-top:8px" onclick="TONKHO=undefined;TONKHO_ROWS=null;render()">↻ Thử lại</button></div>${prev}`+khoCTSection(K);mkKhoCharts(K);return;}
      const {recs,fx,sheetTot}=T;
      const B=[30,60,90]; /* mốc tuổi: ≤30 · 31–60 · 61–90 · >90 ngày */
      const bIdx=d=>d<=30?0:(d<=60?1:(d<=90?2:3));
@@ -1060,6 +1060,7 @@ const PAGES={
       wOld&&wOld.bk[3]>0?`Tồn lâu tập trung ở <b>${wOld.cat}</b>: ${fmt(wOld.bk[3])} đ giá trị >90 ngày (${pct(wOld.bk[3]/(old90||1))} nhóm quá 90 ngày) — ưu tiên xả trước.`:null,
      ];
      host.innerHTML=`
+      <div style="margin:2px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">🎫 Tồn Gift Card (Hub) — tuổi tồn theo code</div>
       <div class="kpis" style="grid-template-columns:repeat(5,1fr)">
        ${kpi("Tổng CO tồn (VND)",fmt(totVnd),ds||("tỷ giá "+fmt(fx)))}
        ${kpi("Tổng CO tồn (USD)",f2(totUsd),fmt(totN)+" code · "+rowsD.length+" danh mục")}
@@ -1072,13 +1073,14 @@ const PAGES={
       ${rowsD.map(r=>`<tr><td>${r.cat}</td><td class="n">${fmt(r.n)}</td><td class="n">${f2(r.usd)}</td><td class="n">${fmt(r.vnd)}</td><td class="n">${pct(r.vnd/(totVnd||1))}</td><td class="n"><b>${f1(r.age)}</b></td><td class="n">${fmt(r.mx)}</td><td class="n"><span class="${r.bk[3]>0?'down':'flat'}">${pct(r.bk[3]/(r.vnd||1))}</span></td></tr>`).join('')}
       <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmt(totN)}</td><td class="n">${f2(totUsd)}</td><td class="n">${fmt(totVnd)}</td><td class="n">100%</td><td class="n">${f1(totAge)}</td><td class="n">—</td><td class="n">${pct(old90/(totVnd||1))}</td></tr>
       </tbody></table></div>
-      <div class="small" style="margin-top:6px">Tuổi tồn lấy từ cột "Ngày lưu kho" của file (bình quân gia quyền theo giá trị $). Tuổi tồn là ảnh chụp hiện tại của kho nên không đổi theo bộ lọc thời gian. Tồn các SPDV khác sẽ nối cùng khuôn khi có file/tab tương ứng.</div></div>
-      ${insightCard(p6Ins)}`;
+      <div class="small" style="margin-top:6px">Tuổi tồn lấy từ cột "Ngày lưu kho" của file (bình quân gia quyền theo giá trị $). Tuổi tồn là ảnh chụp hiện tại của kho nên không đổi theo bộ lọc thời gian.</div></div>
+      ${insightCard(p6Ins)}`+khoCTSection(K);
      const top=rowsD.slice(0,12);
      mk("p6a",{type:'bar',data:{labels:top.map(r=>r.cat),datasets:[{data:top.map(r=>r.vnd),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});
      const BK=['≤30 ngày','31–60','61–90','>90 ngày'],BC=['#34d399','#fbbf24','#fb923c','#f43f5e'];
      mk("p6b",{type:'bar',data:{labels:top.map(r=>r.cat),datasets:BK.map((b,bi)=>({label:b,data:top.map(r=>r.bk[bi]),backgroundColor:BC[bi],stack:'s'}))},
       options:{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.x)}}},scales:{x:{...yG,stacked:true,ticks:{callback:fmtAxis}},y:{...noX,stacked:true}}}});
+     mkKhoCharts(K);
    });
  }},
  PVH7:{title:"PVH7 · Đối soát Tiền–Hàng–Đơn",meta:"Tần suất: Tuần",render:h=>frameOnly(h,"Xương sống P&L: Backend(đơn) ↔ Kho(hàng) ↔ Kế toán(tiền). Cần chốt logic đối soát GC (3 ví BSV) & Topup.")},
@@ -1305,6 +1307,73 @@ async function tonKhoData(){if(TONKHO!==undefined)return TONKHO;
  if(!L){const r2=await loadCSV(tonApiURL());if(r2)rows=r2;L=parseTonKho(r2);}
  TONKHO_ROWS=rows?rows.slice(0,12):null;TONKHO=L;return TONKHO;}
 
+/* ===== PVH6 bổ sung: "Tồn kho chi tiết" — file TỒN KHO HQGROUP · tab "Tổng tồn HQ" (tồn theo hạng mục) ===== */
+const BASE_KHO="https://docs.google.com/spreadsheets/d/e/2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5/pub";
+const KHO_GID="1926394974";
+function khoDirectURL(){return BASE_KHO+"?gid="+KHO_GID+"&single=true&output=csv";}
+function khoApiURL(){return "/api/csv?f=kho&gid="+KHO_GID;}
+let KHOCT;
+function parseKhoCT(rows){
+ if(!rows||rows.length<3)return null;
+ const nm=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
+ /* dò dòng tiêu đề theo cột "Tổng CO tồn" — không phụ thuộc vị trí cố định trên sheet */
+ let H=-1,iA=0,iPKD=1,iGame=2,iTon=-1,iBan=-1,iRatio=-1,iSafe=-1,iMax=-1,iNote=-1;
+ for(let r=0;r<Math.min(rows.length,25);r++){const row=(rows[r]||[]).map(x=>nm(x).toLowerCase());
+  const t=row.findIndex(x=>/tổng\s*co\s*tồn/.test(x));if(t<0)continue;
+  H=r;iTon=t;
+  const f=re=>row.findIndex(x=>re.test(x));
+  iA=Math.max(f(/sản\s*phẩm/),0);iPKD=f(/pkd/)>-1?f(/pkd/):1;iGame=f(/game/)>-1?f(/game/):2;
+  iBan=f(/co\s*bán/);iRatio=f(/co\s*tồn\s*\/\s*co\s*bán/);iSafe=f(/an\s*toàn/);
+  iMax=f(/số\s*tiền|tối\s*đa/);iNote=f(/ghi\s*chú/);break;}
+ if(H<0)return null;
+ const items=[];let tot=null,pkd='';
+ for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
+  const A=nm(row[iA]),B=nm(row[iPKD]),C=nm(row[iGame]);
+  const ton=num(row[iTon]),ban=iBan>-1?num(row[iBan]):0,mx=iMax>-1?num(row[iMax]):0;
+  const rat=iRatio>-1?nm(row[iRatio]):'',safe=iSafe>-1?nm(row[iSafe]):'',note=iNote>-1?nm(row[iNote]):'';
+  if(!A&&!B&&!C&&!(ton||ban||mx))continue; /* dòng trống */
+  if(B)pkd=B;
+  if(!C&&!B){ /* dòng không có nhãn hạng mục: dòng TỔNG của file hoặc dòng tổng nhóm chưa đặt tên */
+   if(/tổng/i.test(A)&&!tot){tot={ton,ban,mx};continue;}
+   items.push({pkd:'',label:A||'—',ton,ban,rat,safe,mx,note,unnamed:true});continue;}
+  items.push({pkd,label:C||B,ton,ban,rat,safe,mx,note});}
+ if(!items.length)return null;
+ if(!tot)tot={ton:items.reduce((a,x)=>a+x.ton,0),ban:items.reduce((a,x)=>a+x.ban,0),mx:items.reduce((a,x)=>a+x.mx,0)};
+ return {items,tot};}
+async function khoCTData(){if(KHOCT!==undefined)return KHOCT;
+ let K=parseKhoCT(await loadCSV(khoDirectURL()));
+ if(!K)K=parseKhoCT(await loadCSV(khoApiURL()));
+ KHOCT=K;return KHOCT;}
+/* khối hiển thị "Tồn kho chi tiết" — ghép thêm dưới báo cáo tồn Giftcard cũ của PVH6 */
+function khoRatioCell(it){
+ const t=it.rat;if(!t||/[#!]/.test(t))return '<td class="n">—</td>';
+ const rn=num(t),sn=num(it.safe);
+ if(!(sn>0))return `<td class="n">${t}</td>`;
+ return `<td class="n" style="font-weight:700;color:${rn<sn?'#b91c1c':'#0f7a4d'}">${t}</td>`;}
+function khoCTSection(K){
+ const head=`<div style="margin:20px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">📦 Tồn kho chi tiết — file TỒN KHO HQGROUP · tab "Tổng tồn HQ"</div>`;
+ if(!K)return head+`<div class="card"><div class="note"><b>Không đọc được file Tồn kho chi tiết</b> — kiểm tra file "TỒN KHO HQGROUP" còn ở chế độ Publish to web không (test nhanh trong trang Nguồn &amp; Cấu hình).<br><button class="btn" style="margin-top:8px" onclick="KHOCT=undefined;render()">↻ Thử lại</button></div></div>`;
+ const {items,tot}=K;
+ const named=items.filter(x=>!x.unnamed);
+ const nTon=named.filter(x=>x.ton>0).length;
+ return head+`
+  <div class="kpis">
+   ${kpi("Tổng CO tồn (trên file)",fmt(tot.ton),named.length+" hạng mục")}
+   ${kpi("CO bán 30 ngày gần nhất",fmt(tot.ban),"toàn bộ hạng mục")}
+   ${kpi("Tiền hàng kho tối đa",fmt(tot.mx),"định mức budget trên file")}
+   ${kpi("Hạng mục đang có tồn",nTon+"/"+named.length,"CO tồn > 0")}
+  </div>
+  <div class="grid2" style="grid-template-columns:1fr 1.2fr">${cc("CO tồn theo hạng mục","p6c")}${cc("CO tồn vs CO bán 30 ngày — theo hạng mục","p6d")}</div>
+  <div class="card"><h3>Bảng tồn kho chi tiết theo hạng mục</h3><div class="scroll" style="max-height:520px"><table class="tbl"><thead><tr><th>PKD</th><th>Hạng mục</th><th class="n">Tổng CO tồn</th><th class="n">CO bán 30 ngày</th><th class="n">CO tồn/CO bán</th><th class="n">Tỷ lệ an toàn</th><th class="n">Tiền kho tối đa</th><th>Ghi chú</th></tr></thead><tbody>
+   ${items.map(it=>`<tr${it.unnamed?' style="background:#f6f9ff;font-weight:600"':''}><td>${it.pkd&&it.pkd!==it.label?it.pkd:''}</td><td><b>${it.label}</b></td><td class="n">${fmtn(it.ton)}</td><td class="n">${fmtn(it.ban)}</td>${khoRatioCell(it)}<td class="n">${it.safe&&!/[#!]/.test(it.safe)?it.safe:'—'}</td><td class="n">${fmtn(it.mx)}</td><td class="small">${it.note||''}</td></tr>`).join('')}
+   <tr style="font-weight:bold;background:#eef4ff"><td></td><td>TỔNG (trên file)</td><td class="n">${fmtn(tot.ton)}</td><td class="n">${fmtn(tot.ban)}</td><td class="n">—</td><td class="n">—</td><td class="n">${fmtn(tot.mx)}</td><td></td></tr>
+  </tbody></table></div>
+  <div class="small" style="margin-top:6px">Cột CO tồn/CO bán tô <b style="color:#0f7a4d">xanh</b> khi đạt ≥ tỷ lệ an toàn và <b style="color:#b91c1c">đỏ</b> khi thấp hơn (chỉ so khi file có tỷ lệ an toàn). Dòng nền nhạt là dòng tổng nhóm chưa đặt tên trên file. Số liệu lấy nguyên trạng từ file, tự làm mới cùng trang.</div></div>`;}
+function mkKhoCharts(K){if(!K)return;
+ const src=K.items.filter(x=>!x.unnamed&&(x.ton>0||x.ban>0)).sort((a,b)=>b.ton-a.ton);
+ mk("p6c",{type:'bar',data:{labels:src.filter(x=>x.ton>0).map(x=>x.label),datasets:[{data:src.filter(x=>x.ton>0).map(x=>x.ton),backgroundColor:'#0e7c86'}]},options:hbarOpt()});
+ mk("p6d",{type:'bar',data:{labels:src.map(x=>x.label),datasets:[{label:'CO tồn',data:src.map(x=>x.ton),backgroundColor:'#1e5fd0'},{label:'CO bán 30 ngày',data:src.map(x=>x.ban),backgroundColor:'#34d399'}]},options:barOpt(true)});}
+
 /* ===== PVH10: SLA/Accuracy — FILE RIÊNG "Báo cáo Năng xuất Xử lý đơn 2026" ===== */
 const BASE_SLA="https://docs.google.com/spreadsheets/d/e/2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W/pub";
 const SLA_GIDS={nam:'1982526665',ngay:'511745866'};
@@ -1509,11 +1578,12 @@ function renderSRC(){const host=document.getElementById('content');
   ['FILE CHÍNH — Google Sheet vận hành',[
    ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847']]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
+  ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN (PVH10)',[['SLA theo năm','1982526665','sla'],['SLA theo ngày/tháng','511745866','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
   `<div class="kpis">
-    ${kpi("Nguồn dữ liệu",`<span id="k_tabs">…</span>`,nTests+" tab · 3 file Google Sheet")}
+    ${kpi("Nguồn dữ liệu",`<span id="k_tabs">…</span>`,nTests+" tab · 4 file Google Sheet")}
     ${kpi("Cách đọc","Trực tiếp Google","publish CSV · /api/csv là dự phòng")}
     ${kpi("Tài khoản",`<span id="k_acc">…</span>`,`<span id="k_acc_sub">đang tải…</span>`)}
     ${kpi("Tự làm mới","60 giây","lần cuối "+new Date().toLocaleTimeString('vi-VN'))}
@@ -1541,7 +1611,7 @@ function renderSRC(){const host=document.getElementById('content');
   const gr=document.createElement('tr');gr.className='grp';gr.innerHTML=`<td colspan="6">${gname}</td>`;tb.appendChild(gr);
   tests.forEach(([nm,gid,f])=>{const tr=document.createElement('tr');
    tr.innerHTML=`<td><span class="stdot" style="background:#94a3b8"></span></td><td><b>${nm}</b></td><td class="gidm">${f==='ton'?'file riêng':gid}</td><td>…</td><td class="n">…</td><td class="small">đang gọi…</td>`;tb.appendChild(tr);
-   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):directURL(gid)),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):apiURL(gid));
+   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():directURL(gid))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():apiURL(gid)));
      const d=await probe(du);let use=d,via='direct';
      if(!d.ok){const a=await probe(au);if(a.ok){use=a;via='api';}else{via='fail';use=a.head?a:d;}}
      tr.children[0].innerHTML=`<span class="stdot ${via==='direct'?'ok':(via==='api'?'warn':'bad')}"></span>`;
