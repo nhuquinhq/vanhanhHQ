@@ -886,14 +886,16 @@ const PAGES={
        else if(ch.hbar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.hbar,backgroundColor:'#1e5fd0'}]},options:hbarOpt()});});
    });
  }},
- PVH12:{title:"PVH12 · Báo cáo Hoàn (nick/đơn)",meta:"Nguồn: Data Nick Roblox (realtime)",render(host){
-   host.innerHTML=spinner("Đang đọc trạng thái nick từ Data Nick Roblox…");
-   nickStatusRecs().then(recs=>{
+ PVH12:{title:"PVH12 · Báo cáo Hoàn (nick/đơn)",meta:"Hoàn nick: tab riêng theo CTV/phân loại CTV · Trạng thái nick: Data Nick Roblox (realtime)",render(host){
+   host.innerHTML=spinner("Đang đọc Hoàn nick theo CTV + trạng thái nick…");
+   Promise.all([nickStatusRecs(),hoanNickData()]).then(([recs,HN])=>{
+     const HV=hoanNickView(HN);
+     const SHEAD=`<div style="margin:18px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">📊 Trạng thái nick — Data Nick Roblox</div>`;
      if(!recs){const f=factor();const tot=Math.round(NICK_ST.reduce((a,x)=>a+x[1],0)*f);const die=Math.round(637*f),hoan=Math.round(124*f);
-       host.innerHTML=`<div class="note">Chưa nhận diện được cột trạng thái trong Data Nick Roblox — đang hiển thị <b>số dự phòng</b> co theo phạm vi ${scopeLabel()}.</div>
+       host.innerHTML=hoanNickSection(HV)+SHEAD+`<div class="note">Chưa nhận diện được cột trạng thái trong Data Nick Roblox — đang hiển thị <b>số dự phòng</b> co theo phạm vi ${scopeLabel()}.</div>
         <div class="kpis" style="margin-top:12px">${kpi("Nick DIE",fmtn(die),pct(die/(tot||1)))}${kpi("Nick hoàn tiền",fmtn(hoan),pct(hoan/(tot||1)))}${kpi("Tổng nick",fmtn(tot),scopeLabel())}${kpi("Tỷ lệ DIE",pct(die/(tot||1)),"die/tổng")}</div>
         <div class="grid2">${cc("Cơ cấu trạng thái nick","p12a")}<div class="card"><h3>Bảng trạng thái</h3><div class="scroll"><table class="tbl"><thead><tr><th>Trạng thái</th><th class="n">SL</th><th class="n">%</th></tr></thead><tbody>${NICK_ST.map(x=>{const v=Math.round(x[1]*f);return `<tr><td>${x[0]}</td><td class="n">${fmtn(v)}</td><td class="n">${pct(v/(tot||1))}</td></tr>`}).join('')}</tbody></table></div></div></div>`;
-       mk("p12a",donut(NICK_ST.map(x=>x[0]),NICK_ST.map(x=>Math.round(x[1]*f)),BLUE));return;}
+       mkHoanNickCharts(HV);mk("p12a",donut(NICK_ST.map(x=>x[0]),NICK_ST.map(x=>Math.round(x[1]*f)),BLUE));return;}
      const fk=iso(FROM),tk=iso(TO);
      const dated=recs.filter(r=>r.dk);
      const useAll=dated.length<recs.length*0.3; /* tab thiếu ngày → hiển thị toàn bộ */
@@ -905,10 +907,11 @@ const PAGES={
      const hoan=Object.keys(cnt).filter(k=>/HOÀN TIỀN/i.test(k)).reduce((a,k)=>a+cnt[k],0);
      const dieM=Array(12).fill(0),hoanM=Array(12).fill(0);
      dated.forEach(r=>{const mo=+r.dk.slice(5,7)-1;if(mo<0||mo>11)return;if(r.st==='DIE')dieM[mo]++;else if(/HOÀN TIỀN/i.test(r.st))hoanM[mo]++;});
-     host.innerHTML=`<div class="ok">Nguồn thật: Data Nick Roblox — đếm nick theo cột trạng thái${useAll?' · tab thiếu cột ngày nên hiển thị TOÀN BỘ (không lọc phạm vi)':' trong phạm vi '+scopeLabel()}.</div>
+     host.innerHTML=hoanNickSection(HV)+SHEAD+`<div class="ok">Nguồn thật: Data Nick Roblox — đếm nick theo cột trạng thái${useAll?' · tab thiếu cột ngày nên hiển thị TOÀN BỘ (không lọc phạm vi)':' trong phạm vi '+scopeLabel()}.</div>
       <div class="kpis" style="margin-top:12px">${kpi("Nick DIE",fmtn(die),pct(die/(tot||1)))}${kpi("Nick hoàn tiền",fmtn(hoan),pct(hoan/(tot||1)))}${kpi("Tổng nick",fmtn(tot),useAll?"toàn bộ dữ liệu":scopeLabel())}${kpi("Tỷ lệ DIE",pct(die/(tot||1)),"die/tổng")}</div>
       ${tot?`<div class="grid2">${cc("Cơ cấu trạng thái nick","p12a")}<div class="card"><h3>Bảng trạng thái</h3><div class="scroll" style="max-height:240px"><table class="tbl"><thead><tr><th>Trạng thái</th><th class="n">SL</th><th class="n">%</th></tr></thead><tbody>${list.map(x=>`<tr><td>${x[0]}</td><td class="n">${fmtn(x[1])}</td><td class="n">${pct(x[1]/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>${cc("DIE & Hoàn tiền theo tháng (cả kỳ)","p12b")}`:'<div class="note" style="margin-top:12px">Không có nick nào trong phạm vi lọc — thử bấm "Cả kỳ".</div>'}
       <div class="note" style="margin-top:12px">Chưa gồm "loại lỗi" &amp; "chi phí hoàn" — cần chỉ cột tương ứng trong tab để bổ sung.</div>`;
+     mkHoanNickCharts(HV);
      if(tot){mk("p12a",donut(list.slice(0,8).map(x=>x[0]),list.slice(0,8).map(x=>x[1]),BLUE));
        mk("p12b",{type:'bar',data:{labels:MN,datasets:[{label:'DIE',data:dieM,backgroundColor:RED},{label:'Hoàn tiền',data:hoanM,backgroundColor:'#fbbf24'}]},options:barOpt(true)});}
    });
@@ -1239,6 +1242,75 @@ async function nickStatusRecs(){if(NICKST!==undefined)return NICKST;
  let recs=nickStatusFromRows(await loadCSV(directURL(RAWCFG.nick.gid)));
  if(!recs)recs=nickStatusFromRows(await loadCSV(apiURL(RAWCFG.nick.gid)));
  NICKST=recs;return NICKST;}
+/* ===== PVH12: HOÀN NICK — tab riêng "Hoàn nick theo CTV / phân loại CTV" trong file chính =====
+   Tự dò dòng tiêu đề theo tên cột; nếu dò trượt sẽ hiện dữ liệu thô để đối chiếu chỉnh cột. */
+const GID_HOAN_NICK="182113446";
+let HOANNK,HOANNK_ROWS=null;
+function parseHoanNick(rows){
+ if(!rows||rows.length<2)return null;
+ const nm=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
+ let H=-1,iCTV=-1,iLoai=-1,iSL=-1,iTien=-1,iNgay=-1,iLydo=-1;
+ for(let r=0;r<Math.min(rows.length,30);r++){const row=(rows[r]||[]).map(x=>nm(x).toLowerCase());
+  const f=re=>row.findIndex(x=>re.test(x));
+  const ctv=f(/\bctv\b|cộng\s*tác\s*viên/),loai=f(/phân\s*loại|loại\s*ctv|nhóm\s*ctv|hạng\s*ctv/);
+  const sl=f(/số\s*(lượng\s*)?nick|sl\s*nick|sl\s*hoàn|số\s*lượng|số\s*đơn/),
+        tien=f(/tiền\s*hoàn|giá\s*trị\s*hoàn|chi\s*phí\s*hoàn|thành\s*tiền|số\s*tiền|tổng\s*tiền/);
+  if((ctv>-1||loai>-1)&&(sl>-1||tien>-1)){H=r;iCTV=ctv;iLoai=loai;iSL=sl;iTien=tien;
+   iNgay=f(/ngày|thời\s*gian|date/);iLydo=f(/lý\s*do|loại\s*lỗi|nguyên\s*nhân/);break;}}
+ if(H<0)return null;
+ const recs=[];
+ for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
+  const ctv=iCTV>-1?nm(row[iCTV]):'',loai=iLoai>-1?nm(row[iLoai]):'';
+  if(!ctv&&!loai)continue;
+  if(/^tổng/i.test(ctv)||/^tổng/i.test(loai))continue; /* bỏ dòng tổng của file — app tự cộng */
+  const sl=iSL>-1?num(row[iSL]):1,tien=iTien>-1?num(row[iTien]):0;
+  if(!(sl>0)&&!(tien>0))continue;
+  const dt=iNgay>-1?parseDateCell(row[iNgay]):null;
+  recs.push({ctv:ctv||'—',loai,sl:sl>0?sl:1,tien,
+   dk:(dt&&dt.mo>=0&&dt.mo<12)?dkey(dt.mo,dt.d):null,lydo:iLydo>-1?nm(row[iLydo]):''});}
+ return recs.length?recs:null;}
+async function hoanNickData(){if(HOANNK!==undefined)return HOANNK;
+ let rows=await loadCSV(directURL(GID_HOAN_NICK));let L=parseHoanNick(rows);
+ if(!L){const r2=await loadCSV(apiURL(GID_HOAN_NICK));if(r2)rows=r2;L=parseHoanNick(rows);}
+ HOANNK_ROWS=rows?rows.slice(0,10):null;HOANNK=L;return HOANNK;}
+/* áp bộ lọc thời gian (nếu tab có cột ngày) rồi gom theo CTV & phân loại */
+function hoanNickView(HN){
+ if(!HN)return null;
+ const dated=HN.filter(r=>r.dk);
+ const useAll=dated.length<HN.length*0.3;
+ const fk=iso(FROM),tk=iso(TO);
+ const list=useAll?HN:dated.filter(r=>r.dk>=fk&&r.dk<=tk);
+ const byCTV={},byLoai={};let sl=0,tien=0;
+ list.forEach(r=>{sl+=r.sl;tien+=r.tien;
+  const c=byCTV[r.ctv]=byCTV[r.ctv]||{sl:0,tien:0,loai:r.loai};c.sl+=r.sl;c.tien+=r.tien;if(!c.loai&&r.loai)c.loai=r.loai;
+  const k=r.loai||'Chưa phân loại';const l=byLoai[k]=byLoai[k]||{sl:0,tien:0};l.sl+=r.sl;l.tien+=r.tien;});
+ const ctvs=Object.entries(byCTV).map(([k,v])=>Object.assign({ctv:k},v)).sort((a,b)=>b.sl-a.sl||b.tien-a.tien);
+ const loais=Object.entries(byLoai).map(([k,v])=>Object.assign({loai:k},v)).sort((a,b)=>b.sl-a.sl);
+ return {ctvs,loais,sl,tien,useAll,hasLoai:loais.some(x=>x.loai!=='Chưa phân loại'),hasTien:tien>0};}
+function hoanNickSection(V){
+ const head=`<div style="margin:2px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">🔁 Hoàn nick — chi tiết theo CTV / phân loại CTV</div>`;
+ if(!V){const sample=HOANNK_ROWS||[];
+  const prev=sample.length?`<div class="card" style="margin:12px 0"><h3>Tab Hoàn nick — dữ liệu thô đọc về (10 dòng đầu × 12 cột) — chụp màn hình gửi lại để chỉnh cột</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:12},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:12},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,16))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'';
+  return head+`<div class="note" style="margin-bottom:13px"><b>Không đọc được tab Hoàn nick</b> (gid ${GID_HOAN_NICK})${sample.length?' — đọc được dữ liệu nhưng không dò ra cột (cần cột CTV/Phân loại CTV + Số nick hoặc Số tiền hoàn)':' — không tải được CSV (tab chưa Publish to web? — test trong trang Nguồn &amp; Cấu hình)'}.<br><button class="btn" style="margin-top:8px" onclick="HOANNK=undefined;HOANNK_ROWS=null;render()">↻ Thử lại</button></div>${prev}`;}
+ const top=V.ctvs[0];
+ return head+`
+  <div class="kpis">
+   ${kpi("Nick hoàn",fmtn(V.sl),V.useAll?"toàn bộ dữ liệu tab":scopeLabel())}
+   ${kpi("Tiền hoàn",V.hasTien?fmt(V.tien):"—",V.hasTien?"tổng giá trị hoàn":"tab chưa có cột tiền")}
+   ${kpi("CTV có hoàn",fmtn(V.ctvs.length),V.hasLoai?V.loais.length+" phân loại":"")}
+   ${kpi("Hoàn nhiều nhất",top?top.ctv:"—",top?fmtn(top.sl)+" nick"+(top.tien?" · "+fmt(top.tien)+" đ":""):"")}
+  </div>
+  <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Hoàn nick theo CTV — top 12","p12c")}${cc(V.hasLoai?"Cơ cấu hoàn theo phân loại CTV":"Cơ cấu hoàn theo CTV","p12d")}</div>
+  <div class="card"><h3>Bảng hoàn nick theo CTV — ${V.ctvs.length} CTV</h3><div class="scroll" style="max-height:420px"><table class="tbl"><thead><tr><th>CTV</th><th>Phân loại</th><th class="n">Nick hoàn</th><th class="n">Tiền hoàn</th><th class="n">% tổng nick</th></tr></thead><tbody>
+   ${V.ctvs.map(c=>`<tr><td>${c.ctv}</td><td>${c.loai||'—'}</td><td class="n">${fmtn(c.sl)}</td><td class="n">${fmtn(c.tien)}</td><td class="n">${pct(c.sl/(V.sl||1))}</td></tr>`).join('')}
+   <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td>${V.hasLoai?V.loais.length+' phân loại':'—'}</td><td class="n">${fmtn(V.sl)}</td><td class="n">${fmtn(V.tien)}</td><td class="n">100%</td></tr>
+  </tbody></table></div>
+  <div class="small" style="margin-top:6px">${V.useAll?'Tab thiếu cột ngày (hoặc ngày trống) nên hiển thị toàn bộ dữ liệu, không lọc theo phạm vi.':'Đã lọc theo phạm vi '+scopeLabel()+'.'} Hoàn Gift Card và các loại hoàn khác sẽ nối thêm cùng khuôn khi có nguồn.</div></div>`;}
+function mkHoanNickCharts(V){if(!V)return;
+ const top=V.ctvs.slice(0,12);
+ mk("p12c",{type:'bar',data:{labels:top.map(x=>x.ctv),datasets:[{data:top.map(x=>x.sl),backgroundColor:'#7c3aed'}]},options:hbarOpt()});
+ const dsrc=(V.hasLoai?V.loais:V.ctvs.slice(0,8)).map(x=>[x.loai||x.ctv,x.sl]);
+ mk("p12d",donut(dsrc.map(x=>x[0]),dsrc.map(x=>x[1]),BLUE));}
 /* ===== PVH4: giá vốn bình quân GIA QUYỀN theo tháng (loại dòng tiền = 0) — Robux · Razer Gold ===== */
 const COSTCFG={
  robux:{gid:'386815906',sp:'Robux',unit:'robux',don:'nick dồn',cur:'đ',dec:2,
@@ -1576,7 +1648,7 @@ function renderSRC(){const host=document.getElementById('content');
  /* nhóm tab theo file nguồn */
  const groups=[
   ['FILE CHÍNH — Google Sheet vận hành',[
-   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847']]],
+   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN (PVH10)',[['SLA theo năm','1982526665','sla'],['SLA theo ngày/tháng','511745866','sla']]]];
