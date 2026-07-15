@@ -1242,75 +1242,93 @@ async function nickStatusRecs(){if(NICKST!==undefined)return NICKST;
  let recs=nickStatusFromRows(await loadCSV(directURL(RAWCFG.nick.gid)));
  if(!recs)recs=nickStatusFromRows(await loadCSV(apiURL(RAWCFG.nick.gid)));
  NICKST=recs;return NICKST;}
-/* ===== PVH12: HOÀN NICK — tab riêng "Hoàn nick theo CTV / phân loại CTV" trong file chính =====
-   Tự dò dòng tiêu đề theo tên cột; nếu dò trượt sẽ hiện dữ liệu thô để đối chiếu chỉnh cột. */
+/* ===== PVH12: HOÀN NICK — khối "THỐNG KÊ HOÀN TIỀN THEO THÁNG - CTV" trong tab riêng =====
+   Cấu trúc thật: 2 tầng tiêu đề — tầng trên: [tiêu đề khối] · TỔNG · T1..T12,
+   tầng dưới: STT · PL CTV · CTV · TỶ LỆ · [tổng cột] · [tiền từng tháng]. Khối nằm sâu trong tab nên quét toàn bộ dòng. */
 const GID_HOAN_NICK="182113446";
 let HOANNK,HOANNK_ROWS=null;
 function parseHoanNick(rows){
- if(!rows||rows.length<2)return null;
+ if(!rows||rows.length<3)return null;
  const nm=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
- let H=-1,iCTV=-1,iLoai=-1,iSL=-1,iTien=-1,iNgay=-1,iLydo=-1;
- for(let r=0;r<Math.min(rows.length,30);r++){const row=(rows[r]||[]).map(x=>nm(x).toLowerCase());
-  const f=re=>row.findIndex(x=>re.test(x));
-  const ctv=f(/\bctv\b|cộng\s*tác\s*viên/),loai=f(/phân\s*loại|loại\s*ctv|nhóm\s*ctv|hạng\s*ctv/);
-  const sl=f(/số\s*(lượng\s*)?nick|sl\s*nick|sl\s*hoàn|số\s*lượng|số\s*đơn/),
-        tien=f(/tiền\s*hoàn|giá\s*trị\s*hoàn|chi\s*phí\s*hoàn|thành\s*tiền|số\s*tiền|tổng\s*tiền/);
-  if((ctv>-1||loai>-1)&&(sl>-1||tien>-1)){H=r;iCTV=ctv;iLoai=loai;iSL=sl;iTien=tien;
-   iNgay=f(/ngày|thời\s*gian|date/);iLydo=f(/lý\s*do|loại\s*lỗi|nguyên\s*nhân/);break;}}
- if(H<0)return null;
- const recs=[];
- for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
-  const ctv=iCTV>-1?nm(row[iCTV]):'',loai=iLoai>-1?nm(row[iLoai]):'';
-  if(!ctv&&!loai)continue;
-  if(/^tổng/i.test(ctv)||/^tổng/i.test(loai))continue; /* bỏ dòng tổng của file — app tự cộng */
-  const sl=iSL>-1?num(row[iSL]):1,tien=iTien>-1?num(row[iTien]):0;
-  if(!(sl>0)&&!(tien>0))continue;
-  const dt=iNgay>-1?parseDateCell(row[iNgay]):null;
-  recs.push({ctv:ctv||'—',loai,sl:sl>0?sl:1,tien,
-   dk:(dt&&dt.mo>=0&&dt.mo<12)?dkey(dt.mo,dt.d):null,lydo:iLydo>-1?nm(row[iLydo]):''});}
- return recs.length?recs:null;}
+ const lo=x=>nm(x).toLowerCase();
+ /* ưu tiên dò theo tiêu đề khối; không thấy thì dò dòng có STT + CTV bất kỳ */
+ let tRow=-1;
+ for(let r=0;r<rows.length;r++){if((rows[r]||[]).some(x=>/thống\s*kê\s*hoàn\s*tiền\s*theo\s*tháng/.test(lo(x)))){tRow=r;break;}}
+ let R=-1,iPL=-1,iCTV=-1,iTyle=-1;
+ const from=tRow>-1?tRow:1,upto=tRow>-1?Math.min(rows.length,tRow+4):rows.length;
+ for(let r=from;r<upto;r++){const row=(rows[r]||[]).map(lo);
+  const stt=row.findIndex(x=>x==='stt'),ctv=row.findIndex(x=>x==='ctv');
+  if(stt>-1&&ctv>-1){R=r;iCTV=ctv;iPL=row.findIndex(x=>/^pl\s*ctv$|phân\s*loại/.test(x));
+   iTyle=row.findIndex(x=>/tỷ\s*lệ/.test(x));break;}}
+ if(R<1)return null;
+ /* tầng tiêu đề trên: nhãn TỔNG + T1..T12 */
+ const above=(rows[R-1]||[]).map(lo);
+ const iTong=above.findIndex(x=>/^tổng$/.test(x));
+ const mcols=[];above.forEach((x,c)=>{const m=x.match(/^t\s*(\d{1,2})$/);if(m&&+m[1]>=1&&+m[1]<=12)mcols.push([c,+m[1]-1]);});
+ if(iTong<0&&!mcols.length)return null;
+ /* dòng STT/CTV mang luôn TỔNG CỘT của khối (ngay dưới nhãn TỔNG/T..) — giữ để đối soát */
+ const hdr={tong:iTong>-1?num((rows[R]||[])[iTong]):0,months:Array(12).fill(0)};
+ mcols.forEach(([c,mi])=>{hdr.months[mi]=num((rows[R]||[])[c]);});
+ const recs=[];let emptyStreak=0;
+ for(let r=R+1;r<rows.length;r++){const row=rows[r]||[];
+  const ctv=nm(row[iCTV]);
+  if(!ctv){if(++emptyStreak>2)break;continue;}
+  emptyStreak=0;
+  if(/^tổng/i.test(ctv))continue;
+  const months=Array(12).fill(0);
+  mcols.forEach(([c,mi])=>{months[mi]=num(row[c]);});
+  const tong=iTong>-1?num(row[iTong]):months.reduce((a,b)=>a+b,0);
+  if(!(tong>0)&&!months.some(v=>v>0))continue;
+  recs.push({ctv,loai:iPL>-1?nm(row[iPL]):'',tyle:iTyle>-1?nm(row[iTyle]):'',tong,months});}
+ return recs.length?{recs,hdr,hasMonths:mcols.length>0}:null;}
 async function hoanNickData(){if(HOANNK!==undefined)return HOANNK;
  let rows=await loadCSV(directURL(GID_HOAN_NICK));let L=parseHoanNick(rows);
  if(!L){const r2=await loadCSV(apiURL(GID_HOAN_NICK));if(r2)rows=r2;L=parseHoanNick(rows);}
- HOANNK_ROWS=rows?rows.slice(0,10):null;HOANNK=L;return HOANNK;}
-/* áp bộ lọc thời gian (nếu tab có cột ngày) rồi gom theo CTV & phân loại */
+ if(rows){let at=rows.findIndex(r=>(r||[]).some(x=>/^stt$/i.test((''+x).trim())));if(at<0)at=0;
+  HOANNK_ROWS=rows.slice(Math.max(0,at-1),Math.max(0,at-1)+10);}else HOANNK_ROWS=null;
+ HOANNK=L;return HOANNK;}
+/* cộng tiền các THÁNG nằm trong bộ lọc Ngày/Tháng/Năm rồi gom theo CTV & phân loại */
 function hoanNickView(HN){
  if(!HN)return null;
- const dated=HN.filter(r=>r.dk);
- const useAll=dated.length<HN.length*0.3;
- const fk=iso(FROM),tk=iso(TO);
- const list=useAll?HN:dated.filter(r=>r.dk>=fk&&r.dk<=tk);
- const byCTV={},byLoai={};let sl=0,tien=0;
- list.forEach(r=>{sl+=r.sl;tien+=r.tien;
-  const c=byCTV[r.ctv]=byCTV[r.ctv]||{sl:0,tien:0,loai:r.loai};c.sl+=r.sl;c.tien+=r.tien;if(!c.loai&&r.loai)c.loai=r.loai;
-  const k=r.loai||'Chưa phân loại';const l=byLoai[k]=byLoai[k]||{sl:0,tien:0};l.sl+=r.sl;l.tien+=r.tien;});
- const ctvs=Object.entries(byCTV).map(([k,v])=>Object.assign({ctv:k},v)).sort((a,b)=>b.sl-a.sl||b.tien-a.tien);
- const loais=Object.entries(byLoai).map(([k,v])=>Object.assign({loai:k},v)).sort((a,b)=>b.sl-a.sl);
- return {ctvs,loais,sl,tien,useAll,hasLoai:loais.some(x=>x.loai!=='Chưa phân loại'),hasTien:tien>0};}
+ const tmn=Object.keys(monthsInRange()).map(Number).sort((a,b)=>a-b);
+ const inR=r=>HN.hasMonths?tmn.reduce((a,mi)=>a+(r.months[mi]||0),0):r.tong;
+ const ctvs=HN.recs.map(r=>({ctv:r.ctv,loai:r.loai,tyle:r.tyle,vv:inR(r),nam:r.tong}))
+  .filter(x=>x.vv>0||x.nam>0).sort((a,b)=>b.vv-a.vv||b.nam-a.nam);
+ const tien=ctvs.reduce((a,x)=>a+x.vv,0);
+ const byLoai={};ctvs.forEach(x=>{const k=x.loai||'Chưa phân loại';byLoai[k]=(byLoai[k]||0)+x.vv;});
+ const loais=Object.entries(byLoai).filter(x=>x[1]>0).sort((a,b)=>b[1]-a[1]);
+ const monthly=Array(12).fill(0);if(HN.hasMonths)HN.recs.forEach(r=>r.months.forEach((v,mi)=>monthly[mi]+=v));
+ return {ctvs,loais,tien,monthly,namTong:HN.hdr.tong,hasMonths:HN.hasMonths,
+  hasLoai:loais.some(x=>x[0]!=='Chưa phân loại')};}
 function hoanNickSection(V){
- const head=`<div style="margin:2px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">🔁 Hoàn nick — chi tiết theo CTV / phân loại CTV</div>`;
+ const head=`<div style="margin:2px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">🔁 Hoàn nick — tiền hoàn theo CTV / phân loại CTV</div>`;
  if(!V){const sample=HOANNK_ROWS||[];
-  const prev=sample.length?`<div class="card" style="margin:12px 0"><h3>Tab Hoàn nick — dữ liệu thô đọc về (10 dòng đầu × 12 cột) — chụp màn hình gửi lại để chỉnh cột</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:12},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:12},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,16))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'';
-  return head+`<div class="note" style="margin-bottom:13px"><b>Không đọc được tab Hoàn nick</b> (gid ${GID_HOAN_NICK})${sample.length?' — đọc được dữ liệu nhưng không dò ra cột (cần cột CTV/Phân loại CTV + Số nick hoặc Số tiền hoàn)':' — không tải được CSV (tab chưa Publish to web? — test trong trang Nguồn &amp; Cấu hình)'}.<br><button class="btn" style="margin-top:8px" onclick="HOANNK=undefined;HOANNK_ROWS=null;render()">↻ Thử lại</button></div>${prev}`;}
- const top=V.ctvs[0];
+  const prev=sample.length?`<div class="card" style="margin:12px 0"><h3>Tab Hoàn nick — dữ liệu thô quanh dòng tiêu đề (10 dòng × 17 cột) — chụp màn hình gửi lại để chỉnh cột</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:17},(_,c)=>`<th>${c+1}</th>`).join('')}</tr></thead><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:17},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,14))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'';
+  return head+`<div class="note" style="margin-bottom:13px"><b>Không đọc được khối "THỐNG KÊ HOÀN TIỀN THEO THÁNG - CTV"</b> (gid ${GID_HOAN_NICK})${sample.length?' — đọc được dữ liệu nhưng không dò ra tiêu đề STT/CTV + TỔNG/T1..T12':' — không tải được CSV (tab chưa Publish to web? — test trong trang Nguồn &amp; Cấu hình)'}.<br><button class="btn" style="margin-top:8px" onclick="HOANNK=undefined;HOANNK_ROWS=null;render()">↻ Thử lại</button></div>${prev}`;}
+ const top=V.ctvs[0];const nCo=V.ctvs.filter(x=>x.vv>0).length;
+ const sumNam=V.ctvs.reduce((a,x)=>a+x.nam,0);
+ const dsSo=V.namTong>0?(Math.abs(V.namTong-sumNam)<=Math.max(1,Math.round(V.namTong*0.001))
+  ?`<span style="color:#4ade80">✓ khớp tổng ${fmt(V.namTong)} trên file</span>`:`tổng trên file: ${fmt(V.namTong)}`):"Σ cột TỔNG";
  return head+`
   <div class="kpis">
-   ${kpi("Nick hoàn",fmtn(V.sl),V.useAll?"toàn bộ dữ liệu tab":scopeLabel())}
-   ${kpi("Tiền hoàn",V.hasTien?fmt(V.tien):"—",V.hasTien?"tổng giá trị hoàn":"tab chưa có cột tiền")}
-   ${kpi("CTV có hoàn",fmtn(V.ctvs.length),V.hasLoai?V.loais.length+" phân loại":"")}
-   ${kpi("Hoàn nhiều nhất",top?top.ctv:"—",top?fmtn(top.sl)+" nick"+(top.tien?" · "+fmt(top.tien)+" đ":""):"")}
+   ${kpi("Tiền hoàn nick",fmt(V.tien),V.hasMonths?scopeLabel()+" (cộng theo tháng)":"cả kỳ trên file")}
+   ${kpi("Cả năm (trên file)",fmt(V.namTong||sumNam),dsSo)}
+   ${kpi("CTV có hoàn",fmtn(nCo),V.hasLoai?V.loais.length+" phân loại":"trong phạm vi lọc")}
+   ${kpi("Hoàn nhiều nhất",top?top.ctv:"—",top?fmt(top.vv)+" đ"+(top.loai?" · "+top.loai:""):"")}
   </div>
-  <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Hoàn nick theo CTV — top 12","p12c")}${cc(V.hasLoai?"Cơ cấu hoàn theo phân loại CTV":"Cơ cấu hoàn theo CTV","p12d")}</div>
-  <div class="card"><h3>Bảng hoàn nick theo CTV — ${V.ctvs.length} CTV</h3><div class="scroll" style="max-height:420px"><table class="tbl"><thead><tr><th>CTV</th><th>Phân loại</th><th class="n">Nick hoàn</th><th class="n">Tiền hoàn</th><th class="n">% tổng nick</th></tr></thead><tbody>
-   ${V.ctvs.map(c=>`<tr><td>${c.ctv}</td><td>${c.loai||'—'}</td><td class="n">${fmtn(c.sl)}</td><td class="n">${fmtn(c.tien)}</td><td class="n">${pct(c.sl/(V.sl||1))}</td></tr>`).join('')}
-   <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td>${V.hasLoai?V.loais.length+' phân loại':'—'}</td><td class="n">${fmtn(V.sl)}</td><td class="n">${fmtn(V.tien)}</td><td class="n">100%</td></tr>
+  <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tiền hoàn theo CTV — top 12 trong phạm vi","p12c")}${cc(V.hasLoai?"Cơ cấu tiền hoàn theo phân loại CTV":"Cơ cấu tiền hoàn theo CTV","p12d")}</div>
+  ${V.hasMonths?`<div class="grid2" style="grid-template-columns:1fr">${cc("Tiền hoàn nick theo tháng — cả năm","p12e")}</div>`:''}
+  <div class="card"><h3>Bảng tiền hoàn theo CTV — ${V.ctvs.length} CTV</h3><div class="scroll" style="max-height:420px"><table class="tbl"><thead><tr><th>CTV</th><th>Phân loại</th><th class="n">Tiền hoàn (phạm vi)</th><th class="n">% tổng</th><th class="n">Tỷ lệ (file)</th><th class="n">Cả năm (file)</th></tr></thead><tbody>
+   ${V.ctvs.map(c=>`<tr><td>${c.ctv}</td><td>${c.loai||'—'}</td><td class="n">${fmtn(c.vv)}</td><td class="n">${pct(c.vv/(V.tien||1))}</td><td class="n">${c.tyle||'—'}</td><td class="n">${fmtn(c.nam)}</td></tr>`).join('')}
+   <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td>${V.hasLoai?V.loais.length+' phân loại':'—'}</td><td class="n">${fmtn(V.tien)}</td><td class="n">100%</td><td class="n">—</td><td class="n">${fmtn(V.namTong||sumNam)}</td></tr>
   </tbody></table></div>
-  <div class="small" style="margin-top:6px">${V.useAll?'Tab thiếu cột ngày (hoặc ngày trống) nên hiển thị toàn bộ dữ liệu, không lọc theo phạm vi.':'Đã lọc theo phạm vi '+scopeLabel()+'.'} Hoàn Gift Card và các loại hoàn khác sẽ nối thêm cùng khuôn khi có nguồn.</div></div>`;}
+  <div class="small" style="margin-top:6px">Nguồn: khối "THỐNG KÊ HOÀN TIỀN THEO THÁNG - CTV" (đơn vị VND). ${V.hasMonths?'Cột "Tiền hoàn (phạm vi)" cộng các THÁNG nằm trong bộ lọc; biểu đồ theo tháng luôn hiển thị cả năm.':'Khối không có cột T1..T12 nên hiển thị theo cột TỔNG.'} "Tỷ lệ" lấy nguyên trạng từ file. Hoàn Gift Card và các loại hoàn khác sẽ nối thêm cùng khuôn khi có nguồn.</div></div>`;}
 function mkHoanNickCharts(V){if(!V)return;
- const top=V.ctvs.slice(0,12);
- mk("p12c",{type:'bar',data:{labels:top.map(x=>x.ctv),datasets:[{data:top.map(x=>x.sl),backgroundColor:'#7c3aed'}]},options:hbarOpt()});
- const dsrc=(V.hasLoai?V.loais:V.ctvs.slice(0,8)).map(x=>[x.loai||x.ctv,x.sl]);
- mk("p12d",donut(dsrc.map(x=>x[0]),dsrc.map(x=>x[1]),BLUE));}
+ const top=V.ctvs.filter(x=>x.vv>0).slice(0,12);
+ mk("p12c",{type:'bar',data:{labels:top.map(x=>x.ctv),datasets:[{data:top.map(x=>x.vv),backgroundColor:'#7c3aed'}]},options:hbarOpt()});
+ const dsrc=V.hasLoai?V.loais:V.ctvs.slice(0,8).map(x=>[x.ctv,x.vv]);
+ mk("p12d",donut(dsrc.map(x=>x[0]),dsrc.map(x=>x[1]),BLUE));
+ if(V.hasMonths)mk("p12e",{type:'bar',data:{labels:MN,datasets:[{data:V.monthly,backgroundColor:'#fb923c',borderRadius:2}]},options:barOpt(false)});}
 /* ===== PVH4: giá vốn bình quân GIA QUYỀN theo tháng (loại dòng tiền = 0) — Robux · Razer Gold ===== */
 const COSTCFG={
  robux:{gid:'386815906',sp:'Robux',unit:'robux',don:'nick dồn',cur:'đ',dec:2,
