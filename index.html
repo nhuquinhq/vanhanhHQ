@@ -814,10 +814,16 @@ const PAGES={
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
    });
  }},
- PVH10:{title:"PVH10 · Năng suất xử lý đơn Gamepass (SLA/Accuracy)",meta:"Nguồn: Báo cáo Năng xuất Xử lý đơn 2026 — tab Theo tháng (báo cáo ngày, lọc Từ–Đến) + tab Theo năm (nhân sự × tháng)",render(host){
-   host.innerHTML=spinner("Đang đọc Báo cáo Năng xuất Xử lý đơn…");
-   Promise.all([slaRows('ngay'),slaRows('nam')]).then(([Rn,Ry])=>{
+ PVH10:{title:"PVH10 · Năng suất xử lý đơn thủ công (SLA/Accuracy)",meta:"Đơn thủ công = Gamepass + nạp game Pokémon · Nguồn: Báo cáo Năng xuất Xử lý đơn 2026",render(host){
+   host.innerHTML=spinner("Đang đọc Báo cáo Năng suất Xử lý đơn (tổng + Gamepass + Pokémon)…");
+   Promise.all([slaRows('ngay'),slaRows('nam'),slaRows('tc'),slaRows('pk')]).then(([Rn,Ry,Rt,Rp])=>{
      let h='',insEnd='';const charts=[];
+     const SEC=t=>`<div style="margin:18px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">${t}</div>`;
+     /* ---- 1) TỔNG ĐƠN XỬ LÝ THỦ CÔNG (gộp cả 2 loại) ---- */
+     const gTC=slaGenericSection(Rt,SLA_GIDS.tc,'tc','p10t','Tổng đơn xử lý thủ công');
+     h+=SEC('📌 Tổng đơn xử lý thủ công — Gamepass + Pokémon')+gTC.html;charts.push.apply(charts,gTC.charts);
+     /* ---- 2) CHI TIẾT ĐƠN GAMEPASS (báo cáo cũ giữ nguyên) ---- */
+     h+=SEC('🎮 Chi tiết — đơn Gamepass');
      const T=parseSlaThang(Rn);
      const fk=iso(FROM),tk=iso(TO);
      if(!T){const sample=(Rn||[]).slice(0,10);
@@ -879,7 +885,11 @@ const PAGES={
        const topS=Y.staff.slice(0,16);
        charts.push({id:'p10s',labels:topS.map(st=>st.name),hbar:topS.map(st=>st.yr)});
      }
-     host.innerHTML=h+insEnd;
+     h+=insEnd;
+     /* ---- 3) CHI TIẾT ĐƠN NẠP GAME POKÉMON ---- */
+     const gPK=slaGenericSection(Rp,SLA_GIDS.pk,'pk','p10p','Đơn nạp game Pokémon');
+     h+=SEC('🐾 Chi tiết — đơn nạp game Pokémon')+gPK.html;charts.push.apply(charts,gPK.charts);
+     host.innerHTML=h;
      charts.forEach(ch=>{
        if(ch.s1)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{label:'Phát sinh',data:ch.s1,backgroundColor:'#7cc4f7'},{label:'Hoàn tất',data:ch.s2,backgroundColor:'#1e5fd0'}]},options:barOpt(true)});
        else if(ch.bar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.bar,backgroundColor:'#2e86e6',borderRadius:2}]},options:barOpt(false)});
@@ -1466,7 +1476,7 @@ function mkKhoCharts(K){if(!K)return;
 
 /* ===== PVH10: SLA/Accuracy đơn Gamepass — FILE RIÊNG "Báo cáo Năng xuất Xử lý đơn 2026" ===== */
 const BASE_SLA="https://docs.google.com/spreadsheets/d/e/2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W/pub";
-const SLA_GIDS={nam:'1982526665',ngay:'511745866'};
+const SLA_GIDS={nam:'1982526665',ngay:'511745866',tc:'1496740945',pk:'287243650'}; /* tc: tổng đơn thủ công · pk: đơn Pokémon */
 function slaURL(gid){return BASE_SLA+"?gid="+gid+"&single=true&output=csv";}
 function slaApiURL(gid){return "/api/csv?f=sla&gid="+gid;}
 const SLAD={};
@@ -1528,6 +1538,55 @@ function parseSlaNam(rows){
  if(!staff.length&&yByM==null)return null;
  if(yByM==null){yByM=Array.from({length:12},(_,i)=>staff.reduce((a,st)=>a+st.m[i],0));yTot=yByM.reduce((a,b)=>a+b,0);}
  return {yTot,yByM,staff:staff.sort((a,b)=>b.yr-a.yr)};}
+/* --- khối hiển thị chung cho 1 tab SLA bất kỳ (PVH10): tự nhận dạng "Theo năm" / "Theo tháng", trượt cả 2 thì hiện dữ liệu thô --- */
+function slaGenericSection(rows,gid,key,pfx,label){
+ const charts=[];let html='';
+ const Y=parseSlaNam(rows);
+ const T=Y?null:parseSlaThang(rows);
+ if(Y){
+  const hiM=Y.yByM.indexOf(Math.max.apply(null,Y.yByM));
+  const tmn=Object.keys(monthsInRange()).map(Number).sort((a,b)=>a-b);
+  const inScope=tmn.reduce((a,mi)=>a+(Y.yByM[mi]||0),0);
+  html=`<div class="kpis">
+   ${kpi("Đơn trong phạm vi",fmt(inScope),scopeLabel()+" (cộng theo tháng)")}
+   ${kpi("Cả năm",fmt(Y.yTot),"đỉnh T"+pad2(hiM+1)+" ("+fmt(Y.yByM[hiM])+")")}
+   ${kpi("Số dòng thống kê",fmtn(Y.staff.length),"nhân sự / loại đơn có phát sinh")}
+   ${kpi("Nhiều nhất",Y.staff[0]?Y.staff[0].name:"—",Y.staff[0]?fmt(Y.staff[0].yr)+" đơn cả năm":"")}
+  </div>
+  <div class="grid2">${cc(label+" — theo tháng",pfx+"y")}${cc(label+" — cơ cấu cả năm",pfx+"s")}</div>
+  <div class="card"><h3>${label} — chi tiết × tháng</h3><div class="scroll" style="max-height:300px"><table class="tbl"><thead><tr><th></th><th class="n">Cả năm</th>${MN.map(m=>`<th class="n">${m}</th>`).join('')}</tr></thead><tbody>
+  ${Y.staff.map(st=>`<tr><td>${st.name}</td><td class="n"><b>${fmt(st.yr)}</b></td>${st.m.map(v=>`<td class="n">${fmtn(v)}</td>`).join('')}</tr>`).join('')}
+  <tr style="font-weight:bold;background:#eef4ff"><td>Tổng NĂM</td><td class="n">${fmt(Y.yTot)}</td>${Y.yByM.map(v=>`<td class="n">${fmtn(v)}</td>`).join('')}</tr></tbody></table></div></div>`;
+  const topS=Y.staff.slice(0,16);
+  charts.push({id:pfx+'y',labels:MN,bar:Y.yByM},{id:pfx+'s',labels:topS.map(s=>s.name),hbar:topS.map(s=>s.yr)});
+ }else if(T){
+  const fk=iso(FROM),tk=iso(TO);
+  const days=T.dateCols.filter(dc=>dc.dk>=fk&&dc.dk<=tk);
+  if(!days.length)html=`<div class="note">Tab "${label}" hiện chứa ${T.dateCols.length} ngày (${T.dateCols[0].dk.slice(5)} → ${T.dateCols[T.dateCols.length-1].dk.slice(5)}) — ngoài phạm vi ${scopeLabel()}. Chỉnh Từ–Đến trùm tháng đang báo cáo.</div>`;
+  else{
+   const sum=row=>row?days.reduce((a,dc)=>a+(row.daily[dc.dk]||0),0):0;
+   const meanPos=row=>{if(!row)return 0;let s=0,n=0;days.forEach(dc=>{const v=row.daily[dc.dk];if(v!=null&&v>0){s+=v;n++;}});return n?s/n:0;};
+   const tong=b=>b&&(b.rows.find(r=>/^tổng/i.test(r.name))||b.rows[0]);
+   const ps0=T.ps&&T.ps.rows[0],htT=tong(T.ht),ltT=tong(T.lt),pcT=tong(T.pc),hy0=T.hy&&T.hy.rows[0];
+   const psS=sum(ps0),htS=sum(htT),ltM=meanPos(ltT),pcM=meanPos(pcT),hyS=sum(hy0);
+   const f1=n=>n.toLocaleString('vi-VN',{minimumFractionDigits:1,maximumFractionDigits:1});
+   html=`<div class="kpis" style="grid-template-columns:repeat(5,1fr)">
+    ${kpi("Đơn phát sinh",fmt(psS),days.length+" ngày trong phạm vi")}
+    ${kpi("Đơn hoàn tất",fmt(htS),fmt(Math.round(htS/(days.length||1)))+" đơn/ngày")}
+    ${kpi("Lead time TB",ltM?f1(ltM)+" h":"—",T.lt&&T.lt.kpi?"KPI "+T.lt.kpi:"")}
+    ${kpi("Đạt KPI leadtime",pcM?f1(pcM)+"%":"—",T.pc&&T.pc.kpi?"mốc "+T.pc.kpi:"")}
+    ${kpi("Đơn hủy",fmt(hyS),"trong phạm vi")}
+   </div>
+   <div class="grid2" style="grid-template-columns:1fr">${cc(label+" — phát sinh vs hoàn tất theo ngày",pfx+"d")}</div>`;
+   charts.push({id:pfx+'d',labels:days.map(dc=>dc.dk.slice(8,10)+'/'+dc.dk.slice(5,7)),
+    s1:days.map(dc=>ps0?(ps0.daily[dc.dk]||0):0),s2:days.map(dc=>htT?(htT.daily[dc.dk]||0):0)});
+  }
+ }else{
+  const sample=(rows||[]).slice(0,10);
+  html=`<div class="note"><b>Không đọc được tab "${label}"</b> (gid ${gid})${sample.length?' — không khớp dạng "Theo năm" (hàng Tháng 1..12) hay "Theo tháng" (hàng Ngày + cột 01/07…)':' — không tải được CSV (kiểm tra Publish to web / trang Nguồn &amp; Cấu hình)'}.<br><button class="btn" style="margin-top:8px" onclick="delete SLAD.${key};render()">↻ Thử lại</button></div>`
+  +(sample.length?`<div class="card" style="margin-top:12px"><h3>${label} — dữ liệu thô (10 dòng × 14 cột), chụp màn hình gửi lại để chỉnh</h3><div class="scroll"><table class="tbl"><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'');
+ }
+ return {html,charts};}
 
 /* ===== PVH5: ma trận giá SKU × NCC — bình quân gia quyền trong khoảng lọc (Gift Card trước) ===== */
 const PRICECFG={gc:{gid:'1043029815',sp:'Gift Card',cur:'$'}};
@@ -1669,7 +1728,7 @@ function renderSRC(){const host=document.getElementById('content');
    ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
-  ['FILE NĂNG SUẤT XỬ LÝ ĐƠN GAMEPASS (PVH10)',[['SLA theo năm','1982526665','sla'],['SLA theo ngày/tháng','511745866','sla']]]];
+  ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
   `<div class="kpis">
