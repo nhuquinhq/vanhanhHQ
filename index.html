@@ -814,7 +814,7 @@ const PAGES={
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
    });
  }},
- PVH10:{title:"PVH10 · Năng suất xử lý đơn (SLA/Accuracy)",meta:"Nguồn: Báo cáo Năng xuất Xử lý đơn 2026 — tab Theo tháng (báo cáo ngày, lọc Từ–Đến) + tab Theo năm (nhân sự × tháng)",render(host){
+ PVH10:{title:"PVH10 · Năng suất xử lý đơn Gamepass (SLA/Accuracy)",meta:"Nguồn: Báo cáo Năng xuất Xử lý đơn 2026 — tab Theo tháng (báo cáo ngày, lọc Từ–Đến) + tab Theo năm (nhân sự × tháng)",render(host){
    host.innerHTML=spinner("Đang đọc Báo cáo Năng xuất Xử lý đơn…");
    Promise.all([slaRows('ngay'),slaRows('nam')]).then(([Rn,Ry])=>{
      let h='',insEnd='';const charts=[];
@@ -1464,7 +1464,7 @@ function mkKhoCharts(K){if(!K)return;
  mk("p6c",{type:'bar',data:{labels:src.filter(x=>x.ton>0).map(x=>x.label),datasets:[{data:src.filter(x=>x.ton>0).map(x=>x.ton),backgroundColor:'#0e7c86'}]},options:hbarOpt()});
  mk("p6d",{type:'bar',data:{labels:src.map(x=>x.label),datasets:[{label:'CO tồn',data:src.map(x=>x.ton),backgroundColor:'#1e5fd0'},{label:'CO bán 30 ngày',data:src.map(x=>x.ban),backgroundColor:'#34d399'}]},options:barOpt(true)});}
 
-/* ===== PVH10: SLA/Accuracy — FILE RIÊNG "Báo cáo Năng xuất Xử lý đơn 2026" ===== */
+/* ===== PVH10: SLA/Accuracy đơn Gamepass — FILE RIÊNG "Báo cáo Năng xuất Xử lý đơn 2026" ===== */
 const BASE_SLA="https://docs.google.com/spreadsheets/d/e/2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W/pub";
 const SLA_GIDS={nam:'1982526665',ngay:'511745866'};
 function slaURL(gid){return BASE_SLA+"?gid="+gid+"&single=true&output=csv";}
@@ -1669,7 +1669,7 @@ function renderSRC(){const host=document.getElementById('content');
    ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
-  ['FILE NĂNG SUẤT XỬ LÝ ĐƠN (PVH10)',[['SLA theo năm','1982526665','sla'],['SLA theo ngày/tháng','511745866','sla']]]];
+  ['FILE NĂNG SUẤT XỬ LÝ ĐƠN GAMEPASS (PVH10)',[['SLA theo năm','1982526665','sla'],['SLA theo ngày/tháng','511745866','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
   `<div class="kpis">
