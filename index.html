@@ -820,7 +820,7 @@ const PAGES={
      let h='',insEnd='';const charts=[];
      const SEC=t=>`<div style="margin:18px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">${t}</div>`;
      /* ---- 1) TỔNG ĐƠN XỬ LÝ THỦ CÔNG (gộp cả 2 loại) ---- */
-     const gTC=slaGenericSection(Rt,SLA_GIDS.tc,'tc','p10t','Tổng đơn xử lý thủ công');
+     const gTC=slaTongTCSection(Rt);
      h+=SEC('📌 Tổng đơn xử lý thủ công — Gamepass + Pokémon')+gTC.html;charts.push.apply(charts,gTC.charts);
      /* ---- 2) CHI TIẾT ĐƠN GAMEPASS (báo cáo cũ giữ nguyên) ---- */
      h+=SEC('🎮 Chi tiết — đơn Gamepass');
@@ -893,7 +893,10 @@ const PAGES={
      charts.forEach(ch=>{
        if(ch.s1)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{label:'Phát sinh',data:ch.s1,backgroundColor:'#7cc4f7'},{label:'Hoàn tất',data:ch.s2,backgroundColor:'#1e5fd0'}]},options:barOpt(true)});
        else if(ch.bar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.bar,backgroundColor:'#2e86e6',borderRadius:2}]},options:barOpt(false)});
-       else if(ch.hbar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.hbar,backgroundColor:'#1e5fd0'}]},options:hbarOpt()});});
+       else if(ch.hbar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.hbar,backgroundColor:'#1e5fd0'}]},options:hbarOpt()});
+       else if(ch.stack)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:ch.stack},
+         options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
+       else if(ch.dlabels)mk(ch.id,donut(ch.dlabels,ch.ddata,BLUE));});
    });
  }},
  PVH12:{title:"PVH12 · Báo cáo Hoàn (nick/đơn)",meta:"Hoàn nick: tab riêng theo CTV/phân loại CTV · Trạng thái nick: Data Nick Roblox (realtime)",render(host){
@@ -1586,6 +1589,56 @@ function slaGenericSection(rows,gid,key,pfx,label){
   html=`<div class="note"><b>Không đọc được tab "${label}"</b> (gid ${gid})${sample.length?' — không khớp dạng "Theo năm" (hàng Tháng 1..12) hay "Theo tháng" (hàng Ngày + cột 01/07…)':' — không tải được CSV (kiểm tra Publish to web / trang Nguồn &amp; Cấu hình)'}.<br><button class="btn" style="margin-top:8px" onclick="delete SLAD.${key};render()">↻ Thử lại</button></div>`
   +(sample.length?`<div class="card" style="margin-top:12px"><h3>${label} — dữ liệu thô (10 dòng × 14 cột), chụp màn hình gửi lại để chỉnh</h3><div class="scroll"><table class="tbl"><tbody>${sample.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'');
  }
+ return {html,charts};}
+/* --- tab "Tổng đơn xử lý thủ công": hàng Ngày (01/07…) + cột Total, các dòng "Số đơn <loại>" (gamepass, pokemon, …) --- */
+function parseSlaTongTC(rows){
+ if(!rows||rows.length<3)return null;
+ let HR=-1,dateCols=null;
+ for(let r=0;r<Math.min(rows.length,12);r++){const row=rows[r]||[];
+  const iN=row.findIndex(x=>slaN(x).toLowerCase()==='ngày');if(iN<0)continue;
+  const cols=[];for(let c=iN+1;c<row.length;c++){const m=slaN(row[c]).match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{4})?$/);
+   if(m){const dd=+m[1],mo=+m[2];if(mo>=1&&mo<=12&&dd>=1&&dd<=31)cols.push({ci:c,dk:dkey(mo-1,dd)});}}
+  if(cols.length>=5){HR=r;dateCols=cols;break;}}
+ if(HR<0)return null;
+ let iTot=-1;
+ for(let r=HR;r<Math.min(rows.length,HR+4)&&iTot<0;r++)iTot=(rows[r]||[]).findIndex(x=>/^total$/i.test(slaN(x)));
+ const lab=r=>{const row=rows[r]||[];for(let c=0;c<Math.min(row.length,4);c++){const v=slaN(row[c]);if(v)return v;}return '';};
+ let kpiTxt='';const types=[];
+ for(let r=HR+1;r<rows.length;r++){const l=lab(r);if(!l)continue;
+  if(/số\s*lượng\s*thủ\s*công/i.test(l)){kpiTxt=(rows[r]||[]).map(slaN).filter(x=>x&&!/số\s*lượng|^kpi$/i.test(x)).join(' ');continue;}
+  if(!/^số\s*đơn/i.test(l))continue;
+  const row=rows[r]||[];const daily={};let any=false;
+  dateCols.forEach(dc=>{const v=slaN(row[dc.ci]);if(v!==''){daily[dc.dk]=num(v);any=true;}});
+  /* Total: đúng cột — không có thì thử cột kế (ô gộp) — vẫn không có thì tự cộng ngày */
+  const tot=(iTot>-1?(num(row[iTot])||num(row[iTot+1])):0)||Object.keys(daily).reduce((a,k)=>a+daily[k],0);
+  if(!any&&!tot)continue;
+  const name=l.replace(/^số\s*đơn\s*/i,'').trim();
+  types.push({name:name?name.charAt(0).toUpperCase()+name.slice(1):l,tot,daily});}
+ return types.length?{dateCols,types,kpi:kpiTxt}:null;}
+const TC_PAL=['#1e5fd0','#fb923c','#0e7c86','#7c3aed','#be185d','#15803d'];
+function slaTongTCSection(rows){
+ const P=parseSlaTongTC(rows);
+ if(!P)return slaGenericSection(rows,SLA_GIDS.tc,'tc','p10t','Tổng đơn xử lý thủ công'); /* dự phòng: thử 2 dạng chuẩn / hiện dữ liệu thô */
+ const charts=[];
+ const fk=iso(FROM),tk=iso(TO);
+ const days=P.dateCols.filter(dc=>dc.dk>=fk&&dc.dk<=tk);
+ if(!days.length)return {html:`<div class="note">Tab đang chứa ${P.dateCols.length} ngày (${P.dateCols[0].dk.slice(5)} → ${P.dateCols[P.dateCols.length-1].dk.slice(5)}) — ngoài phạm vi ${scopeLabel()}. Chỉnh Từ–Đến trùm tháng đang báo cáo.</div>`,charts};
+ const tys=P.types.map(t=>({name:t.name,vv:days.reduce((a,dc)=>a+(t.daily[dc.dk]||0),0),tot:t.tot}));
+ const tong=tys.reduce((a,t)=>a+t.vv,0);
+ const html=`<div class="kpis" style="grid-template-columns:repeat(${Math.min(5,2+tys.length)},1fr)">
+  ${kpi("Tổng đơn thủ công",fmt(tong),days.length+" ngày · "+scopeLabel())}
+  ${tys.map(t=>kpi("Đơn "+t.name,fmt(t.vv),pct(t.vv/(tong||1))+" tổng đơn")).join('')}
+  ${kpi("Bình quân",fmt(Math.round(tong/(days.length||1)))+" đơn/ngày",P.kpi?"KPI "+P.kpi:"")}
+ </div>
+ <div class="grid2" style="grid-template-columns:1.5fr 1fr">${cc("Đơn thủ công theo ngày — chồng theo loại","p10ta")}${cc("Cơ cấu loại đơn — trong phạm vi","p10tb")}</div>
+ <div class="card"><h3>Tổng đơn xử lý thủ công theo loại — ${days.length} ngày</h3><div class="scroll"><table class="tbl"><thead><tr><th>Loại đơn</th><th class="n">Trong phạm vi</th><th class="n">% tổng</th><th class="n">BQ/ngày</th><th class="n">Total trên file</th></tr></thead><tbody>
+ ${tys.map(t=>`<tr><td>Số đơn ${t.name}</td><td class="n">${fmtn(t.vv)}</td><td class="n">${pct(t.vv/(tong||1))}</td><td class="n">${fmtn(Math.round(t.vv/(days.length||1)))}</td><td class="n">${fmtn(t.tot)}</td></tr>`).join('')}
+ <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(tong)}</td><td class="n">100%</td><td class="n">${fmtn(Math.round(tong/(days.length||1)))}</td><td class="n">${fmtn(tys.reduce((a,t)=>a+t.tot,0))}</td></tr>
+ </tbody></table></div>
+ <div class="small" style="margin-top:6px">Nguồn: tab "Tổng đơn xử lý thủ công" (báo cáo ngày — đơn sàn)${P.kpi?' · KPI trên file: '+P.kpi:''}. Thêm dòng "Số đơn &lt;loại mới&gt;" vào tab là dashboard tự hiện thêm loại đó.</div></div>`;
+ charts.push({id:'p10ta',labels:days.map(dc=>dc.dk.slice(8,10)+'/'+dc.dk.slice(5,7)),
+  stack:P.types.map((t,i)=>({label:'Đơn '+t.name,data:days.map(dc=>t.daily[dc.dk]||0),backgroundColor:TC_PAL[i%TC_PAL.length],stack:'s'}))});
+ charts.push({id:'p10tb',dlabels:tys.map(t=>'Đơn '+t.name),ddata:tys.map(t=>t.vv)});
  return {html,charts};}
 
 /* ===== PVH5: ma trận giá SKU × NCC — bình quân gia quyền trong khoảng lọc (Gift Card trước) ===== */
