@@ -1,0 +1,22 @@
+# Lịch bắn báo cáo Telegram — gọi /api/tele trên Vercel theo khung giờ VN
+# Giờ cron ghi theo UTC = giờ VN trừ 7
+name: Ban bao cao Telegram
+on:
+  schedule:
+    - cron: '0 5 * * *'   # 12:00 VN
+    - cron: '0 11 * * *'  # 18:00 VN
+    - cron: '0 16 * * *'  # 23:00 VN
+  workflow_dispatch: {}   # cho phép bắn tay từ tab Actions
+
+jobs:
+  fire:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Goi bot bao cao PVH10
+        run: |
+          if [ -z "${{ secrets.TELE_FIRE_URL }}" ]; then
+            echo "Chua khai bao secret TELE_FIRE_URL (Settings -> Secrets and variables -> Actions)"; exit 1
+          fi
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" "${{ secrets.TELE_FIRE_URL }}")
+          cat /tmp/resp.json; echo
+          [ "$code" = "200" ] && grep -q '"ok":true' /tmp/resp.json
