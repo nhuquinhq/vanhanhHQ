@@ -956,7 +956,8 @@ const PAGES={
      days.forEach(k=>{const b=bucket(k);if(bIdx[b.key]==null){bIdx[b.key]=B.length;B.push(b);}});
      S.forEach(s=>{s.buck={};days.forEach(k=>{if(!s.daily[k])return;const bk=bucket(k).key;s.buck[bk]=(s.buck[bk]||0)+s.daily[k];});});
      const MODE_L=effMode==='d'?'ngày':(effMode==='w'?'tuần':'tháng');
-     const modeBtn=(m,l)=>`<button class="btn" style="padding:6px 14px${P13MODE===m?';background:#1e5fd0;color:#fff;border-color:#1e5fd0':''}" onclick="setP13('${m}')">${l}</button>`;
+     const modeBtn=(m,l)=>`<button class="btn" style="padding:6px 14px${P13MODE===m&&!P13CMP?';background:#1e5fd0;color:#fff;border-color:#1e5fd0':''}" onclick="setP13('${m}')">${l}</button>`;
+     const toggleRow=`<div style="display:flex;gap:7px;margin-bottom:11px;align-items:center;flex-wrap:wrap"><b style="font-size:12.5px;color:#1c2c4a">Xem theo:</b>${modeBtn('auto','Tự động ('+(effMode==='d'?'Ngày':effMode==='w'?'Tuần':'Tháng')+')')}${modeBtn('d','Ngày')}${modeBtn('w','Tuần')}${modeBtn('m','Tháng')}<span style="flex:0 0 10px"></span><button class="btn" style="padding:6px 14px${P13CMP?';background:#7c3aed;color:#fff;border-color:#7c3aed':''}" onclick="setP13Cmp()">⇄ So sánh 2 tuần</button></div>`;
      const tot=S.reduce((a,s)=>a+s.tot,0);
      const top=[...S].sort((a,b)=>b.tot-a.tot)[0];
      const empty=S.filter(s=>!s.tot).map(s=>s.name);
@@ -979,8 +980,54 @@ const PAGES={
      </tbody></table></div>
      <div class="small" style="margin-top:6px">"Bản ghi" tính trên TOÀN BỘ tab (không theo bộ lọc). Nguồn đọc được nhưng "chưa có số tới ngày mới nhất" nghĩa là tab dừng cập nhật sau ngày ghi ở cột bên — không phải lỗi dashboard.</div></div>`
      +srcs.filter(s=>!s.dks.length).map(s=>s.prev&&s.prev.length?`<div class="card" style="margin-top:10px"><h3>${s.name} — 8 dòng đầu tab (chụp màn hình gửi lại để chỉnh cột)</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:14},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${s.prev.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:`<div class="note" style="margin-top:10px"><b>${s.name}</b> (gid ${s.gid}): không tải được CSV — tab chưa Publish to web hoặc link đổi.</div>`).join('');
-     host.innerHTML=`
-      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center;flex-wrap:wrap"><b style="font-size:12.5px;color:#1c2c4a">Xem theo:</b>${modeBtn('auto','Tự động ('+(effMode==='d'?'Ngày':effMode==='w'?'Tuần':'Tháng')+')')}${modeBtn('d','Ngày')}${modeBtn('w','Tuần')}${modeBtn('m','Tháng')}</div>
+     /* ---- CHẾ ĐỘ SO SÁNH 2 TUẦN: dùng dữ liệu CẢ NĂM, không cắt theo Từ–Đến ---- */
+     if(P13CMP){
+      const mapOf=key=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
+      const gcMap=(()=>{const o={},G=GC13DAILY||{};for(const k in G){const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})();
+      const SF=[
+       {name:'Robux',map:ROBUXDAILY||{}},
+       {name:'Gift Card',map:gcMap},
+       {name:'OG',map:mapOf('og')},
+       {name:'Supercell',map:mapOf('sc')},
+       {name:'Razer Gold',map:mapOf('razer')},
+       {name:'RBX',map:mapOf('rbx')}
+      ];
+      const wkOf=k=>{const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));d.setDate(d.getDate()-((d.getDay()+6)%7));return iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()});};
+      const wkLabel=w=>{if(!w)return '—';const s=parseISO(w);const e=new Date(s.y,s.mo,s.d+6);return pad2(s.d)+'/'+pad2(s.mo+1)+' – '+pad2(e.getDate())+'/'+pad2(e.getMonth()+1);};
+      SF.forEach(s=>{s.wk={};Object.keys(s.map).forEach(k=>{const w=wkOf(k);s.wk[w]=(s.wk[w]||0)+s.map[k];});});
+      const weeks=Array.from(new Set(SF.reduce((a,s)=>a.concat(Object.keys(s.wk)),[]))).sort();
+      if(weeks.indexOf(P13WB)<0)P13WB=weeks[weeks.length-1]||'';
+      if(weeks.indexOf(P13WA)<0)P13WA=weeks[Math.max(0,weeks.length-2)]||'';
+      const rowsC=SF.map(s=>{const a=s.wk[P13WA]||0,b=s.wk[P13WB]||0;return{name:s.name,a,b,d:b-a};});
+      const tA=rowsC.reduce((x,r)=>x+r.a,0),tB=rowsC.reduce((x,r)=>x+r.b,0),tD=tB-tA;
+      const act=rowsC.filter(r=>r.a>0||r.b>0);
+      const mx=act.length?[...act].sort((x,y)=>Math.abs(y.d)-Math.abs(x.d))[0]:null;
+      const selW=(id,cur)=>`<select onchange="setP13Week('${id}',this.value)" style="padding:7px 10px;border-radius:9px;border:1px solid #c8d8f0;font-size:12.5px;background:#fff">${weeks.map(w=>`<option value="${w}"${w===cur?' selected':''}>${wkLabel(w)}</option>`).join('')}</select>`;
+      const sgn=(d,a)=>a?`<span class="${d>=0?'up':'down'}">${d>=0?'+':'−'}${pct(Math.abs(d)/a)}</span>`:'—';
+      host.innerHTML=toggleRow+`
+       <div class="card" style="margin-bottom:13px"><h3>⇄ So sánh 2 tuần — chọn tuần rồi so từng SPDV</h3>
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
+         <b style="font-size:12.5px">Tuần A:</b>${selW('A',P13WA)}
+         <b style="font-size:12.5px">Tuần B:</b>${selW('B',P13WB)}
+        </div></div>
+       <div class="kpis">
+        ${kpi("Tuần A · "+wkLabel(P13WA),fmt(tA),"tổng CO Nhập chi tiết")}
+        ${kpi("Tuần B · "+wkLabel(P13WB),fmt(tB),"tổng CO Nhập chi tiết")}
+        ${kpi("Chênh lệch B − A",(tD>=0?'+':'−')+fmt(Math.abs(tD)),tA?((tD>=0?'tăng ':'giảm ')+pct(Math.abs(tD)/tA)):'—')}
+        ${kpi("Biến động lớn nhất",mx?mx.name:'—',mx?(mx.d>=0?'+':'−')+fmt(Math.abs(mx.d))+' đ':'')}
+       </div>
+       <div class="grid2" style="grid-template-columns:1fr">${cc("Tuần A vs Tuần B — theo SPDV","p13x")}</div>
+       <div class="card"><h3>Bảng so sánh theo SPDV (VND)</h3><div class="scroll"><table class="tbl"><thead><tr><th>SPDV</th><th class="n">Tuần A · ${wkLabel(P13WA)}</th><th class="n">Tuần B · ${wkLabel(P13WB)}</th><th class="n">Chênh (B−A)</th><th class="n">% thay đổi</th></tr></thead><tbody>
+       ${rowsC.map(r=>`<tr><td>${r.name}</td><td class="n">${fmtn(r.a)}</td><td class="n">${fmtn(r.b)}</td><td class="n">${r.d?((r.d>0?'+':'−')+fmt(Math.abs(r.d))):'-'}</td><td class="n">${sgn(r.d,r.a)}</td></tr>`).join('')}
+       <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(tA)}</td><td class="n">${fmtn(tB)}</td><td class="n">${tD?((tD>0?'+':'−')+fmt(Math.abs(tD))):'-'}</td><td class="n">${sgn(tD,tA)}</td></tr>
+       </tbody></table></div>
+       <div class="small" style="margin-top:6px">Tuần tính từ Thứ 2 → Chủ nhật; danh sách tuần lấy theo dữ liệu CẢ NĂM của 6 nguồn, không phụ thuộc bộ lọc Từ–Đến. Quy đổi USD→VND theo tỷ giá từng ngày như bảng chi tiết.</div></div>`+diagHTML;
+      mk("p13x",{type:'bar',data:{labels:SF.map(s=>s.name),datasets:[
+       {label:'Tuần A · '+wkLabel(P13WA),data:rowsC.map(r=>r.a),backgroundColor:'#94a3b8'},
+       {label:'Tuần B · '+wkLabel(P13WB),data:rowsC.map(r=>r.b),backgroundColor:'#1e5fd0'}]},options:barOpt(true)});
+      return;
+     }
+     host.innerHTML=`${toggleRow}
       <div class="kpis">
        ${kpi("Tổng CO Nhập (chi tiết)",fmt(tot),scopeLabel())}
        ${kpi("SPDV lớn nhất",top&&top.tot?top.name:'—',top&&top.tot?fmt(top.tot)+' đ · '+pct(top.tot/(tot||1)):'')}
@@ -1297,7 +1344,11 @@ function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
 async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
 /* PVH13: chế độ xem Tự động / Ngày / Tuần / Tháng — auto bám theo độ dài phạm vi lọc */
 let P13MODE='auto';
-function setP13(m){P13MODE=m;render();}
+function setP13(m){P13MODE=m;P13CMP=false;render();}
+/* PVH13: chế độ SO SÁNH 2 TUẦN (không phụ thuộc bộ lọc Từ–Đến) */
+let P13CMP=false,P13WA='',P13WB='';
+function setP13Cmp(){P13CMP=!P13CMP;render();}
+function setP13Week(w,v){if(w==='A')P13WA=v;else P13WB=v;render();}
 /* PVH13: Robux nhập theo NGÀY — đọc tab "Data Robux — giá vốn" (gid 386815906, nguồn đang sống)
    thay cho tab Data Robux cũ; dò cột y hệt PVH4 (COSTCFG.robux), chỉ tính dòng tiền > 0 */
 let ROBUXDAILY;
