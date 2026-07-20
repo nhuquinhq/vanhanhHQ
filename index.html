@@ -1316,7 +1316,7 @@ function robuxDailyFromRows(rows){
  return Object.keys(o).length?o:null;}
 /* PVH13: Gift Card — FILE RIÊNG nhẹ (tab Data giftcard gốc 47k dòng bị publish cắt ở ~41k) */
 const BASE_GC13="https://docs.google.com/spreadsheets/d/e/2PACX-1vQK6QIZLs18ZsAPvoOHqSKtF419Qb3trrOQQ7DTWrANCTBEedAuDazP6-QsoH4uQk9inAJ1KC3SixfK/pub";
-const GC13_GID="505929777";
+const GC13_GID="1216897209"; /* tab "Data GC" — tổng Thành tiền Nhập (USD) theo ngày, do sheet tự cộng */
 function gc13DirectURL(){return BASE_GC13+"?gid="+GC13_GID+"&single=true&output=csv";}
 function gc13ApiURL(){return "/api/csv?f=gc13&gid="+GC13_GID;}
 let GC13DAILY,GC13PREV=null,GC13COLS='',GC13USD=true;

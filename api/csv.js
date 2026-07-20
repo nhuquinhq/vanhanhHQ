@@ -17,7 +17,7 @@ module.exports = async (req, res) => {
     ton: new Set(["0"]),
     sla: new Set(["1982526665","511745866","1496740945","287243650"]),
     kho: new Set(["1926394974"]),
-    gc13: new Set(["505929777"])
+    gc13: new Set(["505929777","1216897209"])
   };
   const f = String((req.query && req.query.f) || "def");
   const gid = String((req.query && req.query.gid) || "");
