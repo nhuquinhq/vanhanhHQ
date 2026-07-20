@@ -1004,12 +1004,7 @@ const PAGES={
       const mx=act.length?[...act].sort((x,y)=>Math.abs(y.d)-Math.abs(x.d))[0]:null;
       const selW=(id,cur)=>`<select onchange="setP13Week('${id}',this.value)" style="padding:7px 10px;border-radius:9px;border:1px solid #c8d8f0;font-size:12.5px;background:#fff">${weeks.map(w=>`<option value="${w}"${w===cur?' selected':''}>${wkLabel(w)}</option>`).join('')}</select>`;
       const sgn=(d,a)=>a?`<span class="${d>=0?'up':'down'}">${d>=0?'+':'−'}${pct(Math.abs(d)/a)}</span>`:'—';
-      host.innerHTML=toggleRow+`
-       <div class="card" style="margin-bottom:13px"><h3>⇄ So sánh 2 tuần — chọn tuần rồi so từng SPDV</h3>
-        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:6px">
-         <b style="font-size:12.5px">Tuần A:</b>${selW('A',P13WA)}
-         <b style="font-size:12.5px">Tuần B:</b>${selW('B',P13WB)}
-        </div></div>
+      host.innerHTML=toggleRow.replace('</div>',`<span style="flex:0 0 4px"></span><b style="font-size:12.5px;color:#9fb6d9">Tuần A:</b>${selW('A',P13WA)}<b style="font-size:12.5px;color:#9fb6d9">Tuần B:</b>${selW('B',P13WB)}</div>`)+`
        <div class="kpis">
         ${kpi("Tuần A · "+wkLabel(P13WA),fmt(tA),"tổng CO Nhập chi tiết")}
         ${kpi("Tuần B · "+wkLabel(P13WB),fmt(tB),"tổng CO Nhập chi tiết")}
