@@ -968,10 +968,10 @@ const PAGES={
      const colsOf=key=>{const m=RAWMETA[key];return m?'ngày '+colL(m.date)+' · giá trị '+colL(m.val):'';};
      const srcs=[
       {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề'},
-      {name:'Gift Card',gid:''+RAWCFG.gc.gid,dks:(RAWDATA.gc||[]).map(r=>r.dk),prev:RAWPREV.gc,cols:colsOf('gc')},
-      {name:'OG / Supercell',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).map(r=>r.dk),prev:RAWPREV.og,cols:colsOf('og')},
-      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).map(r=>r.dk),prev:RAWPREV.razer,cols:colsOf('razer')},
-      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).map(r=>r.dk),prev:RAWPREV.rbx,cols:colsOf('rbx')}
+      {name:'Gift Card',gid:''+RAWCFG.gc.gid,dks:(RAWDATA.gc||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.gc,cols:colsOf('gc')},
+      {name:'OG / Supercell',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.og,cols:colsOf('og')},
+      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.razer,cols:colsOf('razer')},
+      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.rbx,cols:colsOf('rbx')}
      ];
      const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th>Ghi chú</th></tr></thead><tbody>
       ${srcs.map(s=>{const n=s.dks.length;const ds=[...s.dks].sort();
@@ -1287,7 +1287,9 @@ function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(R
    if(!recs.length){const r2=await loadCSV(apiURL(cfg.gid));if(r2)rows=r2;recs=rowsToRecs(cfg,rows);}
    RAWPREV[key]=rows?rows.slice(0,8):null; /* giữ 8 dòng đầu để chẩn đoán khi không parse được */
    RAWMETA[key]=rowsToRecs.usedCfg||cfg;
-   RAWDATA[key]=recs;return recs;})();
+   RAWDATA[key]=recs;
+   if(!recs.length){delete RAWSTATE[key];delete RAWDATA[key];} /* KHÔNG cache kết quả rỗng — mạng trượt thì lần làm mới sau tự thử lại */
+   return recs;})();
  return RAWSTATE[key];}
 function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
 /* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
@@ -1318,7 +1320,8 @@ async function robuxDaily(){if(ROBUXDAILY!==undefined)return ROBUXDAILY;
  let o=robuxDailyFromRows(rows);
  if(!o){const r2=await loadCSV(apiURL(COSTCFG.robux.gid));if(r2)rows=r2;o=robuxDailyFromRows(rows);}
  ROBUXPREV=rows?rows.slice(0,8):null;
- ROBUXDAILY=o;return ROBUXDAILY;}
+ ROBUXDAILY=o||undefined; /* không cache kết quả rỗng — lần làm mới sau tự thử lại */
+ return o;}
 function recsIn(key){const cfg=RAWCFG[key],fk=iso(FROM),tk=iso(TO);return (RAWDATA[key]||[]).filter(r=>r.dk>=fk&&r.dk<=tk).map(r=>({emp:r.emp,ncc:r.ncc,cat:r.cat,valv:cfg.usd?r.val*fxRate(r.dk):r.val,unitv:cfg.usd?r.unit*fxRate(r.dk):r.unit}));}
 function groupSum(key,field){const o={};recsIn(key).forEach(r=>{const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.valv;});return Object.entries(o).filter(x=>x[0]!=='(trống)').sort((a,b)=>b[1]-a[1]);}
 function groupAvgUnit(key,field){const o={},c={};recsIn(key).forEach(r=>{if(r.unitv<=0)return;const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.unitv;c[k]=(c[k]||0)+1;});return Object.entries(o).filter(x=>x[0]!=='(trống)').map(([k,v])=>[k,c[k]?Math.round(v/c[k]):0]).sort((a,b)=>b[1]-a[1]);}
