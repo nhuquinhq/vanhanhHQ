@@ -940,7 +940,7 @@ const PAGES={
       {name:'OG',daily:dsum('og'),color:'#7c3aed'},
       {name:'Supercell',daily:dsum('sc'),color:'#fb923c'},
       {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
-      {name:'RBX',daily:dsum('rbx'),color:'#15803d'}
+      {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'}
      ];
      S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
      const days=rangeDays().filter(x=>x.y===2026).map(x=>dkey(x.mo,x.d)).filter(k=>S.some(s=>s.daily[k]));
@@ -1312,7 +1312,7 @@ const RAWCFG={
  razer:{gid:1868031300,date:0,val:5,unit:3,emp:-1,ncc:-1,cat:-1,usd:true,sp:"Razer Gold"},
  og:{gid:793401472,date:6,val:1,unit:-1,emp:-1,ncc:-1,cat:4,usd:true,onlyCol:2,onlyVal:"success",sp:"Topup"}, /* bố cục 07/2026: Invoice·Price(B USD)·Status(C)·Category·Data(E game)·Date(G) — chỉ tính dòng success */
  sc:{gid:564846337,date:0,val:6,unit:-1,emp:9,ncc:10,cat:2,usd:true,onlyCol:7,onlyVal:"hoàn tất",sp:"Supercell"}, /* Data Supercell: Ngày tạo đơn(A)·Tên game(C)·Thành tiền nhập usd(G)·Trạng thái(H) — chỉ tính Hoàn Tất */
- rbx:{gid:1267159006,date:0,autoDate:true,val:6,unit:-1,emp:-1,ncc:-1,cat:-1,usd:false,sp:"RBX"} /* tab RBX mới (07/2026) — CO cột G, cột ngày tự dò; sai cột thì nhìn khối 🩺 trong PVH13 */
+ rbx:{gid:1267159006,date:0,autoDate:true,val:6,unit:-1,emp:-1,ncc:-1,cat:-1,usd:true,sp:"RBX"} /* tab RBX HQS — CO cột G tính bằng USD → quy VND theo tỷ giá ngày; cột ngày tự dò (dạng 26/04) */
 };
 let RAWDATA={},RAWSTATE={},RAWPREV={},RAWMETA={};
 function rowsToRecs(cfg,rows){
