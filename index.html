@@ -931,12 +931,12 @@ const PAGES={
  }},
  PVH13:{title:"PVH13 · Nhập chi tiết theo SPDV",meta:"Đọc RAW các tab chi tiết → CO Nhập theo NGÀY trong phạm vi lọc · tab USD quy VND theo tỷ giá ngày",render(host){
    host.innerHTML=spinner("Đang đọc các tab chi tiết: Robux · Gift Card · OG · Supercell · Razer Gold · RBX…");
-   Promise.all([ensureRaw(['robux','gc','og','razer','rbx']),ensureFX()]).then(()=>{
+   Promise.all([ensureRaw(['gc','og','razer','rbx']),ensureFX(),robuxDaily()]).then(()=>{
      const fk=iso(FROM),tk=iso(TO);
      const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
      const isSC=r=>/super/i.test(r.cat||'');
      const S=[
-      {name:'Robux',daily:dsum('robux'),color:'#1e5fd0'},
+      {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#1e5fd0'},
       {name:'Gift Card',daily:dsum('gc'),color:'#0e7c86'},
       {name:'OG',daily:dsum('og',r=>!isSC(r)),color:'#7c3aed'},
       {name:'Supercell',daily:dsum('og',isSC),color:'#fb923c'},
@@ -975,7 +975,7 @@ const PAGES={
       ${[...B].reverse().map(b=>{const rowT=S.reduce((a,s)=>a+(s.buck[b.key]||0),0);return `<tr><td><b>${b.label}</b></td>${S.map(s=>`<td class="n">${fmtn(s.buck[b.key])}</td>`).join('')}<td class="n"><b>${fmtn(rowT)}</b></td></tr>`;}).join('')}
       <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${S.map(s=>`<td class="n">${fmtn(s.tot)}</td>`).join('')}<td class="n">${fmtn(tot)}</td></tr>
       </tbody></table></div>
-      <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux · Data giftcard (dòng "thêm mới code") · Data OGGAMING (tách Supercell theo cột phân loại) · Data Razergold · Data RBX. Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`;
+      <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux — giá vốn (dòng tiền &gt; 0) · Data giftcard (dòng "thêm mới code") · Data OGGAMING (tách Supercell theo cột phân loại) · Data Razergold · Data RBX. Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`;
      mk("p13a",{type:'bar',data:{labels:B.map(b=>b.label),datasets:S.filter(s=>s.tot).map(s=>({label:s.name,data:B.map(b=>s.buck[b.key]||0),backgroundColor:s.color,stack:'s'}))},
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
      const ds=S.filter(s=>s.tot);
@@ -1268,6 +1268,27 @@ async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(
 /* PVH13: chế độ xem Tự động / Ngày / Tuần / Tháng — auto bám theo độ dài phạm vi lọc */
 let P13MODE='auto';
 function setP13(m){P13MODE=m;render();}
+/* PVH13: Robux nhập theo NGÀY — đọc tab "Data Robux — giá vốn" (gid 386815906, nguồn đang sống)
+   thay cho tab Data Robux cũ; dò cột y hệt PVH4 (COSTCFG.robux), chỉ tính dòng tiền > 0 */
+let ROBUXDAILY;
+function robuxDailyFromRows(rows){
+ if(!rows||rows.length<2)return null;
+ const norm=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').trim().toLowerCase();};
+ const cfg=COSTCFG.robux;
+ let H=-1,iTien=-1,iNgay=-1;
+ for(let r=0;r<Math.min(rows.length,30);r++){const row=(rows[r]||[]).map(norm);
+  const a=row.findIndex(cfg.sl),b=row.findIndex(cfg.tien),c=row.findIndex(x=>/ngày/.test(x));
+  if(a>-1&&b>-1&&c>-1){H=r;iTien=b;iNgay=c;break;}}
+ if(H<0)return null;
+ const o={};
+ for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
+  const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11)continue;
+  const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;}}
+ return Object.keys(o).length?o:null;}
+async function robuxDaily(){if(ROBUXDAILY!==undefined)return ROBUXDAILY;
+ let o=robuxDailyFromRows(await loadCSV(directURL(COSTCFG.robux.gid)));
+ if(!o)o=robuxDailyFromRows(await loadCSV(apiURL(COSTCFG.robux.gid)));
+ ROBUXDAILY=o;return ROBUXDAILY;}
 function recsIn(key){const cfg=RAWCFG[key],fk=iso(FROM),tk=iso(TO);return (RAWDATA[key]||[]).filter(r=>r.dk>=fk&&r.dk<=tk).map(r=>({emp:r.emp,ncc:r.ncc,cat:r.cat,valv:cfg.usd?r.val*fxRate(r.dk):r.val,unitv:cfg.usd?r.unit*fxRate(r.dk):r.unit}));}
 function groupSum(key,field){const o={};recsIn(key).forEach(r=>{const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.valv;});return Object.entries(o).filter(x=>x[0]!=='(trống)').sort((a,b)=>b[1]-a[1]);}
 function groupAvgUnit(key,field){const o={},c={};recsIn(key).forEach(r=>{if(r.unitv<=0)return;const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.unitv;c[k]=(c[k]||0)+1;});return Object.entries(o).filter(x=>x[0]!=='(trống)').map(([k,v])=>[k,c[k]?Math.round(v/c[k]):0]).sort((a,b)=>b[1]-a[1]);}
