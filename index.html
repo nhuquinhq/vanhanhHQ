@@ -1326,12 +1326,15 @@ function gc13FromRows(rows){
  const done=(o,n,cols)=>{if(!n)return null;const ks=Object.keys(o);if(!ks.length)return null;
   const avg=ks.reduce((a,k)=>a+o[k],0)/ks.length;GC13USD=avg<200000; /* số/ngày nhỏ = USD, lớn = VND */
   GC13COLS=cols+(GC13USD?' · USD quy VND':' · VND');return o;};
- /* 1) khuôn giống tab Data giftcard gốc: D="Thêm mới code" · K=Giá Hub · N=Thời gian tạo */
- const o1={};let n1=0;
- rows.forEach(row=>{if(!row)return;if((''+(row[3]||'')).trim().toLowerCase()!=='thêm mới code')return;
-  const dt=parseDateCell(row[13]);if(!dt||dt.mo<0)return;const v=num(row[10]);if(!(v>0))return;
-  const k=dkey(dt.mo,dt.d);o1[k]=(o1[k]||0)+v;n1++;});
- if(n1>=3)return done(o1,n1,'khuôn Data giftcard (lọc D · giá K · ngày N)');
+ /* 1) khuôn Data giftcard: D="Thêm mới code" · ngày N · giá ưu tiên K (Giá Hub) — file GC mới K toàn N/A thì dùng J (Đơn giá) */
+ const tryRaw=vc=>{const o={};let n=0;
+  rows.forEach(row=>{if(!row)return;if((''+(row[3]||'')).trim().toLowerCase()!=='thêm mới code')return;
+   const dt=parseDateCell(row[13]);if(!dt||dt.mo<0)return;const v=num(row[vc]);if(!(v>0))return;
+   const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;});return[o,n];};
+ let r1=tryRaw(10);
+ if(r1[1]>=3)return done(r1[0],r1[1],'khuôn Data giftcard (lọc D · Giá Hub K · ngày N)');
+ r1=tryRaw(9);
+ if(r1[1]>=3)return done(r1[0],r1[1],'khuôn Data giftcard (lọc D · Đơn giá J · ngày N)');
  /* 2) khuôn tổng hợp: tự dò cột ngày + cột giá trị (ưu tiên tiêu đề có usd/giá/nhập/tổng/tiền/co) */
  let dCol=-1,dHits=0;const W=Math.max.apply(null,rows.slice(0,80).map(r=>(r||[]).length).concat([0]));
  for(let c=0;c<Math.min(W,20);c++){let h=0;for(let r=0;r<Math.min(rows.length,80);r++)if(isD((rows[r]||[])[c]))h++;if(h>dHits){dHits=h;dCol=c;}}
@@ -1343,8 +1346,15 @@ function gc13FromRows(rows){
   let score=h;if(h&&hdr&&/usd|giá|nhập|tổng|tiền|co/i.test(''+(hdr[c]||'')))score+=1e6;
   if(score>best){best=score;vCol=c;}}
  if(vCol<0)return null;
+ /* nếu file có cột phân loại "Thêm mới code" thì chỉ tính các dòng đó (loại trả hàng/hoàn) */
+ let fCol=-1;
+ for(let c=0;c<Math.min(W,20)&&fCol<0;c++){let h=0;
+  for(let r=0;r<Math.min(rows.length,200);r++)if((''+((rows[r]||[])[c]||'')).trim().toLowerCase()==='thêm mới code')h++;
+  if(h>=10)fCol=c;}
  const o2={};let n2=0;
- rows.forEach(row=>{if(!row||!isD(row[dCol]))return;const dt=parseDateCell(row[dCol]);if(!dt||dt.mo<0)return;
+ rows.forEach(row=>{if(!row||!isD(row[dCol]))return;
+  if(fCol>-1&&(''+(row[fCol]||'')).trim().toLowerCase()!=='thêm mới code')return;
+  const dt=parseDateCell(row[dCol]);if(!dt||dt.mo<0)return;
   const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o2[k]=(o2[k]||0)+v;n2++;});
  const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
  return done(o2,n2,'ngày '+L(dCol)+' · giá trị '+L(vCol));}
