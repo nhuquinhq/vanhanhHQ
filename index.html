@@ -931,13 +931,13 @@ const PAGES={
  }},
  PVH13:{title:"PVH13 · Nhập chi tiết theo SPDV",meta:"Đọc RAW các tab chi tiết → CO Nhập theo NGÀY trong phạm vi lọc · tab USD quy VND theo tỷ giá ngày",render(host){
    host.innerHTML=spinner("Đang đọc các tab chi tiết: Robux · Gift Card · OG · Supercell · Razer Gold · RBX…");
-   Promise.all([ensureRaw(['gc','og','razer','rbx']),ensureFX(),robuxDaily()]).then(()=>{
+   Promise.all([ensureRaw(['og','razer','rbx']),ensureFX(),robuxDaily(),gc13Daily()]).then(()=>{
      const fk=iso(FROM),tk=iso(TO);
      const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
      const isSC=r=>/super/i.test(r.cat||'');
      const S=[
       {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#1e5fd0'},
-      {name:'Gift Card',daily:dsum('gc'),color:'#0e7c86'},
+      {name:'Gift Card',daily:(()=>{const o={},G=GC13DAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#0e7c86'},
       {name:'OG',daily:dsum('og',r=>!isSC(r)),color:'#7c3aed'},
       {name:'Supercell',daily:dsum('og',isSC),color:'#fb923c'},
       {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
@@ -968,7 +968,7 @@ const PAGES={
      const colsOf=key=>{const m=RAWMETA[key];return m?'ngày '+colL(m.date)+' · giá trị '+colL(m.val):'';};
      const srcs=[
       {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề'},
-      {name:'Gift Card',gid:''+RAWCFG.gc.gid,dks:(RAWDATA.gc||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.gc,cols:colsOf('gc')},
+      {name:'Gift Card (file riêng)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò'},
       {name:'OG / Supercell',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.og,cols:colsOf('og')},
       {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.razer,cols:colsOf('razer')},
       {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.rbx,cols:colsOf('rbx')}
@@ -1314,6 +1314,46 @@ function robuxDailyFromRows(rows){
   const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11)continue;
   const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;}}
  return Object.keys(o).length?o:null;}
+/* PVH13: Gift Card — FILE RIÊNG nhẹ (tab Data giftcard gốc 47k dòng bị publish cắt ở ~41k) */
+const BASE_GC13="https://docs.google.com/spreadsheets/d/e/2PACX-1vQK6QIZLs18ZsAPvoOHqSKtF419Qb3trrOQQ7DTWrANCTBEedAuDazP6-QsoH4uQk9inAJ1KC3SixfK/pub";
+const GC13_GID="505929777";
+function gc13DirectURL(){return BASE_GC13+"?gid="+GC13_GID+"&single=true&output=csv";}
+function gc13ApiURL(){return "/api/csv?f=gc13&gid="+GC13_GID;}
+let GC13DAILY,GC13PREV=null,GC13COLS='',GC13USD=true;
+function gc13FromRows(rows){
+ if(!rows||rows.length<2)return null;
+ const isD=v=>/^\d{1,2}\/\d{1,2}\/\d{4}/.test((''+v).trim())||/^\d{4}-\d{1,2}-\d{1,2}/.test((''+v).trim());
+ const done=(o,n,cols)=>{if(!n)return null;const ks=Object.keys(o);if(!ks.length)return null;
+  const avg=ks.reduce((a,k)=>a+o[k],0)/ks.length;GC13USD=avg<200000; /* số/ngày nhỏ = USD, lớn = VND */
+  GC13COLS=cols+(GC13USD?' · USD quy VND':' · VND');return o;};
+ /* 1) khuôn giống tab Data giftcard gốc: D="Thêm mới code" · K=Giá Hub · N=Thời gian tạo */
+ const o1={};let n1=0;
+ rows.forEach(row=>{if(!row)return;if((''+(row[3]||'')).trim().toLowerCase()!=='thêm mới code')return;
+  const dt=parseDateCell(row[13]);if(!dt||dt.mo<0)return;const v=num(row[10]);if(!(v>0))return;
+  const k=dkey(dt.mo,dt.d);o1[k]=(o1[k]||0)+v;n1++;});
+ if(n1>=3)return done(o1,n1,'khuôn Data giftcard (lọc D · giá K · ngày N)');
+ /* 2) khuôn tổng hợp: tự dò cột ngày + cột giá trị (ưu tiên tiêu đề có usd/giá/nhập/tổng/tiền/co) */
+ let dCol=-1,dHits=0;const W=Math.max.apply(null,rows.slice(0,80).map(r=>(r||[]).length).concat([0]));
+ for(let c=0;c<Math.min(W,20);c++){let h=0;for(let r=0;r<Math.min(rows.length,80);r++)if(isD((rows[r]||[])[c]))h++;if(h>dHits){dHits=h;dCol=c;}}
+ if(dCol<0||dHits<3)return null;
+ let hdr=null;for(let r=0;r<Math.min(rows.length,10);r++){if(isD((rows[r]||[])[dCol]))break;hdr=rows[r];}
+ let vCol=-1,best=-1;
+ for(let c=0;c<Math.min(W,20);c++){if(c===dCol)continue;let h=0;
+  for(let r=0;r<rows.length;r++){const row=rows[r];if(!row||!isD(row[dCol]))continue;if(num(row[c])>0)h++;}
+  let score=h;if(h&&hdr&&/usd|giá|nhập|tổng|tiền|co/i.test(''+(hdr[c]||'')))score+=1e6;
+  if(score>best){best=score;vCol=c;}}
+ if(vCol<0)return null;
+ const o2={};let n2=0;
+ rows.forEach(row=>{if(!row||!isD(row[dCol]))return;const dt=parseDateCell(row[dCol]);if(!dt||dt.mo<0)return;
+  const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o2[k]=(o2[k]||0)+v;n2++;});
+ const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
+ return done(o2,n2,'ngày '+L(dCol)+' · giá trị '+L(vCol));}
+async function gc13Daily(){if(GC13DAILY!==undefined)return GC13DAILY;
+ let rows=await loadCSV(gc13DirectURL());let o=gc13FromRows(rows);
+ if(!o){const r2=await loadCSV(gc13ApiURL());if(r2)rows=r2;o=gc13FromRows(rows);}
+ GC13PREV=rows?rows.slice(0,8):null;
+ GC13DAILY=o||undefined; /* không cache kết quả rỗng */
+ return o;}
 let ROBUXPREV=null;
 async function robuxDaily(){if(ROBUXDAILY!==undefined)return ROBUXDAILY;
  let rows=await loadCSV(directURL(COSTCFG.robux.gid));
@@ -1893,6 +1933,7 @@ function renderSRC(){const host=document.getElementById('content');
    ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
+  ['FILE GIFT CARD (PVH13)',[['GC nhập theo ngày',GC13_GID,'gc13']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
@@ -1925,7 +1966,7 @@ function renderSRC(){const host=document.getElementById('content');
   const gr=document.createElement('tr');gr.className='grp';gr.innerHTML=`<td colspan="6">${gname}</td>`;tb.appendChild(gr);
   tests.forEach(([nm,gid,f])=>{const tr=document.createElement('tr');
    tr.innerHTML=`<td><span class="stdot" style="background:#94a3b8"></span></td><td><b>${nm}</b></td><td class="gidm">${f==='ton'?'file riêng':gid}</td><td>…</td><td class="n">…</td><td class="small">đang gọi…</td>`;tb.appendChild(tr);
-   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():directURL(gid))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():apiURL(gid)));
+   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():(f==='gc13'?gc13DirectURL():directURL(gid)))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():(f==='gc13'?gc13ApiURL():apiURL(gid))));
      const d=await probe(du);let use=d,via='direct';
      if(!d.ok){const a=await probe(au);if(a.ok){use=a;via='api';}else{via='fail';use=a.head?a:d;}}
      tr.children[0].innerHTML=`<span class="stdot ${via==='direct'?'ok':(via==='api'?'warn':'bad')}"></span>`;
