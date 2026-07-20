@@ -320,17 +320,17 @@ const SUPER_ADMIN="quynhhtn@hqplay.vn";
 const ROLE_LABEL={admin:"Admin (toàn quyền)",leader:"Leader (vận hành)",nhanvien:"Nhân viên"};
 const ROLE_PAGES={
  admin:"all",
- leader:["TQ","PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12"],
+ leader:["TQ","PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"],
  nhanvien:["PVH10"]
 };
-const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","SRC"];
+const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","PVH13","SRC"];
 function pageName(id){if(id==='TQ')return 'Tổng quan';if(id==='SRC')return 'Nguồn & Cấu hình';return PAGES[id]?PAGES[id].title.replace(/^PVH\d+\s*·\s*/,'PVH'+id.slice(3)+' · '):id;}
 let MY_EMAIL=null,MY_ROLE=null,MY_PAGES=[];
 /* ô nhập "báo cáo được xem": "all"/"tất cả" · danh sách mã "TQ,PVH1,PVH10" · trống = null (theo vai trò) */
 function parsePages(s){s=(''+s).trim();if(!s)return null;
  if(/^(all|tất\s*cả|toàn\s*bộ|hết)$/i.test(s))return 'all';
  const ids=[];s.split(/[,;\/\s]+/).forEach(t=>{t=t.trim().toUpperCase();
-  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-2])$/.test(t))ids.push(t);});
+  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-3])$/.test(t))ids.push(t);});
  return ids.length?ids:null;}
 function resolvePages(entry){if(!entry)return [];
  if(entry.role==='admin')return ALL_PAGES.slice();
@@ -929,6 +929,45 @@ const PAGES={
        mk("p12b",{type:'bar',data:{labels:MN,datasets:[{label:'DIE',data:dieM,backgroundColor:RED},{label:'Hoàn tiền',data:hoanM,backgroundColor:'#fbbf24'}]},options:barOpt(true)});}
    });
  }},
+ PVH13:{title:"PVH13 · Nhập chi tiết theo SPDV",meta:"Đọc RAW các tab chi tiết → CO Nhập theo NGÀY trong phạm vi lọc · tab USD quy VND theo tỷ giá ngày",render(host){
+   host.innerHTML=spinner("Đang đọc các tab chi tiết: Robux · Gift Card · OG · Supercell · Razer Gold · RBX…");
+   Promise.all([ensureRaw(['robux','gc','og','razer','rbx']),ensureFX()]).then(()=>{
+     const fk=iso(FROM),tk=iso(TO);
+     const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
+     const isSC=r=>/super/i.test(r.cat||'');
+     const S=[
+      {name:'Robux',daily:dsum('robux'),color:'#1e5fd0'},
+      {name:'Gift Card',daily:dsum('gc'),color:'#0e7c86'},
+      {name:'OG',daily:dsum('og',r=>!isSC(r)),color:'#7c3aed'},
+      {name:'Supercell',daily:dsum('og',isSC),color:'#fb923c'},
+      {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
+      {name:'RBX',daily:dsum('rbx'),color:'#15803d'}
+     ];
+     S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
+     const days=rangeDays().filter(x=>x.y===2026).map(x=>dkey(x.mo,x.d)).filter(k=>S.some(s=>s.daily[k]));
+     const tot=S.reduce((a,s)=>a+s.tot,0);
+     const top=[...S].sort((a,b)=>b.tot-a.tot)[0];
+     const empty=S.filter(s=>!s.tot).map(s=>s.name);
+     const usdNote=FXKEYS.length?'':' · <b style="color:#b91c1c">chưa đọc được Bảng tỉ giá — các tab USD đang hiển thị 0</b>';
+     host.innerHTML=`
+      <div class="kpis">
+       ${kpi("Tổng CO Nhập (chi tiết)",fmt(tot),scopeLabel())}
+       ${kpi("SPDV lớn nhất",top&&top.tot?top.name:'—',top&&top.tot?fmt(top.tot)+' đ · '+pct(top.tot/(tot||1)):'')}
+       ${kpi("Số ngày có phát sinh",fmtn(days.length),"trong phạm vi lọc")}
+       ${kpi("Bình quân / ngày",days.length?fmt(tot/days.length):'—',"trên các ngày có phát sinh")}
+      </div>
+      <div class="grid2" style="grid-template-columns:1.6fr 1fr">${cc("CO Nhập theo ngày — chồng theo SPDV","p13a")}${cc("Cơ cấu CO Nhập theo SPDV — trong phạm vi","p13b")}</div>
+      <div class="card"><h3>Bảng nhập chi tiết theo ngày × SPDV (VND) — ${days.length} ngày</h3><div class="scroll" style="max-height:480px"><table class="tbl"><thead><tr><th>Ngày</th>${S.map(s=>`<th class="n">${s.name}</th>`).join('')}<th class="n">Tổng ngày</th></tr></thead><tbody>
+      ${[...days].reverse().map(k=>{const rowT=S.reduce((a,s)=>a+(s.daily[k]||0),0);return `<tr><td><b>${k.slice(8,10)}/${k.slice(5,7)}</b></td>${S.map(s=>`<td class="n">${fmtn(s.daily[k])}</td>`).join('')}<td class="n"><b>${fmtn(rowT)}</b></td></tr>`;}).join('')}
+      <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${S.map(s=>`<td class="n">${fmtn(s.tot)}</td>`).join('')}<td class="n">${fmtn(tot)}</td></tr>
+      </tbody></table></div>
+      <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux · Data giftcard (dòng "thêm mới code") · Data OGGAMING (tách Supercell theo cột phân loại) · Data Razergold · Data RBX. Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`;
+     mk("p13a",{type:'bar',data:{labels:days.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),datasets:S.filter(s=>s.tot).map(s=>({label:s.name,data:days.map(k=>s.daily[k]||0),backgroundColor:s.color,stack:'s'}))},
+      options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
+     const ds=S.filter(s=>s.tot);
+     mk("p13b",donut(ds.map(s=>s.name),ds.map(s=>s.tot),ds.map(s=>s.color)));
+   });
+ }},
  PVH4:{title:"PVH4 · Biến động giá vốn theo tháng — Robux · Razer Gold",meta:"GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân GIA QUYỀN, loại dòng tiền = 0) · Razer: Rate = giá vốn (USD/RG) · cả kỳ, không phụ thuộc bộ lọc ngày",render(host){
    host.innerHTML=spinner("Đang đọc Data Robux · Data Razergold và tính giá vốn gia quyền…");
    Promise.all([costMonths('robux'),costMonths('razer')]).then(([MR,MZ])=>{
@@ -1196,8 +1235,8 @@ const RAWCFG={
  nick:{gid:61864847,date:0,val:5,unit:5,emp:1,ncc:6,cat:3,usd:false,sp:"Nick Random Roblox"},
  gc:{gid:1043029815,date:13,val:10,unit:10,emp:16,ncc:5,cat:8,usd:true,onlyCol:3,onlyVal:"thêm mới code",sp:"Gift Card"},
  razer:{gid:1868031300,date:0,val:5,unit:3,emp:-1,ncc:-1,cat:-1,usd:true,sp:"Razer Gold"},
- og:{gid:793401472,date:8,val:6,unit:6,emp:-1,ncc:-1,cat:2,usd:true,sp:"Topup"}
- /* RBX: gid 1289659560, CO ở cột G (index 6) — tab chưa có số liệu, sẽ nối khi có dữ liệu */
+ og:{gid:793401472,date:8,val:6,unit:6,emp:-1,ncc:-1,cat:2,usd:true,sp:"Topup"},
+ rbx:{gid:1289659560,date:0,val:6,unit:-1,emp:-1,ncc:-1,cat:-1,usd:false,sp:"RBX"} /* CO ở cột G (index 6) — tab trống thì PVH13 báo "chưa có số" */
 };
 let RAWDATA={},RAWSTATE={};
 function rowsToRecs(cfg,rows){const recs=[];(rows||[]).forEach(row=>{const dt=parseDateCell(row[cfg.date]);if(!dt||dt.mo<0)return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
@@ -1210,6 +1249,8 @@ function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(R
    RAWDATA[key]=recs;return recs;})();
  return RAWSTATE[key];}
 function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
+/* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
+async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
 function recsIn(key){const cfg=RAWCFG[key],fk=iso(FROM),tk=iso(TO);return (RAWDATA[key]||[]).filter(r=>r.dk>=fk&&r.dk<=tk).map(r=>({emp:r.emp,ncc:r.ncc,cat:r.cat,valv:cfg.usd?r.val*fxRate(r.dk):r.val,unitv:cfg.usd?r.unit*fxRate(r.dk):r.unit}));}
 function groupSum(key,field){const o={};recsIn(key).forEach(r=>{const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.valv;});return Object.entries(o).filter(x=>x[0]!=='(trống)').sort((a,b)=>b[1]-a[1]);}
 function groupAvgUnit(key,field){const o={},c={};recsIn(key).forEach(r=>{if(r.unitv<=0)return;const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.unitv;c[k]=(c[k]||0)+1;});return Object.entries(o).filter(x=>x[0]!=='(trống)').map(([k,v])=>[k,c[k]?Math.round(v/c[k]):0]).sort((a,b)=>b[1]-a[1]);}
@@ -1696,7 +1737,7 @@ async function costMonths(key){const cfg=COSTCFG[key];if(COSTD[key]!==undefined)
 function spinner(t){return '<div class="center"><div class="spin"></div>'+t+'</div>';}
 
 /* ===== ROUTER ===== */
-const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12"]]];
+const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
 function buildNav(){let h='';TIERS.forEach(([t,label,ids])=>{const vis=ids.filter(canSee);if(!vis.length)return;h+=`<div class="tier">${label}</div>`;
  vis.forEach(k=>{h+=`<div class="nav" data-id="${k}" onclick="go('${k}')"><span class="code">${k}</span><span class="dot" style="color:#2e86e6;background:#2e86e6"></span><span>${PAGES[k].title.split('· ')[1]}</span></div>`;});});
  document.getElementById('nav').innerHTML=h;
@@ -1778,7 +1819,7 @@ function renderSRC(){const host=document.getElementById('content');
  /* nhóm tab theo file nguồn */
  const groups=[
   ['FILE CHÍNH — Google Sheet vận hành',[
-   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
+   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1289659560'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
