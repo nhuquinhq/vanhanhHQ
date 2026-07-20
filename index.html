@@ -969,17 +969,19 @@ const PAGES={
      const srcs=[
       {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề'},
       {name:'Gift Card (file riêng)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò'},
-      {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.og,cols:colsOf('og')},
-      {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.sc,cols:colsOf('sc')},
-      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.razer,cols:colsOf('razer')},
-      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),prev:RAWPREV.rbx,cols:colsOf('rbx')}
+      {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.og||[]).length,prev:RAWPREV.og,cols:colsOf('og')},
+      {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc')},
+      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer')},
+      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx')}
      ];
      const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th>Ghi chú</th></tr></thead><tbody>
-      ${srcs.map(s=>{const n=s.dks.length;const ds=[...s.dks].sort();
-       return `<tr><td><span class="stdot ${n?'ok':'bad'}"></span></td><td><b>${s.name}</b></td><td class="gidm">${s.gid}</td><td class="small">${s.cols||''}</td><td class="n">${fmtn(n)}</td><td>${n?fd(ds[0])+' → '+fd(ds[ds.length-1]):'—'}</td><td class="small">${n?(ds[ds.length-1]<iso(TO)?'⚠ chưa có số tới ngày mới nhất':'✓'):'không parse được — xem bảng thô bên dưới'}</td></tr>`;}).join('')}
+      ${srcs.map(s=>{const n=s.dks.length;const nAll=s.nAll!=null?s.nAll:n;const ds=[...s.dks].sort();
+       const st=n?'ok':(nAll?'warn':'bad');
+       const note=n?(ds[ds.length-1]<iso(TO)?'⚠ chưa có số tới ngày mới nhất':'✓'):(nAll?'đọc được '+fmtn(nAll)+' dòng có ngày nhưng giá trị đang = 0 — chờ số chạy trên sheet':'không parse được — xem bảng thô bên dưới');
+       return `<tr><td><span class="stdot ${st}"></span></td><td><b>${s.name}</b></td><td class="gidm">${s.gid}</td><td class="small">${s.cols||''}</td><td class="n">${fmtn(n)}</td><td>${n?fd(ds[0])+' → '+fd(ds[ds.length-1]):'—'}</td><td class="small">${note}</td></tr>`;}).join('')}
      </tbody></table></div>
      <div class="small" style="margin-top:6px">"Bản ghi" tính trên TOÀN BỘ tab (không theo bộ lọc). Nguồn đọc được nhưng "chưa có số tới ngày mới nhất" nghĩa là tab dừng cập nhật sau ngày ghi ở cột bên — không phải lỗi dashboard.</div></div>`
-     +srcs.filter(s=>!s.dks.length).map(s=>s.prev&&s.prev.length?`<div class="card" style="margin-top:10px"><h3>${s.name} — 8 dòng đầu tab (chụp màn hình gửi lại để chỉnh cột)</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:14},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${s.prev.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:`<div class="note" style="margin-top:10px"><b>${s.name}</b> (gid ${s.gid}): không tải được CSV — tab chưa Publish to web hoặc link đổi.</div>`).join('');
+     +srcs.filter(s=>!s.dks.length&&!(s.nAll)).map(s=>s.prev&&s.prev.length?`<div class="card" style="margin-top:10px"><h3>${s.name} — 8 dòng đầu tab (chụp màn hình gửi lại để chỉnh cột)</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:14},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${s.prev.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:`<div class="note" style="margin-top:10px"><b>${s.name}</b> (gid ${s.gid}): không tải được CSV — tab chưa Publish to web hoặc link đổi.</div>`).join('');
      /* ---- CHẾ ĐỘ SO SÁNH 2 TUẦN: dùng dữ liệu CẢ NĂM, không cắt theo Từ–Đến ---- */
      if(P13CMP){
       const mapOf=key=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
@@ -1315,12 +1317,14 @@ const RAWCFG={
 let RAWDATA={},RAWSTATE={},RAWPREV={},RAWMETA={};
 function rowsToRecs(cfg,rows){
  /* autoDate: tự dò cột ngày = cột có nhiều ô dạng dd/mm/yyyy hoặc yyyy-mm-dd nhất (RBX) */
- if(cfg&&cfg.autoDate&&rows&&rows.length){const isD=v=>/^\d{1,2}\/\d{1,2}\/\d{4}/.test((''+v).trim())||/^\d{4}-\d{1,2}-\d{1,2}/.test((''+v).trim());
+ if(cfg&&cfg.autoDate&&rows&&rows.length){const isD=v=>{v=(''+v).trim();return /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)||/^\d{4}-\d{1,2}-\d{1,2}/.test(v)||/^\d{1,2}\/\d{1,2}$/.test(v);};
   let best=-1,hits=0;const W=Math.max.apply(null,rows.slice(0,50).map(r=>(r||[]).length).concat([0]));
   for(let c=0;c<Math.min(W,12);c++){let h=0;for(let r=0;r<Math.min(rows.length,50);r++)if(isD((rows[r]||[])[c]))h++;if(h>hits){hits=h;best=c;}}
   if(best>-1&&hits>=3)cfg=Object.assign({},cfg,{date:best});}
  rowsToRecs.usedCfg=cfg; /* cho khối chẩn đoán biết cột thực dùng (sau autoDate) */
- const recs=[];(rows||[]).forEach(row=>{const dt=parseDateCell(row[cfg.date]);if(!dt||dt.mo<0)return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
+ /* chấp nhận cả ngày "26/04" không kèm năm (tab RBX HQS) — hiểu là năm 2026 */
+ const pdm=v=>{v=(''+v).trim();const m=v.match(/^(\d{1,2})\/(\d{1,2})$/);if(m){const dd=+m[1],mo=+m[2];if(dd>=1&&dd<=31&&mo>=1&&mo<=12)return{mo:mo-1,d:dd};}return parseDateCell(v);};
+ const recs=[];(rows||[]).forEach(row=>{const dt=pdm(row[cfg.date]);if(!dt||dt.mo<0)return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
 function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(RAWSTATE[key])return RAWSTATE[key];
  const cfg=RAWCFG[key];
  /* thử Google trực tiếp; parse không ra bản ghi nào (lệch cột/nhầm tab) thì thử /api/csv */
