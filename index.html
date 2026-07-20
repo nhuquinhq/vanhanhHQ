@@ -945,24 +945,35 @@ const PAGES={
      ];
      S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
      const days=rangeDays().filter(x=>x.y===2026).map(x=>dkey(x.mo,x.d)).filter(k=>S.some(s=>s.daily[k]));
+     /* gộp theo chế độ xem: ngày / tuần (Thứ 2 → CN) / tháng */
+     const bucket=k=>{if(P13MODE==='m')return{key:k.slice(0,7),label:'Tháng '+(+k.slice(5,7))};
+      if(P13MODE==='w'){const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));const s0=new Date(d);s0.setDate(d.getDate()-((d.getDay()+6)%7));const e=new Date(s0);e.setDate(s0.getDate()+6);
+       const f=x=>pad2(x.getDate())+'/'+pad2(x.getMonth()+1);return{key:iso({y:s0.getFullYear(),mo:s0.getMonth(),d:s0.getDate()}),label:f(s0)+' – '+f(e)};}
+      return{key:k,label:k.slice(8,10)+'/'+k.slice(5,7)};};
+     const B=[],bIdx={};
+     days.forEach(k=>{const b=bucket(k);if(bIdx[b.key]==null){bIdx[b.key]=B.length;B.push(b);}});
+     S.forEach(s=>{s.buck={};days.forEach(k=>{if(!s.daily[k])return;const bk=bucket(k).key;s.buck[bk]=(s.buck[bk]||0)+s.daily[k];});});
+     const MODE_L=P13MODE==='d'?'ngày':(P13MODE==='w'?'tuần':'tháng');
+     const modeBtn=(m,l)=>`<button class="btn" style="padding:6px 14px${P13MODE===m?';background:#1e5fd0;color:#fff;border-color:#1e5fd0':''}" onclick="setP13('${m}')">${l}</button>`;
      const tot=S.reduce((a,s)=>a+s.tot,0);
      const top=[...S].sort((a,b)=>b.tot-a.tot)[0];
      const empty=S.filter(s=>!s.tot).map(s=>s.name);
      const usdNote=FXKEYS.length?'':' · <b style="color:#b91c1c">chưa đọc được Bảng tỉ giá — các tab USD đang hiển thị 0</b>';
      host.innerHTML=`
+      <div style="display:flex;gap:7px;margin-bottom:11px;align-items:center;flex-wrap:wrap"><b style="font-size:12.5px;color:#1c2c4a">Xem theo:</b>${modeBtn('d','Ngày')}${modeBtn('w','Tuần')}${modeBtn('m','Tháng')}</div>
       <div class="kpis">
        ${kpi("Tổng CO Nhập (chi tiết)",fmt(tot),scopeLabel())}
        ${kpi("SPDV lớn nhất",top&&top.tot?top.name:'—',top&&top.tot?fmt(top.tot)+' đ · '+pct(top.tot/(tot||1)):'')}
        ${kpi("Số ngày có phát sinh",fmtn(days.length),"trong phạm vi lọc")}
        ${kpi("Bình quân / ngày",days.length?fmt(tot/days.length):'—',"trên các ngày có phát sinh")}
       </div>
-      <div class="grid2" style="grid-template-columns:1.6fr 1fr">${cc("CO Nhập theo ngày — chồng theo SPDV","p13a")}${cc("Cơ cấu CO Nhập theo SPDV — trong phạm vi","p13b")}</div>
-      <div class="card"><h3>Bảng nhập chi tiết theo ngày × SPDV (VND) — ${days.length} ngày</h3><div class="scroll" style="max-height:480px"><table class="tbl"><thead><tr><th>Ngày</th>${S.map(s=>`<th class="n">${s.name}</th>`).join('')}<th class="n">Tổng ngày</th></tr></thead><tbody>
-      ${[...days].reverse().map(k=>{const rowT=S.reduce((a,s)=>a+(s.daily[k]||0),0);return `<tr><td><b>${k.slice(8,10)}/${k.slice(5,7)}</b></td>${S.map(s=>`<td class="n">${fmtn(s.daily[k])}</td>`).join('')}<td class="n"><b>${fmtn(rowT)}</b></td></tr>`;}).join('')}
+      <div class="grid2" style="grid-template-columns:1.6fr 1fr">${cc("CO Nhập theo "+MODE_L+" — chồng theo SPDV","p13a")}${cc("Cơ cấu CO Nhập theo SPDV — trong phạm vi","p13b")}</div>
+      <div class="card"><h3>Bảng nhập chi tiết theo ${MODE_L} × SPDV (VND) — ${B.length} ${MODE_L}</h3><div class="scroll" style="max-height:480px"><table class="tbl"><thead><tr><th>${MODE_L.charAt(0).toUpperCase()+MODE_L.slice(1)}</th>${S.map(s=>`<th class="n">${s.name}</th>`).join('')}<th class="n">Tổng</th></tr></thead><tbody>
+      ${[...B].reverse().map(b=>{const rowT=S.reduce((a,s)=>a+(s.buck[b.key]||0),0);return `<tr><td><b>${b.label}</b></td>${S.map(s=>`<td class="n">${fmtn(s.buck[b.key])}</td>`).join('')}<td class="n"><b>${fmtn(rowT)}</b></td></tr>`;}).join('')}
       <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${S.map(s=>`<td class="n">${fmtn(s.tot)}</td>`).join('')}<td class="n">${fmtn(tot)}</td></tr>
       </tbody></table></div>
       <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux · Data giftcard (dòng "thêm mới code") · Data OGGAMING (tách Supercell theo cột phân loại) · Data Razergold · Data RBX. Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`;
-     mk("p13a",{type:'bar',data:{labels:days.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),datasets:S.filter(s=>s.tot).map(s=>({label:s.name,data:days.map(k=>s.daily[k]||0),backgroundColor:s.color,stack:'s'}))},
+     mk("p13a",{type:'bar',data:{labels:B.map(b=>b.label),datasets:S.filter(s=>s.tot).map(s=>({label:s.name,data:B.map(b=>s.buck[b.key]||0),backgroundColor:s.color,stack:'s'}))},
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
      const ds=S.filter(s=>s.tot);
      mk("p13b",donut(ds.map(s=>s.name),ds.map(s=>s.tot),ds.map(s=>s.color)));
@@ -1251,6 +1262,9 @@ function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(R
 function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
 /* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
 async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
+/* PVH13: chế độ xem Ngày / Tuần / Tháng */
+let P13MODE='d';
+function setP13(m){P13MODE=m;render();}
 function recsIn(key){const cfg=RAWCFG[key],fk=iso(FROM),tk=iso(TO);return (RAWDATA[key]||[]).filter(r=>r.dk>=fk&&r.dk<=tk).map(r=>({emp:r.emp,ncc:r.ncc,cat:r.cat,valv:cfg.usd?r.val*fxRate(r.dk):r.val,unitv:cfg.usd?r.unit*fxRate(r.dk):r.unit}));}
 function groupSum(key,field){const o={};recsIn(key).forEach(r=>{const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.valv;});return Object.entries(o).filter(x=>x[0]!=='(trống)').sort((a,b)=>b[1]-a[1]);}
 function groupAvgUnit(key,field){const o={},c={};recsIn(key).forEach(r=>{if(r.unitv<=0)return;const k=r[field]||'(trống)';o[k]=(o[k]||0)+r.unitv;c[k]=(c[k]||0)+1;});return Object.entries(o).filter(x=>x[0]!=='(trống)').map(([k,v])=>[k,c[k]?Math.round(v/c[k]):0]).sort((a,b)=>b[1]-a[1]);}
