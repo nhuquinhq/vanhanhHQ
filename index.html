@@ -931,7 +931,7 @@ const PAGES={
  }},
  PVH13:{title:"PVH13 · Nhập chi tiết theo SPDV",meta:"Đọc RAW các tab chi tiết → CO Nhập theo NGÀY trong phạm vi lọc · tab USD quy VND theo tỷ giá ngày",render(host){
    host.innerHTML=spinner("Đang đọc các tab chi tiết: Robux · Gift Card · OG · Supercell · Razer Gold · RBX…");
-   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily()]).then(()=>{
+   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily()]).then(()=>{
      const fk=iso(FROM),tk=iso(TO);
      const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
      const S=[
@@ -940,7 +940,8 @@ const PAGES={
       {name:'OG',daily:dsum('og'),color:'#7c3aed'},
       {name:'Supercell',daily:dsum('sc'),color:'#fb923c'},
       {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
-      {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'}
+      {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'},
+      {name:'Galaxylink',daily:(()=>{const o={},G=GLXDAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#eab308'}
      ];
      S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
      const days=rangeDays().filter(x=>x.y===2026).map(x=>dkey(x.mo,x.d)).filter(k=>S.some(s=>s.daily[k]));
@@ -972,7 +973,8 @@ const PAGES={
       {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.og||[]).length,prev:RAWPREV.og,cols:colsOf('og')},
       {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc')},
       {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer')},
-      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx')}
+      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx')},
+      {name:'Galaxylink (file riêng)',gid:GLX_GID,dks:Object.keys(GLXDAILY||{}),prev:GLXPREV,cols:GLXCOLS||'tự dò'}
      ];
      const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th>Ghi chú</th></tr></thead><tbody>
       ${srcs.map(s=>{const n=s.dks.length;const nAll=s.nAll!=null?s.nAll:n;const ds=[...s.dks].sort();
@@ -992,7 +994,8 @@ const PAGES={
        {name:'OG',map:mapOf('og')},
        {name:'Supercell',map:mapOf('sc')},
        {name:'Razer Gold',map:mapOf('razer')},
-       {name:'RBX',map:mapOf('rbx')}
+       {name:'RBX',map:mapOf('rbx')},
+       {name:'Galaxylink',map:(()=>{const o={},G=GLXDAILY||{};for(const k in G){const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})()}
       ];
       const wkOf=k=>{const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));d.setDate(d.getDate()-((d.getDay()+6)%7));return iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()});};
       const wkLabel=w=>{if(!w)return '—';const s=parseISO(w);const e=new Date(s.y,s.mo,s.d+6);return pad2(s.d)+'/'+pad2(s.mo+1)+' – '+pad2(e.getDate())+'/'+pad2(e.getMonth()+1);};
@@ -1036,7 +1039,7 @@ const PAGES={
       ${[...B].reverse().map(b=>{const rowT=S.reduce((a,s)=>a+(s.buck[b.key]||0),0);return `<tr><td><b>${b.label}</b></td>${S.map(s=>`<td class="n">${fmtn(s.buck[b.key])}</td>`).join('')}<td class="n"><b>${fmtn(rowT)}</b></td></tr>`;}).join('')}
       <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${S.map(s=>`<td class="n">${fmtn(s.tot)}</td>`).join('')}<td class="n">${fmtn(tot)}</td></tr>
       </tbody></table></div>
-      <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux — giá vốn (dòng tiền &gt; 0) · Data GC (tổng theo ngày) · Data OGGAMING (dòng success) · Data Supercell (dòng Hoàn Tất) · Data Razergold · Data RBX. Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`+diagHTML;
+      <div class="small" style="margin-top:6px">Nguồn RAW: Data Robux — giá vốn (dòng tiền &gt; 0) · Data GC (tổng theo ngày) · Data OGGAMING (dòng success) · Data Supercell (dòng Hoàn Tất) · Data Razergold · Data RBX · Data Galaxylink (file riêng, tự dò). Tab USD quy VND theo tỷ giá NGÀY${usdNote}. ${empty.length?'Chưa có số trong phạm vi: <b>'+empty.join(' · ')+'</b> (tab trống hoặc chưa nối số liệu). ':''}Số đọc từ RAW nên có thể lệch nhẹ so với tab tổng theo tháng (Data theo SPDV).</div></div>`+diagHTML;
      mk("p13a",{type:'bar',data:{labels:B.map(b=>b.label),datasets:S.filter(s=>s.tot).map(s=>({label:s.name,data:B.map(b=>s.buck[b.key]||0),backgroundColor:s.color,stack:'s'}))},
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
      const ds=S.filter(s=>s.tot);
@@ -1415,6 +1418,65 @@ async function gc13Daily(){if(GC13DAILY!==undefined)return GC13DAILY;
  GC13PREV=rows?rows.slice(0,8):null;
  GC13DAILY=o||undefined; /* không cache kết quả rỗng */
  return o;}
+/* PVH13: Galaxylink — FILE RIÊNG; tự dò cột ngày / trạng thái (loại refund·hủy) / giá trị; dò trượt sẽ hiện bảng thô ở khối 🩺 */
+const BASE_GLX="https://docs.google.com/spreadsheets/d/e/2PACX-1vT0ni4Ntgb0PgMYKwJGdrcYrA4P7t7Be0jem5w7n58dksNt3DrlzBDqSobmyRn9Bi0dFWDknEE9i2uJ/pub";
+const GLX_GID="1473618411";
+function glxDirectURL(){return BASE_GLX+"?gid="+GLX_GID+"&single=true&output=csv";}
+function glxApiURL(){return "/api/csv?f=glx&gid="+GLX_GID;}
+let GLXDAILY,GLXPREV=null,GLXCOLS='',GLXUSD=true;
+function glxFromRows(rows){
+ if(!rows||rows.length<2)return null;
+ /* 1) khuôn thật tab "Galaxy Link data": tiêu đề Amount · Currency · Quantity Done · Created At */
+ const lo=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/\s+/g,' ').trim().toLowerCase();};
+ for(let r=0;r<Math.min(rows.length,10);r++){const row=(rows[r]||[]).map(lo);
+  const iAmt=row.findIndex(x=>x==='amount'),iCre=row.findIndex(x=>/^created\s*at$/.test(x));
+  if(iAmt<0||iCre<0)continue;
+  const iDone=row.findIndex(x=>/^quantity\s*done$/.test(x)),iCur=row.findIndex(x=>x==='currency');
+  const o={};let n=0,usdN=0,curN=0;
+  for(let r2=r+1;r2<rows.length;r2++){const rw=rows[r2];if(!rw)continue;
+   const dt=parseDateCell(rw[iCre]);if(!dt||dt.mo<0||dt.mo>11)continue;
+   if(iDone>-1&&(''+(rw[iDone]||'')).trim()!==''&&!(num(rw[iDone])>0))continue; /* đơn chưa done thì bỏ */
+   const v=num(rw[iAmt]);if(!(v>0))continue;
+   if(iCur>-1){curN++;if(/usd/i.test(''+rw[iCur]))usdN++;}
+   const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;}
+  if(n){GLXUSD=curN?usdN>=curN/2:true;
+   GLXCOLS='khuôn Galaxy Link data (Amount · Created At'+(iDone>-1?' · lọc Quantity Done':'')+')'+(GLXUSD?' · USD quy VND':' · VND');
+   return o;}
+  break;}
+ /* 2) dự phòng: tự dò tổng quát */
+ const isD=v=>{v=(''+v).trim();return /^\d{1,2}\/\d{1,2}\/\d{4}/.test(v)||/^\d{4}-\d{1,2}-\d{1,2}/.test(v)||/^\d{1,2}\/\d{1,2}$/.test(v);};
+ const pdm=v=>{v=(''+v).trim();const m=v.match(/^(\d{1,2})\/(\d{1,2})$/);if(m){const dd=+m[1],mo=+m[2];if(dd>=1&&dd<=31&&mo>=1&&mo<=12)return{mo:mo-1,d:dd};}return parseDateCell(v);};
+ const W=Math.max.apply(null,rows.slice(0,80).map(r=>(r||[]).length).concat([0]));
+ let dCol=-1,dHits=0;
+ for(let c=0;c<Math.min(W,24);c++){let h=0;for(let r=0;r<Math.min(rows.length,80);r++)if(isD((rows[r]||[])[c]))h++;if(h>dHits){dHits=h;dCol=c;}}
+ if(dCol<0||dHits<3)return null;
+ let hdr=null;for(let r=0;r<Math.min(rows.length,10);r++){if(isD((rows[r]||[])[dCol]))break;hdr=rows[r];}
+ const GOOD=/^(success|hoàn tất|thêm mới code|thành công|done|completed)$/i;
+ const BADV=v=>/^(refund|hủy|huy|cancel|cancelled|failed|fail|pending|treo)$/i.test(v)||/^trả hàng/i.test(v)||/^sai /i.test(v);
+ let fCol=-1,fBest=0;
+ for(let c=0;c<Math.min(W,24);c++){if(c===dCol)continue;let g=0;
+  for(let r=0;r<rows.length;r++){const row=rows[r];if(!row||!isD(row[dCol]))continue;const v=(''+(row[c]||'')).trim();if(GOOD.test(v))g++;else if(BADV(v))g+=0;}
+  if(g>=3&&g>fBest){fBest=g;fCol=c;}}
+ const okRow=row=>fCol<0||GOOD.test((''+(row[fCol]||'')).trim());
+ let vCol=-1,best=-1;
+ for(let c=0;c<Math.min(W,24);c++){if(c===dCol||c===fCol)continue;let h=0;
+  for(let r=0;r<rows.length;r++){const row=rows[r];if(!row||!isD(row[dCol])||!okRow(row))continue;if(num(row[c])>0)h++;}
+  let score=h;if(h&&hdr&&/usd|giá|nhập|tổng|tiền|co|price|amount|total/i.test(''+(hdr[c]||'')))score+=1e6;
+  if(score>best){best=score;vCol=c;}}
+ if(vCol<0)return null;
+ const o={};let n=0;
+ rows.forEach(row=>{if(!row||!isD(row[dCol])||!okRow(row))return;const dt=pdm(row[dCol]);if(!dt||dt.mo<0)return;
+  const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;});
+ if(!n)return null;
+ const ks=Object.keys(o);const avg=ks.reduce((a,k)=>a+o[k],0)/ks.length;GLXUSD=avg<200000;
+ const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
+ GLXCOLS='ngày '+L(dCol)+(fCol>-1?' · lọc '+L(fCol):'')+' · giá trị '+L(vCol)+(GLXUSD?' · USD quy VND':' · VND');
+ return o;}
+async function glxDaily(){if(GLXDAILY!==undefined)return GLXDAILY;
+ let rows=await loadCSV(glxDirectURL());let o=glxFromRows(rows);
+ if(!o){const r2=await loadCSV(glxApiURL());if(r2)rows=r2;o=glxFromRows(rows);}
+ GLXPREV=rows?rows.slice(0,8):null;
+ GLXDAILY=o||undefined;return o;}
 let ROBUXPREV=null;
 async function robuxDaily(){if(ROBUXDAILY!==undefined)return ROBUXDAILY;
  let rows=await loadCSV(directURL(COSTCFG.robux.gid));
@@ -1995,6 +2057,7 @@ function renderSRC(){const host=document.getElementById('content');
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE GIFT CARD (PVH13)',[['GC nhập theo ngày',GC13_GID,'gc13']]],
+  ['FILE GALAXYLINK (PVH13)',[['GLX nhập',GLX_GID,'glx']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
@@ -2027,7 +2090,7 @@ function renderSRC(){const host=document.getElementById('content');
   const gr=document.createElement('tr');gr.className='grp';gr.innerHTML=`<td colspan="6">${gname}</td>`;tb.appendChild(gr);
   tests.forEach(([nm,gid,f])=>{const tr=document.createElement('tr');
    tr.innerHTML=`<td><span class="stdot" style="background:#94a3b8"></span></td><td><b>${nm}</b></td><td class="gidm">${f==='ton'?'file riêng':gid}</td><td>…</td><td class="n">…</td><td class="small">đang gọi…</td>`;tb.appendChild(tr);
-   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():(f==='gc13'?gc13DirectURL():directURL(gid)))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():(f==='gc13'?gc13ApiURL():apiURL(gid))));
+   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():(f==='gc13'?gc13DirectURL():(f==='glx'?glxDirectURL():directURL(gid))))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():(f==='gc13'?gc13ApiURL():(f==='glx'?glxApiURL():apiURL(gid)))));
      const d=await probe(du);let use=d,via='direct';
      if(!d.ok){const a=await probe(au);if(a.ok){use=a;via='api';}else{via='fail';use=a.head?a:d;}}
      tr.children[0].innerHTML=`<span class="stdot ${via==='direct'?'ok':(via==='api'?'warn':'bad')}"></span>`;
