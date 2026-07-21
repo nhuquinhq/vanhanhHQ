@@ -323,14 +323,14 @@ const ROLE_PAGES={
  leader:["TQ","PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"],
  nhanvien:["PVH10"]
 };
-const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","PVH13","SRC"];
+const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","PVH13","PVH14","SRC"];
 function pageName(id){if(id==='TQ')return 'Tổng quan';if(id==='SRC')return 'Nguồn & Cấu hình';return PAGES[id]?PAGES[id].title.replace(/^PVH\d+\s*·\s*/,'PVH'+id.slice(3)+' · '):id;}
 let MY_EMAIL=null,MY_ROLE=null,MY_PAGES=[];
 /* ô nhập "báo cáo được xem": "all"/"tất cả" · danh sách mã "TQ,PVH1,PVH10" · trống = null (theo vai trò) */
 function parsePages(s){s=(''+s).trim();if(!s)return null;
  if(/^(all|tất\s*cả|toàn\s*bộ|hết)$/i.test(s))return 'all';
  const ids=[];s.split(/[,;\/\s]+/).forEach(t=>{t=t.trim().toUpperCase();
-  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-3])$/.test(t))ids.push(t);});
+  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-4])$/.test(t))ids.push(t);});
  return ids.length?ids:null;}
 function resolvePages(entry){if(!entry)return [];
  if(entry.role==='admin')return ALL_PAGES.slice();
@@ -1048,6 +1048,45 @@ const PAGES={
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
      const ds=S.filter(s=>s.tot);
      mk("p13b",donut(ds.map(s=>s.name),ds.map(s=>s.tot),ds.map(s=>s.color)));
+   });
+ }},
+ PVH14:{title:"PVH14 · Số dư NCC",meta:"Deposit đang nằm tại các NCC — API tự động (NCC nào có) + nhập tay · quy VND theo tỷ giá mới nhất",render(host){
+   host.innerHTML=spinner("Đang đọc số dư NCC…");
+   Promise.all([nccGet(),ensureFX()]).then(([d])=>{
+     if(!d||d.error){
+       const m={network:"Không gọi được /api/ncc — mở dashboard từ tên miền thật (vanhanh-hq.vercel.app) và kiểm tra mạng.",
+        unauthorized:"Phiên Google không còn hiệu lực. Hãy Đăng xuất rồi đăng nhập lại bằng nút Google — trang này server phải xác minh Google, mật khẩu dự phòng không dùng được.",
+        forbidden:"Trang này chỉ dành cho tài khoản admin.",
+        kv_not_configured:"Vercel KV chưa cấu hình (Settings → Storage)."};
+       host.innerHTML=`<div class="note"><b>Chưa xem được số dư NCC.</b><br>${m[d&&d.error]||('Lỗi: '+(d&&d.error))}</div>`;return;}
+     const L=d.nccs||[];
+     const rate=FXKEYS.length?FXMAP[FXKEYS[FXKEYS.length-1]]:27000;
+     const has=L.filter(x=>x.usd!=null);
+     const totU=has.reduce((a,x)=>a+x.usd,0);
+     const newest=has.length?Math.max.apply(null,has.map(x=>x.ts||0)):0;
+     const fmU=n=>n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2});
+     const ago=ts=>ts?new Date(ts).toLocaleString('vi-VN',{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):'—';
+     const badge=s=>s==='api'?'<span style="background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">API</span>':(s==='tay'?'<span style="background:#fef9c3;color:#a16207;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">Nhập tay</span>':'<span style="background:#e2e8f0;color:#64748b;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:600">Chưa có số</span>');
+     const top1=has.length?[...has].sort((a,b)=>b.usd-a.usd)[0]:null;
+     const adm=MY_ROLE==='admin';
+     host.innerHTML=`
+      <div class="kpis">
+       ${kpi("Tổng deposit tại NCC","$ "+fmU(totU),has.length+"/"+L.length+" NCC đã có số")}
+       ${kpi("Quy đổi VND",fmt(totU*rate),"tỷ giá "+fmtn(rate)+" đ/USD"+(FXKEYS.length?" (Bảng tỉ giá — ngày mới nhất)":" (mặc định)"))}
+       ${kpi("NCC nhiều tiền nhất",top1?top1.name:"—",top1?"$ "+fmU(top1.usd)+" · "+pct(top1.usd/(totU||1)):"")}
+       ${kpi("Cập nhật gần nhất",newest?ago(newest):"—","API tự chạy theo lịch · nhập tay lúc nào cũng được")}
+      </div>
+      ${adm?`<div style="display:flex;gap:8px;margin-bottom:11px;align-items:center;flex-wrap:wrap"><button class="btn" id="nccPollBtn" onclick="nccPoll()">↻ Lấy số dư từ API (Galaxylink)</button><span class="small" id="nccPollMsg"></span></div>`:''}
+      ${has.length?`<div class="grid2" style="grid-template-columns:1.5fr 1fr">${cc("Số dư theo NCC (USD)","p14a")}${cc("Cơ cấu deposit","p14b")}</div>`:''}
+      <div class="card"><h3>Bảng số dư NCC</h3><div class="scroll"><table class="tbl"><thead><tr><th>NCC</th><th>Cổng</th><th class="n">Số dư (USD)</th><th class="n">≈ VND</th><th>Nguồn</th><th>Cập nhật</th><th>Ghi chú</th>${adm?'<th style="min-width:190px">Nhập tay (admin)</th>':''}</tr></thead><tbody>
+      ${L.map(x=>`<tr><td><b>${x.name}</b></td><td class="small">${x.url}</td><td class="n">${x.usd!=null?'<b>$ '+fmU(x.usd)+'</b>':'—'}</td><td class="n">${x.usd!=null?fmtn(x.usd*rate):'—'}</td><td>${badge(x.src)}</td><td class="small">${ago(x.ts)}</td><td class="small">${x.note?(''+x.note).replace(/</g,'&lt;'):''}</td>${adm?`<td><div style="display:flex;gap:5px"><input id="nccin_${x.id}" placeholder="vd 1250.50" style="width:100px;padding:6px 8px;border:1px solid #c8d8f0;border-radius:8px;font-size:12.5px"><button class="btn" style="padding:6px 11px" onclick="nccSet('${x.id}')">Lưu</button></div></td>`:''}</tr>`).join('')}
+      <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td></td><td class="n">$ ${fmU(totU)}</td><td class="n">${fmtn(totU*rate)}</td><td colspan="${adm?4:3}"></td></tr>
+      </tbody></table></div>
+      <div class="small" style="margin-top:6px">Số dư tính bằng USD; quy VND theo tỷ giá NGÀY MỚI NHẤT trong Bảng tỉ giá. Galaxylink lấy tự động qua API — các NCC khác nhập tay cho tới khi có API key (BuySellVouchers: chờ duyệt Business API · RBXCrate: lấy key trong panel · Lotkeys / OGGamingX / Donquixoteshop: hỏi admin của họ). Nhập tay: gõ số USD với dấu chấm thập phân (vd <b>1250.50</b>) rồi bấm Lưu; để trống rồi bấm Lưu sẽ xoá số đã lưu.</div></div>`;
+     if(has.length){
+      mk("p14a",{type:'bar',data:{labels:has.map(x=>x.name),datasets:[{label:'USD',data:has.map(x=>x.usd),backgroundColor:'#1e5fd0'}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$ '+fmU(c.parsed.y)}}},scales:{x:noX,y:yG}}});
+      mk("p14b",donut(has.map(x=>x.name),has.map(x=>x.usd),BLUE));
+     }
    });
  }},
  PVH4:{title:"PVH4 · Biến động giá vốn theo tháng — Robux · Razer Gold",meta:"GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân GIA QUYỀN, loại dòng tiền = 0) · Razer: Rate = giá vốn (USD/RG) · cả kỳ, không phụ thuộc bộ lọc ngày",render(host){
@@ -1983,7 +2022,31 @@ async function costMonths(key){const cfg=COSTCFG[key];if(COSTD[key]!==undefined)
 function spinner(t){return '<div class="center"><div class="spin"></div>'+t+'</div>';}
 
 /* ===== ROUTER ===== */
-const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
+/* ===== PVH14: Số dư NCC — gọi /api/ncc kèm id_token Google (server tự verify quyền admin) ===== */
+function nccApi(params){let tok='';try{tok=sessionStorage.getItem('pvh_idtoken')||'';}catch(e){}
+ return fetch('/api/ncc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({id_token:tok},params||{}))}).then(r=>r.json()).catch(()=>({error:'network'}));}
+function nccGet(){return nccApi({a:'get'});}
+/* nhập USD: chấm = thập phân (1250.50); chấp nhận cả kiểu 1.250,50 */
+function parseUsd(s){s=(''+s).trim().replace(/[$\s]/g,'');if(!s)return null;
+ if(s.indexOf(',')>-1&&s.indexOf('.')>-1)s=s.replace(/\./g,'').replace(',','.');
+ else if(s.indexOf(',')>-1)s=s.replace(',','.');
+ const n=parseFloat(s);return isNaN(n)?NaN:n;}
+function nccPoll(){const b=document.getElementById('nccPollBtn'),m=document.getElementById('nccPollMsg');
+ if(b){b.disabled=true;b.textContent='Đang gọi API…';}
+ nccApi({a:'poll'}).then(d=>{
+  if(d&&d.ok){const g=d.results&&d.results.glx;
+   if(g&&g.ok){render();return;}
+   if(m)m.textContent='Galaxylink lỗi: '+((g&&g.error)||'?')+(g&&g.probes?' — đã dò '+g.probes.length+' đường dẫn (chi tiết trong Console F12, chụp gửi lại)':'');
+   try{console.log('NCC poll probes',g&&g.probes);}catch(e){}
+  }else if(m)m.textContent='Lỗi: '+((d&&d.error)||'network');
+  if(b){b.disabled=false;b.textContent='↻ Lấy số dư từ API (Galaxylink)';}
+ });}
+function nccSet(id){const el=document.getElementById('nccin_'+id);const v=((el&&el.value)||'').trim();
+ if(!v){if(confirm('Ô trống — xoá số dư đã lưu của NCC này?'))nccApi({a:'set',ncc:id,del:1}).then(()=>render());return;}
+ const usd=parseUsd(v);
+ if(usd==null||isNaN(usd)||usd<0){alert('Số không hợp lệ — gõ kiểu 1250.50 (chấm = thập phân)');return;}
+ nccApi({a:'set',ncc:id,usd:usd}).then(d=>{if(d&&d.ok)render();else alert('Lỗi lưu: '+((d&&d.error)||'network'));});}
+const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8","PVH14"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
 function buildNav(){let h='';TIERS.forEach(([t,label,ids])=>{const vis=ids.filter(canSee);if(!vis.length)return;h+=`<div class="tier">${label}</div>`;
  vis.forEach(k=>{h+=`<div class="nav" data-id="${k}" onclick="go('${k}')"><span class="code">${k}</span><span class="dot" style="color:#2e86e6;background:#2e86e6"></span><span>${PAGES[k].title.split('· ')[1]}</span></div>`;});});
  document.getElementById('nav').innerHTML=h;
