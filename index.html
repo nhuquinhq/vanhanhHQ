@@ -1332,7 +1332,11 @@ function rowsToRecs(cfg,rows){
  /* chấp nhận cả ngày "26/04" không kèm năm (tab RBX HQS) — hiểu là năm 2026 */
  const pdm=v=>{v=(''+v).trim();const m=v.match(/^(\d{1,2})\/(\d{1,2})$/);if(m){const dd=+m[1],mo=+m[2];if(dd>=1&&dd<=31&&mo>=1&&mo<=12)return{mo:mo-1,d:dd};}return parseDateCell(v);};
  const recs=[];(rows||[]).forEach(row=>{const dt=pdm(row[cfg.date]);if(!dt||dt.mo<0)return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
-function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(RAWSTATE[key])return RAWSTATE[key];
+let RAWTS={};
+const RAW_TTL=300000; /* dữ liệu RAW tự đọc lại sau 5 phút — sheet có số mới thì dashboard tự nhận, không cần F5 */
+function fetchRaw(key){
+ if(RAWDATA[key]&&(Date.now()-(RAWTS[key]||0)<RAW_TTL))return Promise.resolve(RAWDATA[key]);
+ if(RAWSTATE[key])return RAWSTATE[key];
  const cfg=RAWCFG[key];
  /* thử Google trực tiếp; parse không ra bản ghi nào (lệch cột/nhầm tab) thì thử /api/csv */
  RAWSTATE[key]=(async()=>{
@@ -1341,8 +1345,10 @@ function fetchRaw(key){if(RAWDATA[key])return Promise.resolve(RAWDATA[key]);if(R
    if(!recs.length){const r2=await loadCSV(apiURL(cfg.gid));if(r2)rows=r2;recs=rowsToRecs(cfg,rows);}
    RAWPREV[key]=rows?rows.slice(0,8):null; /* giữ 8 dòng đầu để chẩn đoán khi không parse được */
    RAWMETA[key]=rowsToRecs.usedCfg||cfg;
+   RAWTS[key]=Date.now();
    RAWDATA[key]=recs;
-   if(!recs.length){delete RAWSTATE[key];delete RAWDATA[key];} /* KHÔNG cache kết quả rỗng — mạng trượt thì lần làm mới sau tự thử lại */
+   if(!recs.length)delete RAWDATA[key]; /* KHÔNG cache kết quả rỗng — lần làm mới sau tự thử lại */
+   delete RAWSTATE[key];
    return recs;})();
  return RAWSTATE[key];}
 function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
@@ -1416,10 +1422,11 @@ function gc13FromRows(rows){
   const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o2[k]=(o2[k]||0)+v;n2++;});
  const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
  return done(o2,n2,'ngày '+L(dCol)+' · giá trị '+L(vCol));}
-async function gc13Daily(){if(GC13DAILY!==undefined)return GC13DAILY;
+let GC13TS=0;
+async function gc13Daily(){if(GC13DAILY!==undefined&&Date.now()-GC13TS<RAW_TTL)return GC13DAILY;
  let rows=await loadCSV(gc13DirectURL());let o=gc13FromRows(rows);
  if(!o){const r2=await loadCSV(gc13ApiURL());if(r2)rows=r2;o=gc13FromRows(rows);}
- GC13PREV=rows?rows.slice(0,8):null;
+ GC13PREV=rows?rows.slice(0,8):null;GC13TS=Date.now();
  GC13DAILY=o||undefined; /* không cache kết quả rỗng */
  return o;}
 /* PVH13: Galaxylink — FILE RIÊNG; tự dò cột ngày / trạng thái (loại refund·hủy) / giá trị; dò trượt sẽ hiện bảng thô ở khối 🩺 */
@@ -1476,17 +1483,18 @@ function glxFromRows(rows){
  const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
  GLXCOLS='ngày '+L(dCol)+(fCol>-1?' · lọc '+L(fCol):'')+' · giá trị '+L(vCol)+(GLXUSD?' · USD quy VND':' · VND');
  return o;}
-async function glxDaily(){if(GLXDAILY!==undefined)return GLXDAILY;
+let GLXTS=0;
+async function glxDaily(){if(GLXDAILY!==undefined&&Date.now()-GLXTS<RAW_TTL)return GLXDAILY;
  let rows=await loadCSV(glxDirectURL());let o=glxFromRows(rows);
  if(!o){const r2=await loadCSV(glxApiURL());if(r2)rows=r2;o=glxFromRows(rows);}
- GLXPREV=rows?rows.slice(0,8):null;
+ GLXPREV=rows?rows.slice(0,8):null;GLXTS=Date.now();
  GLXDAILY=o||undefined;return o;}
-let ROBUXPREV=null;
-async function robuxDaily(){if(ROBUXDAILY!==undefined)return ROBUXDAILY;
+let ROBUXPREV=null,ROBUXTS=0;
+async function robuxDaily(){if(ROBUXDAILY!==undefined&&Date.now()-ROBUXTS<RAW_TTL)return ROBUXDAILY;
  let rows=await loadCSV(directURL(COSTCFG.robux.gid));
  let o=robuxDailyFromRows(rows);
  if(!o){const r2=await loadCSV(apiURL(COSTCFG.robux.gid));if(r2)rows=r2;o=robuxDailyFromRows(rows);}
- ROBUXPREV=rows?rows.slice(0,8):null;
+ ROBUXPREV=rows?rows.slice(0,8):null;ROBUXTS=Date.now();
  ROBUXDAILY=o||undefined; /* không cache kết quả rỗng — lần làm mới sau tự thử lại */
  return o;}
 function recsIn(key){const cfg=RAWCFG[key],fk=iso(FROM),tk=iso(TO);return (RAWDATA[key]||[]).filter(r=>r.dk>=fk&&r.dk<=tk).map(r=>({emp:r.emp,ncc:r.ncc,cat:r.cat,valv:cfg.usd?r.val*fxRate(r.dk):r.val,unitv:cfg.usd?r.unit*fxRate(r.dk):r.unit}));}
