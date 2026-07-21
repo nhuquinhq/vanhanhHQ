@@ -378,11 +378,11 @@ function saveSess(em){try{sessionStorage.setItem('pvh_auth','1');sessionStorage.
 document.addEventListener('keydown',e=>{const l=document.getElementById('login');if(e.key==='Enter'&&l&&l.style.display!=='none')doLogin();});
 
 /* ===== DỮ LIỆU THẬT (cấp tháng) ===== */
-const SPDV=["Robux","Token","Gift Card","Nick Random Roblox","Razer Gold","RBX Daily","RBX HQS","Topup","Supercell"];
+const SPDV=["Robux","Token","Gift Card","Nick Random Roblox","Razer Gold","RBX Daily","RBX HQS","Topup OG","Topup Galaxylink","Supercell"];
 const MN=["T01","T02","T03","T04","T05","T06","T07","T08","T09","T10","T11","T12"];
 const DAYS_IN=[31,28,31,30,31,30,31,31,30,31,30,31];
-let NHAP={"Robux":[2680000000,1234329434,1383904463,952103845,1097973356,550329586],"Token":[34039650,16751710,33309990,12030908,8341155,0],"Gift Card":[3216768660,1672489620,2380101840,3166903440,3221131050,1952709390],"Nick Random Roblox":[76676000,122800439,57564641,51863489,88906261,86096418],"Razer Gold":[0,0,618724980,880444890,889391070,195431940],"RBX Daily":[54000000,54000000,54000000,54000000,54000000,54000000],"RBX HQS":[0,0,0,0,0,0],"Topup":[0,0,0,0,0,0],"Supercell":[0,0,0,0,0,0]};
-let XUAT={"Robux":[2600000000,1200000000,1350000000,940000000,1080182179,520000000],"Token":[34039650,16751710,33309990,12030908,8341155,0],"Gift Card":[3253787550,1700000000,2400000000,3200000000,3310651170,1900000000],"Nick Random Roblox":[90940500,110000000,60000000,60000000,79372688,96864842],"Razer Gold":[0,0,600000000,870000000,889391070,190000000],"RBX Daily":[23748390,40000000,50000000,55000000,61872660,29643570],"RBX HQS":[0,0,0,0,0,0],"Topup":[0,0,0,0,0,0],"Supercell":[0,0,0,0,0,0]};
+let NHAP={"Robux":[2680000000,1234329434,1383904463,952103845,1097973356,550329586],"Token":[34039650,16751710,33309990,12030908,8341155,0],"Gift Card":[3216768660,1672489620,2380101840,3166903440,3221131050,1952709390],"Nick Random Roblox":[76676000,122800439,57564641,51863489,88906261,86096418],"Razer Gold":[0,0,618724980,880444890,889391070,195431940],"RBX Daily":[54000000,54000000,54000000,54000000,54000000,54000000],"RBX HQS":[0,0,0,0,0,0],"Topup OG":[0,0,0,0,0,0],"Topup Galaxylink":[0,0,0,0,0,0],"Supercell":[0,0,0,0,0,0]};
+let XUAT={"Robux":[2600000000,1200000000,1350000000,940000000,1080182179,520000000],"Token":[34039650,16751710,33309990,12030908,8341155,0],"Gift Card":[3253787550,1700000000,2400000000,3200000000,3310651170,1900000000],"Nick Random Roblox":[90940500,110000000,60000000,60000000,79372688,96864842],"Razer Gold":[0,0,600000000,870000000,889391070,190000000],"RBX Daily":[23748390,40000000,50000000,55000000,61872660,29643570],"RBX HQS":[0,0,0,0,0,0],"Topup OG":[0,0,0,0,0,0],"Topup Galaxylink":[0,0,0,0,0,0],"Supercell":[0,0,0,0,0,0]};
 let DIE={"Robux":[13121425,18638474,1522295,3998836,2205367,1008150],"Nick Random Roblox":[530000,700000,300000,250000,167000,774630],"Razer Gold":[0,0,1500000,2000000,2693790,182250],"Gift Card":[3331800,2000000,1500000,1000000,532980,400000],"RBX Daily":[0,0,1000000,1200000,1677240,1620000],"RBX HQS":[0,0,0,0,0,0]};
 let DON={"Robux":[0,0,5000000,8000000,14858825,10360599]};
 let TON=Array(12).fill(0); /* Tổng CO Tồn theo tháng — đọc hàng "Tổng CO Tồn" trên tab Data theo SPDV, không có số dự phòng */
@@ -436,7 +436,10 @@ function canonSP(x){x=(''+x).trim();if(SPDV.includes(x))return x;
  const hit=SPDV.find(s=>s.toLowerCase()===n);if(hit)return hit; /* khớp không phân biệt hoa thường */
  if(n==='token'||n==='item (token)')return 'Token';
  if(n==='rbx daily')return 'RBX Daily';if(n==='rbx hqs')return 'RBX HQS';
- if(n==='razergold')return 'Razer Gold';if(n==='giftcard')return 'Gift Card';if(n==='top up')return 'Topup';
+ if(n==='razergold')return 'Razer Gold';if(n==='giftcard')return 'Gift Card';
+ if(n==='topup og'||n==='og topup'||n==='topup oggaming')return 'Topup OG';
+ if(n==='topup galaxylink'||n==='topup glx'||n==='galaxylink')return 'Topup Galaxylink';
+ if(n==='topup'||n==='top up')return 'Topup'; /* khối cũ trên tab NCC — không nằm trong SPDV tháng */
  if(n==='rbx')return 'RBX'; /* khối "RBX" gộp (tab NCC vẫn dùng) — hiển thị ở báo cáo NCC, không cộng vào SPDV tháng */
  return null;}
 /* Dò hàng tiêu đề tháng: hàng nào có >=3 ô là "Tháng 01"/"T01"/"01/2026"… thì lấy map tháng→cột */
@@ -453,6 +456,7 @@ function parseSPDV(rows){const col=monthCols(rows)||{0:5,1:6,2:7,3:8,4:9,5:10,6:
   if(!row){const ln=norm(L);const k=Object.keys(m).find(x=>{const xn=norm(x);
     if(xn===ln)return true;
     if((ln==='token'&&xn==='item (token)')||(ln==='item (token)'&&xn==='token'))return true;
+    if((ln==='topup og'&&(xn==='topup'||xn==='og topup'))||(ln==='topup'&&xn==='topup og'))return true; /* khối Xuất còn ghi nhãn cũ "Topup" */
     return false;});
    if(k)row=m[k];}
   if(!row)return 0;const c=col[mi];return c==null?0:num(row[c]);};
@@ -550,7 +554,7 @@ async function loadLive(){
 
 /* palette xanh dương + tín hiệu */
 const BLUE=['#0b3a8f','#1e5fd0','#2e86e6','#4aa8f0','#7cc4f7','#22d3ee','#94a3b8'];
-const SPCOL={"Gift Card":'#0b3a8f',"Robux":'#2e86e6',"Razer Gold":'#1e5fd0',"Nick Random Roblox":'#4aa8f0',"Token":'#7cc4f7',"RBX Daily":'#22d3ee',"RBX HQS":'#0e9fbe',"Topup":'#94a3b8',"Supercell":'#5f7ae8'};
+const SPCOL={"Gift Card":'#0b3a8f',"Robux":'#2e86e6',"Razer Gold":'#1e5fd0',"Nick Random Roblox":'#4aa8f0',"Token":'#7cc4f7',"RBX Daily":'#22d3ee',"RBX HQS":'#0e9fbe',"Topup OG":'#94a3b8',"Topup Galaxylink":'#eab308',"Supercell":'#5f7ae8'};
 const RED='#f43f5e',GREEN='#34d399';
 Chart.defaults.font.family="'Be Vietnam Pro',Arial,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#5b6b7b';
 let charts=[],curr="TQ";
@@ -1249,7 +1253,7 @@ const PAGES={
 
 /* ==== chart cfg helpers ==== */
 function lvl(){return "tháng";}
-function shortSP(s){return s.replace("Nick Random Roblox","Nick").replace("Razer Gold","Razer").replace("Gift Card","GC");}
+function shortSP(s){return s.replace("Nick Random Roblox","Nick").replace("Razer Gold","Razer").replace("Gift Card","GC").replace("Topup Galaxylink","Topup GLX");}
 function donut(labels,data,colors,sm){return{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:1}]},options:{cutout:'56%',plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10},padding:4}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}};}
 function barOpt(stackLegend){return{plugins:{legend:{display:!!stackLegend,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>(c.dataset.label?c.dataset.label+': ':'')+fmt(c.parsed.y)}}},scales:{x:noX,y:{...yG,ticks:{callback:fmtAxis}}}};}
 /* cột chồng theo tháng, mỗi SPDV một màu */
