@@ -9,7 +9,12 @@ on:
     - cron: '3,23,43 5-7 * * *'    # khung 12:00 VN (gõ cửa 12:03 → 14:43)
     - cron: '3,23,43 11-13 * * *'  # khung 18:00 VN (18:03 → 20:43)
     - cron: '3,23,43 16-18 * * *'  # khung 23:00 VN (23:03 → 01:43)
-  workflow_dispatch: {}   # cho phép bắn tay từ tab Actions (bắn ngay, không qua gác giờ)
+  workflow_dispatch:      # bắn tay từ tab Actions: để trống = gửi ngay · gac=auto = qua gác giờ VN (chống trùng khung)
+    inputs:
+      gac:
+        description: 'auto = qua gac gio VN (dung khung 12h/18h/23h moi gui, chong trung) · de trong = gui ngay'
+        required: false
+        default: ''
 
 jobs:
   fire:
@@ -22,7 +27,7 @@ jobs:
           fi
           URL="${{ secrets.TELE_FIRE_URL }}"
           # chay theo lich -> them slot=auto de server gac gio VN; ban tay tu tab Actions -> gui ngay
-          if [ "${{ github.event_name }}" = "schedule" ]; then
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.gac }}" = "auto" ]; then
             case "$URL" in *\?*) URL="$URL&slot=auto";; *) URL="$URL?slot=auto";; esac
           fi
           code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" "$URL")
