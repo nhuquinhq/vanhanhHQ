@@ -1,10 +1,26 @@
 // Vercel Serverless Function — Bot bắn báo cáo dashboard vào box Telegram
-// Gọi: /api/tele?r=pvh10[&d=17/07][&dry=1][&key=<TELE_SECRET>]
-//  - Vercel Cron gọi mỗi ngày (cấu hình trong vercel.json) → tự gửi vào box
+// Gọi: /api/tele?r=pvh10[&d=17/07][&dry=1][&key=<TELE_SECRET>][&slot=auto]
+//  - GitHub Actions gõ cửa nhiều lần quanh mỗi khung giờ với slot=auto → server tự quyết theo GIỜ VN:
+//    đúng khung 12h/18h/23h (trong 3 tiếng sau mốc) mới gửi, mỗi khung chỉ gửi 1 lần (đánh dấu KV).
+//    Lý do: bộ hẹn giờ GitHub hay trễ vô chừng (có hôm job 12h trưa bị nhả lúc 3h sáng).
 //  - dry=1: chỉ trả về nội dung để xem thử, KHÔNG gửi
 //  - Env cần có: TELEGRAM_BOT_TOKEN · TELEGRAM_CHAT_ID · (tuỳ chọn) TELEGRAM_THREAD_ID, TELE_SECRET
 const FILE_SLA = "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W";
 const GIDS = { tc: "1496740945", gp_ngay: "511745866" };
+
+const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
+const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
+async function kv(cmd) {
+  try {
+    const r = await fetch(KV_URL, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + KV_TOKEN, "Content-Type": "application/json" },
+      body: JSON.stringify(cmd)
+    });
+    const j = await r.json();
+    return j.result;
+  } catch (e) { return null; }
+}
 
 /* ---- tiện ích ---- */
 function csvParse(input) {
@@ -148,6 +164,27 @@ module.exports = async (req, res) => {
   if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
   const r = ("" + (q.r || "pvh10")).toLowerCase();
   if (!REPORTS[r]) { res.status(400).json({ error: "unknown_report", reports: Object.keys(REPORTS) }); return; }
+  /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
+  let markKey = null;
+  if (q.slot === "auto") {
+    const SLOTS = [12, 18, 23];
+    const pad = x => String(x).padStart(2, "0");
+    const vn = new Date(Date.now() + 7 * 3600 * 1000);
+    const mins = vn.getUTCHours() * 60 + vn.getUTCMinutes();
+    let slot = null, base = vn;
+    for (const h of SLOTS) { if (mins >= h * 60 && mins < h * 60 + 180) slot = h; }
+    if (slot == null && mins < 120) { slot = 23; base = new Date(vn.getTime() - 86400000); } /* 23h kéo sang 0h–2h hôm sau */
+    const gioVN = pad(vn.getUTCHours()) + ":" + pad(vn.getUTCMinutes());
+    if (slot == null) { res.status(200).json({ ok: true, skip: "ngoai_khung_gio", gio_vn: gioVN }); return; }
+    markKey = "pvh:tele:" + base.getUTCFullYear() + "-" + pad(base.getUTCMonth() + 1) + "-" + pad(base.getUTCDate()) + ":" + slot + "h:" + r;
+    if (KV_URL && KV_TOKEN) {
+      const got = await kv(["SET", markKey, "1", "NX", "EX", 172800]); /* NX: chỉ lần gõ cửa đầu tiên của khung được gửi */
+      if (got !== "OK") { res.status(200).json({ ok: true, skip: "khung_" + slot + "h_da_gui", gio_vn: gioVN }); return; }
+    } else if (mins >= slot * 60 + 60 && !(slot === 23 && mins < 120)) {
+      /* không có KV thì không chống trùng được — chỉ nhận lần gõ trong giờ đầu của khung */
+      res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return;
+    }
+  }
   const text = await REPORTS[r](q);
   if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(text); return; }
   const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
@@ -159,6 +196,10 @@ module.exports = async (req, res) => {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
     });
     const j = await tg.json();
+    if (!j.ok && markKey) await kv(["DEL", markKey]); /* gửi hỏng thì nhả khung để lần gõ cửa sau thử lại */
     res.status(200).json(j.ok ? { ok: true, report: r } : { ok: false, telegram: j });
-  } catch (e) { res.status(502).json({ ok: false, error: "" + (e && e.message ? e.message : e) }); }
+  } catch (e) {
+    if (markKey) await kv(["DEL", markKey]);
+    res.status(502).json({ ok: false, error: "" + (e && e.message ? e.message : e) });
+  }
 };
