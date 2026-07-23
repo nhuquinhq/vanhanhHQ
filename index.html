@@ -971,20 +971,22 @@ const PAGES={
      const fd=k=>k.slice(8,10)+'/'+k.slice(5,7);
      const colL=c=>c==null||c<0?'—':(c<26?String.fromCharCode(65+c):'A'+String.fromCharCode(65+c-26));
      const colsOf=key=>{const m=RAWMETA[key];return m?'ngày '+colL(m.date)+' · giá trị '+colL(m.val):'';};
+     const sumMap=(M,usd)=>{let t=0;for(const k in (M||{}))t+=usd?M[k]*fxRate(k):M[k];return t;};
+     const sumRaw=key=>{const cfg=RAWCFG[key];return (RAWDATA[key]||[]).reduce((a,r)=>a+(cfg.usd?r.val*fxRate(r.dk):r.val),0);};
      const srcs=[
-      {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề'},
-      {name:'Gift Card (file riêng)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò'},
-      {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.og||[]).length,prev:RAWPREV.og,cols:colsOf('og')},
-      {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc')},
-      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer')},
-      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx')},
-      {name:'Galaxylink (file riêng)',gid:GLX_GID,dks:Object.keys(GLXDAILY||{}),prev:GLXPREV,cols:GLXCOLS||'tự dò'}
+      {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề',tot:sumMap(ROBUXDAILY,false)},
+      {name:'Gift Card (file riêng)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò',tot:sumMap(GC13DAILY,GC13USD)},
+      {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.og||[]).length,prev:RAWPREV.og,cols:colsOf('og'),tot:sumRaw('og')},
+      {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc'),tot:sumRaw('sc')},
+      {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer'),tot:sumRaw('razer')},
+      {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx'),tot:sumRaw('rbx')},
+      {name:'Galaxylink (file riêng)',gid:GLX_GID,dks:Object.keys(GLXDAILY||{}),prev:GLXPREV,cols:GLXCOLS||'tự dò',tot:sumMap(GLXDAILY,GLXUSD)}
      ];
-     const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th>Ghi chú</th></tr></thead><tbody>
+     const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th class="n">Σ cả năm (đ)</th><th>Ghi chú</th></tr></thead><tbody>
       ${srcs.map(s=>{const n=s.dks.length;const nAll=s.nAll!=null?s.nAll:n;const ds=[...s.dks].sort();
        const st=n?'ok':(nAll?'warn':'bad');
        const note=n?(ds[ds.length-1]<iso(TO)?'⚠ chưa có số tới ngày mới nhất':'✓'):(nAll?'đọc được '+fmtn(nAll)+' dòng có ngày nhưng giá trị đang = 0 — chờ số chạy trên sheet':'không parse được — xem bảng thô bên dưới');
-       return `<tr><td><span class="stdot ${st}"></span></td><td><b>${s.name}</b></td><td class="gidm">${s.gid}</td><td class="small">${s.cols||''}</td><td class="n">${fmtn(n)}</td><td>${n?fd(ds[0])+' → '+fd(ds[ds.length-1]):'—'}</td><td class="small">${note}</td></tr>`;}).join('')}
+       return `<tr><td><span class="stdot ${st}"></span></td><td><b>${s.name}</b></td><td class="gidm">${s.gid}</td><td class="small">${s.cols||''}</td><td class="n">${fmtn(n)}</td><td>${n?fd(ds[0])+' → '+fd(ds[ds.length-1]):'—'}</td><td class="n">${s.tot?fmtn(s.tot):'—'}</td><td class="small">${note}</td></tr>`;}).join('')}
      </tbody></table></div>
      <div class="small" style="margin-top:6px">"Bản ghi" tính trên TOÀN BỘ tab (không theo bộ lọc). Nguồn đọc được nhưng "chưa có số tới ngày mới nhất" nghĩa là tab dừng cập nhật sau ngày ghi ở cột bên — không phải lỗi dashboard.</div></div>`
      +srcs.filter(s=>!s.dks.length&&!(s.nAll)).map(s=>s.prev&&s.prev.length?`<div class="card" style="margin-top:10px"><h3>${s.name} — 8 dòng đầu tab (chụp màn hình gửi lại để chỉnh cột)</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:14},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${s.prev.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:14},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:`<div class="note" style="margin-top:10px"><b>${s.name}</b> (gid ${s.gid}): không tải được CSV — tab chưa Publish to web hoặc link đổi.</div>`).join('');
