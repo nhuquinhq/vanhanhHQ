@@ -3,7 +3,8 @@
 # gõ cửa 20 phút/lần quanh mỗi khung (tránh phút :00 hay kẹt tải), server tự xét GIỜ VN với slot=auto —
 # đúng khung 12h/18h/23h mới gửi, mỗi khung chỉ gửi 1 lần (đánh dấu trong KV), ngoài khung im lặng.
 # Giờ cron ghi theo UTC = giờ VN trừ 7
-name: Ban bao cao Telegram
+# File đổi tên từ tele-schedule.yml: GitHub không chịu đăng ký lịch mới trên file cũ (vẫn chạy 3 mốc cũ) — file mới = đăng ký cron mới từ đầu
+name: Ban bao cao Telegram v2
 on:
   schedule:
     - cron: '3,23,43 5-7 * * *'    # khung 12:00 VN (gõ cửa 12:03 → 14:43)
