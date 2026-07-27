@@ -224,6 +224,8 @@ select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 10px rgba(34,2
 .askchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px}
 #askbox .pbtn{background:#eef4ff;color:#0b3a8f;border:1px solid #c9d6ea}
 #askbox .pbtn:hover{background:#dbe9ff;transform:none}
+.ck{display:flex;gap:9px;align-items:center;padding:7px 2px;font-size:13.5px;cursor:pointer;color:#14243d}
+.ck input{width:16px;height:16px;accent-color:#1e5fd0}
 .askans{background:#f6f9ff;border-left:3px solid #1e5fd0;border-radius:10px;padding:10px 13px;margin-top:10px;font-size:13px;line-height:1.65}
 .askq{font-weight:700;color:#0b3a8f;margin-bottom:5px}
 #askbox .tbl td,#askbox .tbl th{padding:6px 8px;font-size:12px}
@@ -255,6 +257,18 @@ select:focus{outline:none;border-color:var(--cyan);box-shadow:0 0 10px rgba(34,2
     <div class="askrow"><input id="askinp" placeholder="Ví dụ: nhập Robux tháng 6 · so sánh T5 vs T6 · top 5 NCC Gift Card…" onkeydown="if(event.key==='Enter')askGo()"><button class="btn" onclick="askGo()">Hỏi</button></div>
     <div id="askchips" class="askchips"></div>
     <div id="asklog"></div>
+  </div>
+</div>
+<div id="slidewrap" style="position:fixed;inset:0;z-index:600;display:none">
+  <div style="position:absolute;inset:0;background:rgba(3,8,18,.62);backdrop-filter:blur(3px)" onclick="slideClose()"></div>
+  <div style="position:relative;margin:8vh auto 0;width:min(470px,94vw);background:#fff;color:#14243d;border-radius:16px;padding:18px 20px;box-shadow:0 24px 70px rgba(0,0,0,.5)">
+    <div class="askhead"><b>📤 Xuất slide báo cáo</b><button class="pbtn" onclick="slideClose()">✕ Đóng</button></div>
+    <div class="small" style="margin-bottom:8px">Kỳ báo cáo theo bộ lọc Từ–Đến đang chọn: <b id="slideRange"></b></div>
+    <label class="ck"><input type="checkbox" id="sm_p13" checked> Nhập chi tiết theo SPDV (theo ngày)</label>
+    <label class="ck"><input type="checkbox" id="sm_cmp" checked> So sánh với kỳ liền trước (tuần vs tuần trước)</label>
+    <label class="ck"><input type="checkbox" id="sm_sla" checked> Năng suất xử lý đơn thủ công</label>
+    <label class="ck"><input type="checkbox" id="sm_month" checked> Lũy kế tháng (tổng quan)</label>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px"><button class="pbtn" onclick="slideClose()">Hủy</button><button class="btn" id="slideGo" onclick="xuatSlideRun()">⚡ Tạo slide</button></div>
   </div>
 </div>
 <button class="mbtn" onclick="toggleMenu()" aria-label="Menu">☰</button>
@@ -2059,115 +2073,198 @@ function loadPptxLib(){return new Promise((res,rej)=>{if(window.PptxGenJS)return
  s.onload=()=>res();s.onerror=()=>rej(new Error('không tải được thư viện tạo slide — kiểm tra mạng'));document.head.appendChild(s);});}
 /*==SLIDE-BUILDER-START==*/
 function buildWeeklyDeck(pptx,D){
- const NAVY='1E2761',INK='1C2C4A',ICE='CADCFC',MUT='5A6B8C',GRID='E6EAF2',TINT='F3F6FC',F='Arial';
+ const NAVY='1E2761',INK='1C2C4A',ICE='CADCFC',MUT='5A6B8C',GRID='E6EAF2',TINT='F3F6FC',GRAY='94A3B8',UP='15803D',DOWN='B91C1C',F='Arial';
  const fN=n=>Math.round(n).toLocaleString('vi-VN');
  const fTy=n=>(n/1e9).toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2})+' tỷ';
  const fPc=x=>(x*100).toFixed(1).replace('.',',')+'%';
+ const chg=(a,b)=>a?((b>=a?'+':'−')+fPc(Math.abs(b-a)/a)):'—';
  pptx.layout='LAYOUT_WIDE';pptx.author='Trung tâm Báo cáo PVH';
- /* Slide 1 — bìa nền navy */
+ /* Bìa */
  let s=pptx.addSlide();s.background={color:NAVY};
  s.addText('BÁO CÁO VẬN HÀNH TUẦN',{x:0.9,y:1.55,w:11.5,h:0.95,fontFace:F,fontSize:40,bold:true,color:'FFFFFF',margin:0});
  s.addText(D.rangeLabel,{x:0.9,y:2.55,w:11.5,h:0.6,fontFace:F,fontSize:24,color:ICE,margin:0});
  s.addText('Trung tâm Báo cáo PVH · HQ Group',{x:0.9,y:3.2,w:11.5,h:0.45,fontFace:F,fontSize:14,color:'8FA8D8',margin:0});
  const st=[
-  {v:fTy(D.p13.tot),l:'CO nhập chi tiết trong kỳ'},
-  {v:D.sla?fN(D.sla.tot)+' đơn':'—',l:'Đơn xử lý thủ công trong kỳ'},
-  {v:D.month.nhap?fPc(D.month.die/D.month.nhap):'—',l:'Tỷ lệ Die '+D.month.label}];
+  {v:D.cover.coNhap!=null?fTy(D.cover.coNhap):'—',l:'CO nhập chi tiết trong kỳ'},
+  {v:D.cover.don!=null?fN(D.cover.don)+' đơn':'—',l:'Đơn xử lý thủ công trong kỳ'},
+  {v:D.cover.dieRate!=null?fPc(D.cover.dieRate):'—',l:'Tỷ lệ Die '+(D.month?D.month.label:'tháng')}];
  st.forEach((o,i)=>{
   s.addText(o.v,{x:0.9+i*4.15,y:4.65,w:3.9,h:0.75,fontFace:F,fontSize:30,bold:true,color:'FFFFFF',margin:0});
   s.addText(o.l,{x:0.9+i*4.15,y:5.4,w:3.9,h:0.4,fontFace:F,fontSize:12,color:ICE,margin:0});});
  s.addText('Tạo lúc '+D.gen,{x:8.8,y:6.95,w:4,h:0.35,fontFace:F,fontSize:10,color:'8FA8D8',align:'right',margin:0});
- /* Slide 2 — nhập chi tiết theo SPDV */
- s=pptx.addSlide();s.background={color:'FFFFFF'};
- s.addText('Nhập chi tiết theo SPDV — theo '+D.p13.mode+' (triệu đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
- if(D.p13.series.length){
-  s.addChart(pptx.ChartType.bar,D.p13.series.map(x=>({name:x.name,labels:D.p13.labels,values:x.vals})),
-   {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',barGrouping:'stacked',chartColors:D.p13.series.map(x=>x.color),
-    showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
-    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
-    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
- }else s.addText('Chưa có số liệu trong phạm vi lọc.',{x:0.5,y:3,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
- const tRows=D.p13.rows.map((r,i)=>r.map(c=>({text:''+c,
-  options:i===0?{bold:true,color:'FFFFFF',fill:{color:NAVY}}:(i===D.p13.rows.length-1?{bold:true,color:INK,fill:{color:TINT}}:{color:INK})})));
- s.addTable(tRows,{x:8.85,y:1.2,w:3.98,colW:[1.88,1.4,0.7],fontFace:F,fontSize:10,align:'left',valign:'middle',border:{type:'solid',color:GRID,pt:0.5},rowH:0.32});
- /* Slide 3 — năng suất đơn thủ công */
- s=pptx.addSlide();s.background={color:'FFFFFF'};
- s.addText('Năng suất xử lý đơn thủ công — theo ngày',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
- if(D.sla){
-  s.addChart(pptx.ChartType.bar,[{name:'Đơn thủ công',labels:D.sla.labels,values:D.sla.totals}],
-   {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',chartColors:[NAVY],showLegend:false,
-    showValue:true,dataLabelPosition:'outEnd',dataLabelColor:INK,dataLabelFontSize:9,
-    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
-    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
-  s.addText(fN(D.sla.tot),{x:8.9,y:1.35,w:3.9,h:0.85,fontFace:F,fontSize:44,bold:true,color:INK,margin:0});
-  s.addText('đơn trong kỳ',{x:8.9,y:2.2,w:3.9,h:0.4,fontFace:F,fontSize:12,color:MUT,margin:0});
-  s.addText(fN(D.sla.avg)+' đơn/ngày',{x:8.9,y:2.85,w:3.9,h:0.55,fontFace:F,fontSize:24,bold:true,color:NAVY,margin:0});
-  s.addText('bình quân theo ngày có số'+(D.sla.kpi?' · KPI '+D.sla.kpi:''),{x:8.9,y:3.4,w:3.9,h:0.6,fontFace:F,fontSize:11,color:MUT,margin:0});
-  if(D.sla.types.length)s.addText(D.sla.types.map((t,i)=>({text:t.name+': '+fN(t.tot)+' đơn',
-   options:{bullet:true,breakLine:i<D.sla.types.length-1,color:INK,fontSize:12,paraSpaceAfter:6}})),
-   {x:8.9,y:4.25,w:3.9,h:2.4,fontFace:F,margin:0});
- }else s.addText('Chưa đọc được nguồn "Tổng đơn xử lý thủ công".',{x:0.5,y:3,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
- /* Slide 4 — tổng quan tháng */
- s=pptx.addSlide();s.background={color:'FFFFFF'};
- s.addText('Tổng quan '+D.month.label+' — Nhập/Xuất theo SPDV (tỷ đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
- const kb=[
-  {l:'CO Nhập '+D.month.label,v:fTy(D.month.nhap)},
-  {l:'CO Xuất '+D.month.label,v:fTy(D.month.xuat)},
-  {l:'Die'+(D.month.nhap?' · '+fPc(D.month.die/D.month.nhap):''),v:fTy(D.month.die)},
-  {l:'Dồn'+(D.month.nhap?' · '+fPc(D.month.don/D.month.nhap):''),v:fTy(D.month.don)}];
- kb.forEach((o,i)=>{
-  s.addShape(pptx.ShapeType.roundRect,{x:0.5+i*3.25,y:1.15,w:3.05,h:1.45,fill:{color:TINT},line:{type:'none'},rectRadius:0.08});
-  s.addText(o.l,{x:0.75+i*3.25,y:1.35,w:2.6,h:0.35,fontFace:F,fontSize:11,color:MUT,margin:0});
-  s.addText(o.v,{x:0.75+i*3.25,y:1.7,w:2.6,h:0.6,fontFace:F,fontSize:22,bold:true,color:INK,margin:0});});
- if(D.month.spRows.length){
-  s.addChart(pptx.ChartType.bar,[
-    {name:'Nhập',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.nhap/1e9).toFixed(2))},
-    {name:'Xuất',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.xuat/1e9).toFixed(2))}],
-   {x:0.5,y:3.0,w:12.3,h:4.0,barDir:'col',chartColors:[NAVY,'2E86E6'],
-    showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
-    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
-    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});}
+ /* Nhập chi tiết theo SPDV */
+ if(D.p13){
+  s=pptx.addSlide();s.background={color:'FFFFFF'};
+  s.addText('Nhập chi tiết theo SPDV — theo '+D.p13.mode+' (triệu đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+  if(D.p13.series.length){
+   s.addChart(pptx.ChartType.bar,D.p13.series.map(x=>({name:x.name,labels:D.p13.labels,values:x.vals})),
+    {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',barGrouping:'stacked',chartColors:D.p13.series.map(x=>x.color),
+     showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
+     catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+     catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
+  }else s.addText('Chưa có số liệu trong phạm vi lọc.',{x:0.5,y:3,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
+  const tRows=D.p13.rows.map((r,i)=>r.map(c=>({text:''+c,
+   options:i===0?{bold:true,color:'FFFFFF',fill:{color:NAVY}}:(i===D.p13.rows.length-1?{bold:true,color:INK,fill:{color:TINT}}:{color:INK})})));
+  s.addTable(tRows,{x:8.85,y:1.2,w:3.98,colW:[1.88,1.4,0.7],fontFace:F,fontSize:10,align:'left',valign:'middle',border:{type:'solid',color:GRID,pt:0.5},rowH:0.32});
+ }
+ /* So sánh kỳ này với kỳ liền trước */
+ if(D.cmp){
+  s=pptx.addSlide();s.background={color:'FFFFFF'};
+  s.addText('So sánh '+D.cmp.kB.toLowerCase()+' ('+D.cmp.labB+') với '+D.cmp.kA.toLowerCase()+' ('+D.cmp.labA+')',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:24,bold:true,color:INK,margin:0});
+  const d=D.cmp.totB-D.cmp.totA;
+  const cb=[
+   {l:'CO nhập '+D.cmp.kB.toLowerCase(),v:fTy(D.cmp.totB),c:INK},
+   {l:'so với '+D.cmp.kA.toLowerCase()+' ('+fTy(D.cmp.totA)+')',v:chg(D.cmp.totA,D.cmp.totB),c:d>=0?UP:DOWN},
+   D.cmp.slaB!=null?{l:'đơn thủ công '+D.cmp.kB.toLowerCase()+(D.cmp.slaA?' · '+D.cmp.kA.toLowerCase()+' '+fN(D.cmp.slaA):''),v:fN(D.cmp.slaB)+' đơn'+(D.cmp.slaA?' ('+chg(D.cmp.slaA,D.cmp.slaB)+')':''),c:INK}:null].filter(Boolean);
+  cb.forEach((o,i)=>{
+   s.addShape(pptx.ShapeType.roundRect,{x:0.5+i*4.15,y:1.1,w:3.95,h:1.2,fill:{color:TINT},line:{type:'none'},rectRadius:0.08});
+   s.addText(o.v,{x:0.72+i*4.15,y:1.22,w:3.55,h:0.55,fontFace:F,fontSize:20,bold:true,color:o.c,margin:0});
+   s.addText(o.l,{x:0.72+i*4.15,y:1.78,w:3.55,h:0.4,fontFace:F,fontSize:10.5,color:MUT,margin:0});});
+  const act=D.cmp.rows;
+  if(act.length){
+   s.addChart(pptx.ChartType.bar,[
+     {name:D.cmp.kA,labels:act.map(r=>r.name),values:act.map(r=>Math.round(r.a/1e6))},
+     {name:D.cmp.kB,labels:act.map(r=>r.name),values:act.map(r=>Math.round(r.b/1e6))}],
+    {x:0.5,y:2.55,w:7.35,h:4.5,barDir:'col',chartColors:[GRAY,NAVY],
+     showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
+     catAxisLabelColor:MUT,catAxisLabelFontSize:9,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+     catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
+   const hd=['SPDV',D.cmp.kA+' (tr)',D.cmp.kB+' (tr)','±%'];
+   const cRows=[hd.map(t=>({text:t,options:{bold:true,color:'FFFFFF',fill:{color:NAVY}}}))]
+    .concat(act.map(r=>[{text:r.name,options:{color:INK}},{text:fN(r.a/1e6),options:{color:INK,align:'right'}},{text:fN(r.b/1e6),options:{color:INK,align:'right'}},{text:chg(r.a,r.b),options:{color:r.b>=r.a?UP:DOWN,align:'right'}}]))
+    .concat([[{text:'TỔNG',options:{bold:true,color:INK,fill:{color:TINT}}},{text:fN(D.cmp.totA/1e6),options:{bold:true,color:INK,fill:{color:TINT},align:'right'}},{text:fN(D.cmp.totB/1e6),options:{bold:true,color:INK,fill:{color:TINT},align:'right'}},{text:chg(D.cmp.totA,D.cmp.totB),options:{bold:true,color:d>=0?UP:DOWN,fill:{color:TINT},align:'right'}}]]);
+   s.addTable(cRows,{x:8.05,y:2.55,w:4.78,colW:[1.5,1.12,1.12,1.04],fontFace:F,fontSize:9.5,align:'left',valign:'middle',border:{type:'solid',color:GRID,pt:0.5},rowH:0.3});
+  }else s.addText('Cả hai kỳ chưa có số liệu.',{x:0.5,y:3.4,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
+ }
+ /* Năng suất đơn thủ công */
+ if(D.sla!==undefined&&D.sla!==false){
+  if(D.sla){
+   s=pptx.addSlide();s.background={color:'FFFFFF'};
+   s.addText('Năng suất xử lý đơn thủ công — theo ngày',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+   s.addChart(pptx.ChartType.bar,[{name:'Đơn thủ công',labels:D.sla.labels,values:D.sla.totals}],
+    {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',chartColors:[NAVY],showLegend:false,
+     showValue:true,dataLabelPosition:'outEnd',dataLabelColor:INK,dataLabelFontSize:9,
+     catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+     catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
+   s.addText(fN(D.sla.tot),{x:8.9,y:1.35,w:3.9,h:0.85,fontFace:F,fontSize:44,bold:true,color:INK,margin:0});
+   s.addText('đơn trong kỳ',{x:8.9,y:2.2,w:3.9,h:0.4,fontFace:F,fontSize:12,color:MUT,margin:0});
+   s.addText(fN(D.sla.avg)+' đơn/ngày',{x:8.9,y:2.85,w:3.9,h:0.55,fontFace:F,fontSize:24,bold:true,color:NAVY,margin:0});
+   s.addText('bình quân theo ngày có số'+(D.sla.kpi?' · KPI '+D.sla.kpi:''),{x:8.9,y:3.4,w:3.9,h:0.6,fontFace:F,fontSize:11,color:MUT,margin:0});
+   if(D.sla.types.length)s.addText(D.sla.types.map((t,i)=>({text:t.name+': '+fN(t.tot)+' đơn',
+    options:{bullet:true,breakLine:i<D.sla.types.length-1,color:INK,fontSize:12,paraSpaceAfter:6}})),
+    {x:8.9,y:4.25,w:3.9,h:2.4,fontFace:F,margin:0});
+  }
+ }
+ /* Lũy kế tháng */
+ if(D.month){
+  s=pptx.addSlide();s.background={color:'FFFFFF'};
+  s.addText('Lũy kế '+D.month.label+' — Nhập/Xuất theo SPDV (tỷ đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+  const kb=[
+   {l:'CO Nhập',v:fTy(D.month.nhap)},
+   {l:'CO Xuất',v:fTy(D.month.xuat)},
+   {l:'Die'+(D.month.nhap?' · '+fPc(D.month.die/D.month.nhap):''),v:fTy(D.month.die)},
+   {l:'Dồn'+(D.month.nhap?' · '+fPc(D.month.don/D.month.nhap):''),v:fTy(D.month.don)},
+   {l:'Đơn thủ công lũy kế',v:D.month.slaCum!=null?fN(D.month.slaCum)+' đơn':'—'}];
+  kb.forEach((o,i)=>{
+   s.addShape(pptx.ShapeType.roundRect,{x:0.5+i*2.48,y:1.15,w:2.34,h:1.4,fill:{color:TINT},line:{type:'none'},rectRadius:0.08});
+   s.addText(o.l,{x:0.68+i*2.48,y:1.32,w:2.0,h:0.34,fontFace:F,fontSize:10.5,color:MUT,margin:0});
+   s.addText(o.v,{x:0.68+i*2.48,y:1.68,w:2.0,h:0.55,fontFace:F,fontSize:19,bold:true,color:INK,margin:0});});
+  if(D.month.spRows.length){
+   s.addChart(pptx.ChartType.bar,[
+     {name:'Nhập',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.nhap/1e9).toFixed(2))},
+     {name:'Xuất',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.xuat/1e9).toFixed(2))}],
+    {x:0.5,y:3.0,w:12.3,h:4.0,barDir:'col',chartColors:[NAVY,'2E86E6'],
+     showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
+     catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+     catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});}
+ }
  return pptx;}
 /*==SLIDE-BUILDER-END==*/
-async function xuatSlide(btn){
- const old=btn?btn.textContent:'';
+/* hộp chọn nội dung xuất */
+function xuatSlide(){const w=document.getElementById('slidewrap');if(!w)return;
+ document.getElementById('slideRange').textContent=scopeLabel();
+ try{const o=JSON.parse(localStorage.getItem('pvh_slide_opts')||'{}');
+  ['p13','cmp','sla','month'].forEach(k=>{const el=document.getElementById('sm_'+k);if(el&&o[k]!=null)el.checked=!!o[k];});}catch(e){}
+ w.style.display='block';}
+function slideClose(){const w=document.getElementById('slidewrap');if(w)w.style.display='none';}
+async function xuatSlideRun(){
+ const btn=document.getElementById('slideGo');const old=btn?btn.textContent:'';
+ const opt={};['p13','cmp','sla','month'].forEach(k=>{const el=document.getElementById('sm_'+k);opt[k]=el?el.checked:true;});
+ try{localStorage.setItem('pvh_slide_opts',JSON.stringify(opt));}catch(e){}
  try{
   if(btn){btn.disabled=true;btn.textContent='⏳ Đang gom số liệu…';}
   await loadPptxLib();
   await Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc')]);
   const fk=iso(FROM),tk=iso(TO);
-  const S=p13Series(fk,tk).filter(s=>s.tot>0);
-  const dayset=Array.from(new Set(S.reduce((a,s)=>a.concat(Object.keys(s.daily)),[]))).sort();
-  const useW=dayset.length>16; /* kỳ dài quá 16 ngày có số → gộp theo tuần cho slide dễ đọc */
-  const bk=k=>{if(!useW)return{key:k,label:k.slice(8,10)+'/'+k.slice(5,7)};
-   const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));d.setDate(d.getDate()-((d.getDay()+6)%7));
-   const e=new Date(d);e.setDate(d.getDate()+6);const f=x=>pad2(x.getDate())+'/'+pad2(x.getMonth()+1);
-   return{key:iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()}),label:f(d)+'–'+f(e)};};
-  const B=[],bi={};dayset.forEach(k=>{const b=bk(k);if(bi[b.key]==null){bi[b.key]=B.length;B.push(b);}});
-  const series=S.map(s=>{const acc={};Object.keys(s.daily).forEach(k=>{const key=bk(k).key;acc[key]=(acc[key]||0)+s.daily[k];});
-   return{name:s.name,color:s.color.replace('#','').toUpperCase(),vals:B.map(b=>Math.round((acc[b.key]||0)/1e6))};});
+  const SP_ALL=p13Series(fk,tk);const S=SP_ALL.filter(s=>s.tot>0);
   const p13tot=S.reduce((a,s)=>a+s.tot,0);
-  const p13rows=[['SPDV','CO nhập (đ)','%']].concat(S.map(s=>[s.name,fmt(s.tot),pct(s.tot/(p13tot||1))]),[['TỔNG',fmt(p13tot),'100%']]);
-  let sla=null;const tcRows=await slaRows('tc');const P=tcRows?parseSlaTongTC(tcRows):null;
-  if(P){const dks=P.dateCols.map(c=>c.dk).filter(k=>k>=fk&&k<=tk&&P.types.some(t=>t.daily[k]!=null));
-   const totals=dks.map(k=>P.types.reduce((a,t)=>a+(t.daily[k]||0),0));
-   const tt=totals.reduce((a,b)=>a+b,0);
-   if(dks.length)sla={labels:dks.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),totals,tot:tt,avg:tt/dks.length,kpi:P.kpi||'',
-    types:P.types.map(t=>({name:t.name,tot:Object.keys(t.daily).filter(k=>k>=fk&&k<=tk).reduce((a,k)=>a+t.daily[k],0)})).filter(t=>t.tot>0)};}
-  const mi=TO.mo;
-  const msum=o=>SPDV.reduce((a,sp)=>a+((o[sp]||[])[mi]||0),0);
+  /* SLA dùng chung cho nhiều slide */
+  const tcRows=await slaRows('tc');const P=tcRows?parseSlaTongTC(tcRows):null;
+  const slaIn=(a,b)=>{if(!P)return null;
+   const dks=P.dateCols.map(c=>c.dk).filter(k=>k>=a&&k<=b&&P.types.some(t=>t.daily[k]!=null));
+   if(!dks.length)return null;
+   const totals=dks.map(k=>P.types.reduce((x,t)=>x+(t.daily[k]||0),0));
+   const tt=totals.reduce((x,y)=>x+y,0);
+   return{dks,totals,tot:tt,avg:tt/dks.length,kpi:P.kpi||'',
+    types:P.types.map(t=>({name:t.name,tot:dks.reduce((x,k)=>x+(t.daily[k]||0),0)})).filter(t=>t.tot>0)};};
+  const slaCur=slaIn(fk,tk);
+  /* p13 slide */
+  let p13=null;
+  if(opt.p13){
+   const dayset=Array.from(new Set(S.reduce((a,s)=>a.concat(Object.keys(s.daily)),[]))).sort();
+   const useW=dayset.length>16;
+   const bk=k=>{if(!useW)return{key:k,label:k.slice(8,10)+'/'+k.slice(5,7)};
+    const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));d.setDate(d.getDate()-((d.getDay()+6)%7));
+    const e=new Date(d);e.setDate(d.getDate()+6);const f=x=>pad2(x.getDate())+'/'+pad2(x.getMonth()+1);
+    return{key:iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()}),label:f(d)+'–'+f(e)};};
+   const B=[],bi={};dayset.forEach(k=>{const b=bk(k);if(bi[b.key]==null){bi[b.key]=B.length;B.push(b);}});
+   const series=S.map(s=>{const acc={};Object.keys(s.daily).forEach(k=>{const key=bk(k).key;acc[key]=(acc[key]||0)+s.daily[k];});
+    return{name:s.name,color:s.color.replace('#','').toUpperCase(),vals:B.map(b=>Math.round((acc[b.key]||0)/1e6))};});
+   p13={labels:B.map(b=>b.label),series,tot:p13tot,mode:useW?'tuần':'ngày',
+    rows:[['SPDV','CO nhập (đ)','%']].concat(S.map(s=>[s.name,fmt(s.tot),pct(s.tot/(p13tot||1))]),[['TỔNG',fmt(p13tot),'100%']])};
+  }
+  /* so sánh với kỳ liền trước (cùng độ dài) */
+  let cmp=null;
+  if(opt.cmp){
+   const len=rangeDays().length;
+   const fA=new Date(FROM.y,FROM.mo,FROM.d);fA.setDate(fA.getDate()-len);
+   const tA=new Date(FROM.y,FROM.mo,FROM.d);tA.setDate(tA.getDate()-1);
+   const fkA=iso({y:fA.getFullYear(),mo:fA.getMonth(),d:fA.getDate()}),tkA=iso({y:tA.getFullYear(),mo:tA.getMonth(),d:tA.getDate()});
+   const SA=p13Series(fkA,tkA);
+   const fd=k=>k.slice(8,10)+'/'+k.slice(5,7);
+   const rows=SP_ALL.map((s,i)=>({name:s.name,a:SA[i].tot,b:s.tot})).filter(r=>r.a>0||r.b>0);
+   const slaPrev=slaIn(fkA,tkA);
+   cmp={kA:len===7?'Tuần trước':'Kỳ trước',kB:len===7?'Tuần này':'Kỳ này',
+    labA:fd(fkA)+' – '+fd(tkA),labB:fd(fk)+' – '+fd(tk),
+    rows,totA:rows.reduce((x,r)=>x+r.a,0),totB:rows.reduce((x,r)=>x+r.b,0),
+    slaA:slaPrev?slaPrev.tot:null,slaB:slaCur?slaCur.tot:null};
+  }
+  /* năng suất đơn thủ công */
+  let sla=false;
+  if(opt.sla)sla=slaCur?{labels:slaCur.dks.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),totals:slaCur.totals,tot:slaCur.tot,avg:slaCur.avg,kpi:slaCur.kpi,types:slaCur.types}:null;
+  /* lũy kế tháng */
+  let month=null;const mi=TO.mo;
   const dieSum=Object.keys(DIE).reduce((a,k)=>a+((DIE[k]||[])[mi]||0),0);
-  const donSum=Object.keys(DON).reduce((a,k)=>a+((DON[k]||[])[mi]||0),0);
-  const spRows=SPDV.map(sp=>({name:(typeof shortSP==='function'?shortSP(sp):sp),nhap:(NHAP[sp]||[])[mi]||0,xuat:(XUAT[sp]||[])[mi]||0})).filter(x=>x.nhap>0||x.xuat>0);
+  if(opt.month){
+   const msum=o=>SPDV.reduce((a,sp)=>a+((o[sp]||[])[mi]||0),0);
+   const donSum=Object.keys(DON).reduce((a,k)=>a+((DON[k]||[])[mi]||0),0);
+   const mFk=iso({y:TO.y,mo:mi,d:1});
+   const slaM=slaIn(mFk,tk);
+   month={label:'Tháng '+(mi+1),nhap:msum(NHAP),xuat:msum(XUAT),die:dieSum,don:donSum,slaCum:slaM?slaM.tot:null,
+    spRows:SPDV.map(sp=>({name:(typeof shortSP==='function'?shortSP(sp):sp),nhap:(NHAP[sp]||[])[mi]||0,xuat:(XUAT[sp]||[])[mi]||0})).filter(x=>x.nhap>0||x.xuat>0)};
+  }
+  const mNhap=SPDV.reduce((a,sp)=>a+((NHAP[sp]||[])[mi]||0),0);
   const D={rangeLabel:scopeLabel(),gen:new Date().toLocaleString('vi-VN'),
-   p13:{labels:B.map(b=>b.label),series,tot:p13tot,rows:p13rows,mode:useW?'tuần':'ngày'},sla,
-   month:{label:'Tháng '+(mi+1),nhap:msum(NHAP),xuat:msum(XUAT),die:dieSum,don:donSum,spRows}};
+   cover:{coNhap:p13tot||null,don:slaCur?slaCur.tot:null,dieRate:mNhap?dieSum/mNhap:null},
+   p13,cmp,sla,month:month};
+  if(!month)D.month=null;
   if(btn)btn.textContent='⏳ Đang dựng slide…';
   const pptx=new PptxGenJS();
   buildWeeklyDeck(pptx,D);
   await pptx.writeFile({fileName:'BaoCaoTuan_'+fk.slice(5)+'_'+tk.slice(5)+'.pptx'});
+  slideClose();
  }catch(e){alert('Không xuất được slide: '+(e&&e.message?e.message:e));}
- finally{if(btn){btn.disabled=false;btn.textContent=old||'📤 Xuất slide';}}}
+ finally{if(btn){btn.disabled=false;btn.textContent=old||'⚡ Tạo slide';}}}
 const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8","PVH14"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
 function buildNav(){let h='';TIERS.forEach(([t,label,ids])=>{const vis=ids.filter(canSee);if(!vis.length)return;h+=`<div class="tier">${label}</div>`;
  vis.forEach(k=>{h+=`<div class="nav" data-id="${k}" onclick="go('${k}')"><span class="code">${k}</span><span class="dot" style="color:#2e86e6;background:#2e86e6"></span><span>${PAGES[k].title.split('· ')[1]}</span></div>`;});});
