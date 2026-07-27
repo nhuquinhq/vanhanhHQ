@@ -606,6 +606,7 @@ function renderFilters(){const f=document.getElementById('filters');if(curr==="S
   <div class="fg"><label>Đến ngày</label><input type="date" id="fTo" value="${iso(TO)}" min="2026-01-01" max="2026-12-31" onchange="setRange(null,this.value)"></div>
   <div class="fg"><label>Nhanh</label><div class="presets"><button class="pbtn" onclick="preset(7)">7N</button><button class="pbtn" onclick="preset(30)">30N</button><button class="pbtn" onclick="preset('m')">Tháng này</button><button class="pbtn" onclick="preset('y')">Cả kỳ</button></div></div>
   <button class="btn" style="background:linear-gradient(90deg,#7c3aed,#2e86e6)" onclick="askOpen()">💬 Hỏi đáp</button>
+  <button class="btn" onclick="xuatSlide(this)">📤 Xuất slide</button>
   <button class="btn" onclick="applyFilter()">↻ Làm mới</button>`;}
 function onM(v){window._m=+v;window._w=0;window._d=0;renderFilters();applyFilter();}
 function onW(v){window._w=+v;window._d=0;renderFilters();applyFilter();}
@@ -937,17 +938,7 @@ const PAGES={
    host.innerHTML=spinner("Đang đọc các tab chi tiết: Robux · Gift Card · OG · Supercell · Razer Gold · RBX…");
    Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily()]).then(()=>{
      const fk=iso(FROM),tk=iso(TO);
-     const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
-     const S=[
-      {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#1e5fd0'},
-      {name:'Gift Card',daily:(()=>{const o={},G=GC13DAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#0e7c86'},
-      {name:'OG',daily:dsum('og'),color:'#7c3aed'},
-      {name:'Supercell',daily:dsum('sc'),color:'#fb923c'},
-      {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
-      {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'},
-      {name:'Galaxylink',daily:(()=>{const o={},G=GLXDAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#eab308'}
-     ];
-     S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
+     const S=p13Series(fk,tk);
      const days=rangeDays().filter(x=>x.y===2026).map(x=>dkey(x.mo,x.d)).filter(k=>S.some(s=>s.daily[k]));
      /* chế độ xem: auto chọn theo độ dài phạm vi lọc (≤45 ngày: Ngày · ≤180: Tuần · dài hơn: Tháng) */
      const nRange=rangeDays().length;
@@ -1393,6 +1384,20 @@ function fetchRaw(key){
    return recs;})();
  return RAWSTATE[key];}
 function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
+/* PVH13 + Xuất slide: chuỗi CO Nhập theo NGÀY của 7 nguồn chi tiết trong [fk,tk] (VND, USD quy theo tỷ giá ngày) */
+function p13Series(fk,tk){
+ const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
+ const S=[
+  {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#1e5fd0'},
+  {name:'Gift Card',daily:(()=>{const o={},G=GC13DAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#0e7c86'},
+  {name:'OG',daily:dsum('og'),color:'#7c3aed'},
+  {name:'Supercell',daily:dsum('sc'),color:'#fb923c'},
+  {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
+  {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'},
+  {name:'Galaxylink',daily:(()=>{const o={},G=GLXDAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#eab308'}
+ ];
+ S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
+ return S;}
 /* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
 async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
 /* PVH13: chế độ xem Tự động / Ngày / Tuần / Tháng — auto bám theo độ dài phạm vi lọc */
@@ -2048,6 +2053,121 @@ function nccSet(id){const el=document.getElementById('nccin_'+id);const v=((el&&
  const usd=parseUsd(v);
  if(usd==null||isNaN(usd)||usd<0){alert('Số không hợp lệ — gõ kiểu 1250.50 (chấm = thập phân)');return;}
  nccApi({a:'set',ncc:id,usd:usd}).then(d=>{if(d&&d.ok)render();else alert('Lỗi lưu: '+((d&&d.error)||'network'));});}
+/* ===== XUẤT SLIDE TUẦN (.pptx) — gom số liệu theo phạm vi lọc, dựng PowerPoint tải về ===== */
+function loadPptxLib(){return new Promise((res,rej)=>{if(window.PptxGenJS)return res();
+ const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js';
+ s.onload=()=>res();s.onerror=()=>rej(new Error('không tải được thư viện tạo slide — kiểm tra mạng'));document.head.appendChild(s);});}
+/*==SLIDE-BUILDER-START==*/
+function buildWeeklyDeck(pptx,D){
+ const NAVY='1E2761',INK='1C2C4A',ICE='CADCFC',MUT='5A6B8C',GRID='E6EAF2',TINT='F3F6FC',F='Arial';
+ const fN=n=>Math.round(n).toLocaleString('vi-VN');
+ const fTy=n=>(n/1e9).toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2})+' tỷ';
+ const fPc=x=>(x*100).toFixed(1).replace('.',',')+'%';
+ pptx.layout='LAYOUT_WIDE';pptx.author='Trung tâm Báo cáo PVH';
+ /* Slide 1 — bìa nền navy */
+ let s=pptx.addSlide();s.background={color:NAVY};
+ s.addText('BÁO CÁO VẬN HÀNH TUẦN',{x:0.9,y:1.55,w:11.5,h:0.95,fontFace:F,fontSize:40,bold:true,color:'FFFFFF',margin:0});
+ s.addText(D.rangeLabel,{x:0.9,y:2.55,w:11.5,h:0.6,fontFace:F,fontSize:24,color:ICE,margin:0});
+ s.addText('Trung tâm Báo cáo PVH · HQ Group',{x:0.9,y:3.2,w:11.5,h:0.45,fontFace:F,fontSize:14,color:'8FA8D8',margin:0});
+ const st=[
+  {v:fTy(D.p13.tot),l:'CO nhập chi tiết trong kỳ'},
+  {v:D.sla?fN(D.sla.tot)+' đơn':'—',l:'Đơn xử lý thủ công trong kỳ'},
+  {v:D.month.nhap?fPc(D.month.die/D.month.nhap):'—',l:'Tỷ lệ Die '+D.month.label}];
+ st.forEach((o,i)=>{
+  s.addText(o.v,{x:0.9+i*4.15,y:4.65,w:3.9,h:0.75,fontFace:F,fontSize:30,bold:true,color:'FFFFFF',margin:0});
+  s.addText(o.l,{x:0.9+i*4.15,y:5.4,w:3.9,h:0.4,fontFace:F,fontSize:12,color:ICE,margin:0});});
+ s.addText('Tạo lúc '+D.gen,{x:8.8,y:6.95,w:4,h:0.35,fontFace:F,fontSize:10,color:'8FA8D8',align:'right',margin:0});
+ /* Slide 2 — nhập chi tiết theo SPDV */
+ s=pptx.addSlide();s.background={color:'FFFFFF'};
+ s.addText('Nhập chi tiết theo SPDV — theo '+D.p13.mode+' (triệu đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+ if(D.p13.series.length){
+  s.addChart(pptx.ChartType.bar,D.p13.series.map(x=>({name:x.name,labels:D.p13.labels,values:x.vals})),
+   {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',barGrouping:'stacked',chartColors:D.p13.series.map(x=>x.color),
+    showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
+    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
+ }else s.addText('Chưa có số liệu trong phạm vi lọc.',{x:0.5,y:3,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
+ const tRows=D.p13.rows.map((r,i)=>r.map(c=>({text:''+c,
+  options:i===0?{bold:true,color:'FFFFFF',fill:{color:NAVY}}:(i===D.p13.rows.length-1?{bold:true,color:INK,fill:{color:TINT}}:{color:INK})})));
+ s.addTable(tRows,{x:8.85,y:1.2,w:3.98,colW:[1.88,1.4,0.7],fontFace:F,fontSize:10,align:'left',valign:'middle',border:{type:'solid',color:GRID,pt:0.5},rowH:0.32});
+ /* Slide 3 — năng suất đơn thủ công */
+ s=pptx.addSlide();s.background={color:'FFFFFF'};
+ s.addText('Năng suất xử lý đơn thủ công — theo ngày',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+ if(D.sla){
+  s.addChart(pptx.ChartType.bar,[{name:'Đơn thủ công',labels:D.sla.labels,values:D.sla.totals}],
+   {x:0.5,y:1.2,w:8.1,h:5.55,barDir:'col',chartColors:[NAVY],showLegend:false,
+    showValue:true,dataLabelPosition:'outEnd',dataLabelColor:INK,dataLabelFontSize:9,
+    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});
+  s.addText(fN(D.sla.tot),{x:8.9,y:1.35,w:3.9,h:0.85,fontFace:F,fontSize:44,bold:true,color:INK,margin:0});
+  s.addText('đơn trong kỳ',{x:8.9,y:2.2,w:3.9,h:0.4,fontFace:F,fontSize:12,color:MUT,margin:0});
+  s.addText(fN(D.sla.avg)+' đơn/ngày',{x:8.9,y:2.85,w:3.9,h:0.55,fontFace:F,fontSize:24,bold:true,color:NAVY,margin:0});
+  s.addText('bình quân theo ngày có số'+(D.sla.kpi?' · KPI '+D.sla.kpi:''),{x:8.9,y:3.4,w:3.9,h:0.6,fontFace:F,fontSize:11,color:MUT,margin:0});
+  if(D.sla.types.length)s.addText(D.sla.types.map((t,i)=>({text:t.name+': '+fN(t.tot)+' đơn',
+   options:{bullet:true,breakLine:i<D.sla.types.length-1,color:INK,fontSize:12,paraSpaceAfter:6}})),
+   {x:8.9,y:4.25,w:3.9,h:2.4,fontFace:F,margin:0});
+ }else s.addText('Chưa đọc được nguồn "Tổng đơn xử lý thủ công".',{x:0.5,y:3,w:8,h:0.5,fontFace:F,fontSize:14,color:MUT,margin:0});
+ /* Slide 4 — tổng quan tháng */
+ s=pptx.addSlide();s.background={color:'FFFFFF'};
+ s.addText('Tổng quan '+D.month.label+' — Nhập/Xuất theo SPDV (tỷ đồng)',{x:0.5,y:0.35,w:12.3,h:0.6,fontFace:F,fontSize:26,bold:true,color:INK,margin:0});
+ const kb=[
+  {l:'CO Nhập '+D.month.label,v:fTy(D.month.nhap)},
+  {l:'CO Xuất '+D.month.label,v:fTy(D.month.xuat)},
+  {l:'Die'+(D.month.nhap?' · '+fPc(D.month.die/D.month.nhap):''),v:fTy(D.month.die)},
+  {l:'Dồn'+(D.month.nhap?' · '+fPc(D.month.don/D.month.nhap):''),v:fTy(D.month.don)}];
+ kb.forEach((o,i)=>{
+  s.addShape(pptx.ShapeType.roundRect,{x:0.5+i*3.25,y:1.15,w:3.05,h:1.45,fill:{color:TINT},line:{type:'none'},rectRadius:0.08});
+  s.addText(o.l,{x:0.75+i*3.25,y:1.35,w:2.6,h:0.35,fontFace:F,fontSize:11,color:MUT,margin:0});
+  s.addText(o.v,{x:0.75+i*3.25,y:1.7,w:2.6,h:0.6,fontFace:F,fontSize:22,bold:true,color:INK,margin:0});});
+ if(D.month.spRows.length){
+  s.addChart(pptx.ChartType.bar,[
+    {name:'Nhập',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.nhap/1e9).toFixed(2))},
+    {name:'Xuất',labels:D.month.spRows.map(r=>r.name),values:D.month.spRows.map(r=>+(r.xuat/1e9).toFixed(2))}],
+   {x:0.5,y:3.0,w:12.3,h:4.0,barDir:'col',chartColors:[NAVY,'2E86E6'],
+    showLegend:true,legendPos:'b',legendColor:MUT,legendFontSize:10,
+    catAxisLabelColor:MUT,catAxisLabelFontSize:10,valAxisLabelColor:MUT,valAxisLabelFontSize:10,
+    catGridLine:{style:'none'},valGridLine:{color:GRID,size:1}});}
+ return pptx;}
+/*==SLIDE-BUILDER-END==*/
+async function xuatSlide(btn){
+ const old=btn?btn.textContent:'';
+ try{
+  if(btn){btn.disabled=true;btn.textContent='⏳ Đang gom số liệu…';}
+  await loadPptxLib();
+  await Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc')]);
+  const fk=iso(FROM),tk=iso(TO);
+  const S=p13Series(fk,tk).filter(s=>s.tot>0);
+  const dayset=Array.from(new Set(S.reduce((a,s)=>a.concat(Object.keys(s.daily)),[]))).sort();
+  const useW=dayset.length>16; /* kỳ dài quá 16 ngày có số → gộp theo tuần cho slide dễ đọc */
+  const bk=k=>{if(!useW)return{key:k,label:k.slice(8,10)+'/'+k.slice(5,7)};
+   const d=new Date(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10));d.setDate(d.getDate()-((d.getDay()+6)%7));
+   const e=new Date(d);e.setDate(d.getDate()+6);const f=x=>pad2(x.getDate())+'/'+pad2(x.getMonth()+1);
+   return{key:iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()}),label:f(d)+'–'+f(e)};};
+  const B=[],bi={};dayset.forEach(k=>{const b=bk(k);if(bi[b.key]==null){bi[b.key]=B.length;B.push(b);}});
+  const series=S.map(s=>{const acc={};Object.keys(s.daily).forEach(k=>{const key=bk(k).key;acc[key]=(acc[key]||0)+s.daily[k];});
+   return{name:s.name,color:s.color.replace('#','').toUpperCase(),vals:B.map(b=>Math.round((acc[b.key]||0)/1e6))};});
+  const p13tot=S.reduce((a,s)=>a+s.tot,0);
+  const p13rows=[['SPDV','CO nhập (đ)','%']].concat(S.map(s=>[s.name,fmt(s.tot),pct(s.tot/(p13tot||1))]),[['TỔNG',fmt(p13tot),'100%']]);
+  let sla=null;const tcRows=await slaRows('tc');const P=tcRows?parseSlaTongTC(tcRows):null;
+  if(P){const dks=P.dateCols.map(c=>c.dk).filter(k=>k>=fk&&k<=tk&&P.types.some(t=>t.daily[k]!=null));
+   const totals=dks.map(k=>P.types.reduce((a,t)=>a+(t.daily[k]||0),0));
+   const tt=totals.reduce((a,b)=>a+b,0);
+   if(dks.length)sla={labels:dks.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),totals,tot:tt,avg:tt/dks.length,kpi:P.kpi||'',
+    types:P.types.map(t=>({name:t.name,tot:Object.keys(t.daily).filter(k=>k>=fk&&k<=tk).reduce((a,k)=>a+t.daily[k],0)})).filter(t=>t.tot>0)};}
+  const mi=TO.mo;
+  const msum=o=>SPDV.reduce((a,sp)=>a+((o[sp]||[])[mi]||0),0);
+  const dieSum=Object.keys(DIE).reduce((a,k)=>a+((DIE[k]||[])[mi]||0),0);
+  const donSum=Object.keys(DON).reduce((a,k)=>a+((DON[k]||[])[mi]||0),0);
+  const spRows=SPDV.map(sp=>({name:(typeof shortSP==='function'?shortSP(sp):sp),nhap:(NHAP[sp]||[])[mi]||0,xuat:(XUAT[sp]||[])[mi]||0})).filter(x=>x.nhap>0||x.xuat>0);
+  const D={rangeLabel:scopeLabel(),gen:new Date().toLocaleString('vi-VN'),
+   p13:{labels:B.map(b=>b.label),series,tot:p13tot,rows:p13rows,mode:useW?'tuần':'ngày'},sla,
+   month:{label:'Tháng '+(mi+1),nhap:msum(NHAP),xuat:msum(XUAT),die:dieSum,don:donSum,spRows}};
+  if(btn)btn.textContent='⏳ Đang dựng slide…';
+  const pptx=new PptxGenJS();
+  buildWeeklyDeck(pptx,D);
+  await pptx.writeFile({fileName:'BaoCaoTuan_'+fk.slice(5)+'_'+tk.slice(5)+'.pptx'});
+ }catch(e){alert('Không xuất được slide: '+(e&&e.message?e.message:e));}
+ finally{if(btn){btn.disabled=false;btn.textContent=old||'📤 Xuất slide';}}}
 const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8","PVH14"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
 function buildNav(){let h='';TIERS.forEach(([t,label,ids])=>{const vis=ids.filter(canSee);if(!vis.length)return;h+=`<div class="tier">${label}</div>`;
  vis.forEach(k=>{h+=`<div class="nav" data-id="${k}" onclick="go('${k}')"><span class="code">${k}</span><span class="dot" style="color:#2e86e6;background:#2e86e6"></span><span>${PAGES[k].title.split('· ')[1]}</span></div>`;});});
