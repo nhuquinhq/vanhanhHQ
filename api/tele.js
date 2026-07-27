@@ -162,17 +162,18 @@ module.exports = async (req, res) => {
   const SECRET = process.env.TELE_SECRET || "";
   const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
+  if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
   const r = ("" + (q.r || "pvh10")).toLowerCase();
   if (!REPORTS[r]) { res.status(400).json({ error: "unknown_report", reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
   let markKey = null;
   if (q.slot === "auto") {
-    const SLOTS = [12, 18, 23];
+    const SLOTS = { 12: 180, 18: 240, 23: 180 }; /* khung 18h nới 4 tiếng — GitHub hay nhả job trễ quanh 21h */
     const pad = x => String(x).padStart(2, "0");
     const vn = new Date(Date.now() + 7 * 3600 * 1000);
     const mins = vn.getUTCHours() * 60 + vn.getUTCMinutes();
     let slot = null, base = vn;
-    for (const h of SLOTS) { if (mins >= h * 60 && mins < h * 60 + 180) slot = h; }
+    for (const h in SLOTS) { if (mins >= h * 60 && mins < h * 60 + SLOTS[h]) slot = +h; }
     if (slot == null && mins < 120) { slot = 23; base = new Date(vn.getTime() - 86400000); } /* 23h kéo sang 0h–2h hôm sau */
     const gioVN = pad(vn.getUTCHours()) + ":" + pad(vn.getUTCMinutes());
     if (slot == null) { res.status(200).json({ ok: true, skip: "ngoai_khung_gio", gio_vn: gioVN }); return; }

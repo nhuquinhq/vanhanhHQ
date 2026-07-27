@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "crons": [
+    { "path": "/api/tele", "schedule": "20 5 * * *" },
+    { "path": "/api/tele", "schedule": "20 16 * * *" }
+  ],
   "headers": [
     {
       "source": "/(.*)",
