@@ -1940,28 +1940,33 @@ function slaGenericSection(rows,gid,key,pfx,label){
 /* --- tab "Tổng đơn xử lý thủ công": hàng Ngày (01/07…) + cột Total, các dòng "Số đơn <loại>" (gamepass, pokemon, …) --- */
 function parseSlaTongTC(rows){
  if(!rows||rows.length<3)return null;
- let HR=-1,dateCols=null;
- for(let r=0;r<Math.min(rows.length,12);r++){const row=rows[r]||[];
+ /* tab xếp NHIỀU KHỐI THÁNG chồng nhau (Tháng 7, Tháng 8…) — dò MỌI hàng tiêu đề "Ngày";
+    hàng "Số đơn…" thuộc khối gần nhất phía trên, cùng tên loại thì gộp qua các tháng */
+ const heads=[];
+ for(let r=0;r<rows.length;r++){const row=rows[r]||[];
   const iN=row.findIndex(x=>slaN(x).toLowerCase()==='ngày');if(iN<0)continue;
   const cols=[];for(let c=iN+1;c<row.length;c++){const m=slaN(row[c]).match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{4})?$/);
    if(m){const dd=+m[1],mo=+m[2];if(mo>=1&&mo<=12&&dd>=1&&dd<=31)cols.push({ci:c,dk:dkey(mo-1,dd)});}}
-  if(cols.length>=5){HR=r;dateCols=cols;break;}}
- if(HR<0)return null;
+  if(cols.length>=5)heads.push({HR:r,dateCols:cols});}
+ if(!heads.length)return null;
  let iTot=-1;
- for(let r=HR;r<Math.min(rows.length,HR+4)&&iTot<0;r++)iTot=(rows[r]||[]).findIndex(x=>/^total$/i.test(slaN(x)));
+ for(let r=heads[0].HR;r<Math.min(rows.length,heads[0].HR+4)&&iTot<0;r++)iTot=(rows[r]||[]).findIndex(x=>/^total$/i.test(slaN(x)));
  const lab=r=>{const row=rows[r]||[];for(let c=0;c<Math.min(row.length,4);c++){const v=slaN(row[c]);if(v)return v;}return '';};
- let kpiTxt='';const types=[];
- for(let r=HR+1;r<rows.length;r++){const l=lab(r);if(!l)continue;
-  if(/số\s*lượng\s*thủ\s*công/i.test(l)){kpiTxt=(rows[r]||[]).map(slaN).filter(x=>x&&!/số\s*lượng|^kpi$/i.test(x)).join(' ');continue;}
-  if(!/^số\s*đơn/i.test(l))continue;
-  const row=rows[r]||[];const daily={};let any=false;
-  dateCols.forEach(dc=>{const v=slaN(row[dc.ci]);if(v!==''){daily[dc.dk]=num(v);any=true;}});
-  /* Total: đúng cột — không có thì thử cột kế (ô gộp) — vẫn không có thì tự cộng ngày */
-  const tot=(iTot>-1?(num(row[iTot])||num(row[iTot+1])):0)||Object.keys(daily).reduce((a,k)=>a+daily[k],0);
-  if(!any&&!tot)continue;
-  const name=l.replace(/^số\s*đơn\s*/i,'').trim();
-  types.push({name:name?name.charAt(0).toUpperCase()+name.slice(1):l,tot,daily});}
- return types.length?{dateCols,types,kpi:kpiTxt}:null;}
+ let kpiTxt='';const tmap={},order=[];
+ heads.forEach((H,hi)=>{const end=hi+1<heads.length?heads[hi+1].HR:rows.length;
+  for(let r=H.HR+1;r<end;r++){const l=lab(r);if(!l)continue;
+   if(/số\s*lượng\s*thủ\s*công/i.test(l)){if(!kpiTxt)kpiTxt=(rows[r]||[]).map(slaN).filter(x=>x&&!/số\s*lượng|^kpi$/i.test(x)).join(' ');continue;}
+   if(!/^số\s*đơn/i.test(l))continue;
+   const row=rows[r]||[];const daily={};let any=false;
+   H.dateCols.forEach(dc=>{const v=slaN(row[dc.ci]);if(v!==''){daily[dc.dk]=num(v);any=true;}});
+   /* Total: đúng cột — không có thì thử cột kế (ô gộp) — vẫn không có thì tự cộng ngày */
+   const tot=(iTot>-1?(num(row[iTot])||num(row[iTot+1])):0)||Object.keys(daily).reduce((a,k)=>a+daily[k],0);
+   if(!any&&!tot)continue;
+   const name=l.replace(/^số\s*đơn\s*/i,'').trim();const key=(name||l).toLowerCase();
+   if(!tmap[key]){tmap[key]={name:name?name.charAt(0).toUpperCase()+name.slice(1):l,tot:0,daily:{}};order.push(key);}
+   tmap[key].tot+=tot;Object.assign(tmap[key].daily,daily);}});
+ const types=order.map(k=>tmap[k]);
+ return types.length?{dateCols:heads.reduce((a,h)=>a.concat(h.dateCols),[]),types,kpi:kpiTxt}:null;}
 const TC_PAL=['#1e5fd0','#fb923c','#0e7c86','#7c3aed','#be185d','#15803d'];
 function slaTongTCSection(rows){
  const P=parseSlaTongTC(rows);

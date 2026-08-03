@@ -71,24 +71,42 @@ function dateHeader(rows) {
 }
 const labOf = (rows, r) => { const row = rows[r] || []; for (let c = 0; c < Math.min(row.length, 4); c++) { const v = nrm(row[c]); if (v) return v; } return ""; };
 
-/* ---- tab "Tổng đơn xử lý thủ công": các dòng "Số đơn <loại>" ---- */
+/* ---- tab "Tổng đơn xử lý thủ công": các dòng "Số đơn <loại>" ----
+   Tab xếp NHIỀU KHỐI THÁNG chồng nhau (Tháng 7, Tháng 8…) — dò MỌI hàng tiêu đề "Ngày";
+   hàng "Số đơn…" thuộc khối gần nhất phía trên, cùng tên loại thì gộp qua các tháng. */
 function parseTC(rows) {
-  const H = dateHeader(rows); if (!H) return null;
-  let iTot = -1;
-  for (let r = H.HR; r < Math.min(rows.length, H.HR + 4) && iTot < 0; r++) iTot = (rows[r] || []).findIndex(x => /^total$/i.test(nrm(x)));
-  let kpiTxt = ""; const types = [];
-  for (let r = H.HR + 1; r < rows.length; r++) {
-    const l = labOf(rows, r); if (!l) continue;
-    if (/số\s*lượng\s*thủ\s*công/i.test(l)) { kpiTxt = (rows[r] || []).map(nrm).filter(x => x && !/số\s*lượng|^kpi$/i.test(x)).join(" "); continue; }
-    if (!/^số\s*đơn/i.test(l)) continue;
-    const row = rows[r] || []; const daily = {}; let any = false;
-    H.dateCols.forEach(dc => { const v = nrm(row[dc.ci]); if (v !== "") { daily[dc.dk] = vnum(v); any = true; } });
-    const tot = (iTot > -1 ? (vnum(row[iTot]) || vnum(row[iTot + 1])) : 0) || Object.keys(daily).reduce((a, k) => a + daily[k], 0);
-    if (!any && !tot) continue;
-    const name = l.replace(/^số\s*đơn\s*/i, "").trim();
-    types.push({ name: name ? name.charAt(0).toUpperCase() + name.slice(1) : l, tot, daily });
+  const heads = [];
+  for (let r = 0; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const iN = row.findIndex(x => nrm(x).toLowerCase() === "ngày"); if (iN < 0) continue;
+    const cols = [];
+    for (let c = iN + 1; c < row.length; c++) {
+      const m = nrm(row[c]).match(/^(\d{1,2})\/(\d{1,2})(?:\/\d{4})?$/);
+      if (m) { const dd = +m[1], mo = +m[2]; if (mo >= 1 && mo <= 12 && dd >= 1 && dd <= 31) cols.push({ ci: c, dk: String(mo).padStart(2, "0") + "-" + String(dd).padStart(2, "0") }); }
+    }
+    if (cols.length >= 5) heads.push({ HR: r, dateCols: cols });
   }
-  return types.length ? { dateCols: H.dateCols, types, kpi: kpiTxt } : null;
+  if (!heads.length) return null;
+  let iTot = -1;
+  for (let r = heads[0].HR; r < Math.min(rows.length, heads[0].HR + 4) && iTot < 0; r++) iTot = (rows[r] || []).findIndex(x => /^total$/i.test(nrm(x)));
+  let kpiTxt = ""; const tmap = {}, order = [];
+  heads.forEach((H, hi) => {
+    const end = hi + 1 < heads.length ? heads[hi + 1].HR : rows.length;
+    for (let r = H.HR + 1; r < end; r++) {
+      const l = labOf(rows, r); if (!l) continue;
+      if (/số\s*lượng\s*thủ\s*công/i.test(l)) { if (!kpiTxt) kpiTxt = (rows[r] || []).map(nrm).filter(x => x && !/số\s*lượng|^kpi$/i.test(x)).join(" "); continue; }
+      if (!/^số\s*đơn/i.test(l)) continue;
+      const row = rows[r] || []; const daily = {}; let any = false;
+      H.dateCols.forEach(dc => { const v = nrm(row[dc.ci]); if (v !== "") { daily[dc.dk] = vnum(v); any = true; } });
+      const tot = (iTot > -1 ? (vnum(row[iTot]) || vnum(row[iTot + 1])) : 0) || Object.keys(daily).reduce((a, k) => a + daily[k], 0);
+      if (!any && !tot) continue;
+      const name = l.replace(/^số\s*đơn\s*/i, "").trim(); const key = (name || l).toLowerCase();
+      if (!tmap[key]) { tmap[key] = { name: name ? name.charAt(0).toUpperCase() + name.slice(1) : l, tot: 0, daily: {} }; order.push(key); }
+      tmap[key].tot += tot; Object.assign(tmap[key].daily, daily);
+    }
+  });
+  const types = order.map(k => tmap[k]);
+  return types.length ? { dateCols: heads.reduce((a, h) => a.concat(h.dateCols), []), types, kpi: kpiTxt } : null;
 }
 /* ---- tab Gamepass "Theo tháng": lấy dòng TỔNG của từng khối chỉ số theo ngày ---- */
 function parseThangTong(rows) {
