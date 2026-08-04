@@ -7,7 +7,8 @@ module.exports = async (req, res) => {
     sla: "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W",
     kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5",
     gc13: "2PACX-1vQK6QIZLs18ZsAPvoOHqSKtF419Qb3trrOQQ7DTWrANCTBEedAuDazP6-QsoH4uQk9inAJ1KC3SixfK",
-    glx: "2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie"
+    glx: "2PACX-1vT0ni4Ntgb0PgMYKwJGdrcYrA4P7t7Be0jem5w7n58dksNt3DrlzBDqSobmyRn9Bi0dFWDknEE9i2uJ",
+    glx2: "2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie"
   };
   const ALLOW = {
     def: new Set([
@@ -19,7 +20,8 @@ module.exports = async (req, res) => {
     sla: new Set(["1982526665","511745866","1496740945","287243650"]),
     kho: new Set(["1926394974"]),
     gc13: new Set(["505929777","1216897209"]),
-    glx: new Set(["511652200", "1473618411"])
+    glx: new Set(["1473618411"]),
+    glx2: new Set(["511652200"])
   };
   const f = String((req.query && req.query.f) || "def");
   const gid = String((req.query && req.query.gid) || "");

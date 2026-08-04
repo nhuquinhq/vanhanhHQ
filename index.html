@@ -985,7 +985,7 @@ const PAGES={
       {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc'),tot:sumRaw('sc')},
       {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer'),tot:sumRaw('razer')},
       {name:'RBX',gid:''+RAWCFG.rbx.gid,dks:(RAWDATA.rbx||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.rbx||[]).length,prev:RAWPREV.rbx,cols:colsOf('rbx'),tot:sumRaw('rbx')},
-      {name:'Galaxylink (file riêng)',gid:GLX_GID,dks:Object.keys(GLXDAILY||{}),prev:GLXPREV,cols:GLXCOLS||'tự dò',tot:sumMap(GLXDAILY,GLXUSD)}
+      {name:'Galaxylink (2 file)',gid:GLX_SRCS.map(s=>s.gid).join(' · '),dks:Object.keys(GLXDAILY||{}),prev:GLXPREV,cols:GLXCOLS||'tự dò',tot:sumMap(GLXDAILY,GLXUSD)}
      ];
      const diagHTML=`<div class="card" style="margin-top:14px"><h3>🩺 Tình trạng nguồn PVH13</h3><div class="scroll"><table class="tbl"><thead><tr><th style="width:26px"></th><th>Nguồn</th><th>gid</th><th>Cột đang đọc</th><th class="n">Bản ghi đọc được (cả năm)</th><th>Có số từ → đến</th><th class="n">Σ cả năm (đ)</th><th>Ghi chú</th></tr></thead><tbody>
       ${srcs.map(s=>{const n=s.dks.length;const nAll=s.nAll!=null?s.nAll:n;const ds=[...s.dks].sort();
@@ -1490,10 +1490,14 @@ async function gc13Daily(){if(GC13DAILY!==undefined&&Date.now()-GC13TS<RAW_TTL)r
  GC13DAILY=o||undefined; /* không cache kết quả rỗng */
  return o;}
 /* PVH13: Galaxylink — FILE RIÊNG; tự dò cột ngày / trạng thái (loại refund·hủy) / giá trị; dò trượt sẽ hiện bảng thô ở khối 🩺 */
-const BASE_GLX="https://docs.google.com/spreadsheets/d/e/2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie/pub";
-const GLX_GID="511652200";
-function glxDirectURL(){return BASE_GLX+"?gid="+GLX_GID+"&single=true&output=csv";}
-function glxApiURL(){return "/api/csv?f=glx&gid="+GLX_GID;}
+/* Galaxylink lấy từ CẢ HAI file: file cũ (Galaxy Link data — lịch sử) + file mới (GalaxyLink Orders — số đang chạy) */
+const GLX_SRCS=[
+ {base:"https://docs.google.com/spreadsheets/d/e/2PACX-1vT0ni4Ntgb0PgMYKwJGdrcYrA4P7t7Be0jem5w7n58dksNt3DrlzBDqSobmyRn9Bi0dFWDknEE9i2uJ/pub",gid:"1473618411",f:"glx",label:"file cũ"},
+ {base:"https://docs.google.com/spreadsheets/d/e/2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie/pub",gid:"511652200",f:"glx2",label:"file mới"}
+];
+function glxSrc(gid){return GLX_SRCS.find(x=>x.gid===''+gid)||GLX_SRCS[1];}
+function glxDirectURL(gid){const s=glxSrc(gid);return s.base+"?gid="+s.gid+"&single=true&output=csv";}
+function glxApiURL(gid){const s=glxSrc(gid);return "/api/csv?f="+s.f+"&gid="+s.gid;}
 let GLXDAILY,GLXPREV=null,GLXCOLS='',GLXUSD=true;
 function glxFromRows(rows){
  if(!rows||rows.length<2)return null;
@@ -1548,10 +1552,22 @@ function glxFromRows(rows){
  return o;}
 let GLXTS=0;
 async function glxDaily(){if(GLXDAILY!==undefined&&Date.now()-GLXTS<RAW_TTL)return GLXDAILY;
- let rows=await loadCSV(glxDirectURL());let o=glxFromRows(rows);
- if(!o){const r2=await loadCSV(glxApiURL());if(r2)rows=r2;o=glxFromRows(rows);}
- GLXPREV=rows?rows.slice(0,8):null;GLXTS=Date.now();
- GLXDAILY=o||undefined;return o;}
+ /* đọc lần lượt cả 2 file, cộng gộp theo ngày; file nào hỏng thì giữ 8 dòng thô của file đó cho khối 🩺 */
+ const parts=[],descs=[];GLXPREV=null;
+ for(const s of GLX_SRCS){
+  let rows=await loadCSV(glxDirectURL(s.gid));
+  let o=glxFromRows(rows);
+  if(!o){const r2=await loadCSV(glxApiURL(s.gid));if(r2)rows=r2;o=glxFromRows(rows);}
+  if(o){parts.push({o,usd:GLXUSD});descs.push(s.label+': '+GLXCOLS);}
+  else if(!GLXPREV)GLXPREV=rows?rows.slice(0,8):null;
+ }
+ GLXTS=Date.now();
+ if(!parts.length){GLXCOLS='';GLXDAILY=undefined;return null;}
+ let use=parts;
+ if(parts.length>1&&parts[0].usd!==parts[1].usd){use=[parts[parts.length-1]];descs.splice(0,descs.length-1);} /* lệch đơn vị (hiếm) → chỉ dùng file mới */
+ const o={};use.forEach(p=>{for(const k in p.o)o[k]=(o[k]||0)+p.o[k];});
+ GLXUSD=use[0].usd;GLXCOLS=descs.join('  +  ');
+ GLXDAILY=o;return o;}
 let ROBUXPREV=null,ROBUXTS=0;
 async function robuxDaily(){if(ROBUXDAILY!==undefined&&Date.now()-ROBUXTS<RAW_TTL)return ROBUXDAILY;
  let rows=await loadCSV(directURL(COSTCFG.robux.gid));
@@ -2359,7 +2375,7 @@ function renderSRC(){const host=document.getElementById('content');
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE GIFT CARD (PVH13)',[['GC nhập theo ngày',GC13_GID,'gc13']]],
-  ['FILE GALAXYLINK (PVH13)',[['GLX nhập',GLX_GID,'glx']]],
+  ['FILE GALAXYLINK (PVH13)',[['GalaxyLink Orders (file mới)','511652200','glx'],['Galaxy Link data (file cũ)','1473618411','glx']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);
  host.innerHTML=
@@ -2392,7 +2408,7 @@ function renderSRC(){const host=document.getElementById('content');
   const gr=document.createElement('tr');gr.className='grp';gr.innerHTML=`<td colspan="6">${gname}</td>`;tb.appendChild(gr);
   tests.forEach(([nm,gid,f])=>{const tr=document.createElement('tr');
    tr.innerHTML=`<td><span class="stdot" style="background:#94a3b8"></span></td><td><b>${nm}</b></td><td class="gidm">${f==='ton'?'file riêng':gid}</td><td>…</td><td class="n">…</td><td class="small">đang gọi…</td>`;tb.appendChild(tr);
-   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():(f==='gc13'?gc13DirectURL():(f==='glx'?glxDirectURL():directURL(gid))))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():(f==='gc13'?gc13ApiURL():(f==='glx'?glxApiURL():apiURL(gid)))));
+   (async()=>{const du=f==='ton'?tonDirectURL():(f==='sla'?slaURL(gid):(f==='kho'?khoDirectURL():(f==='gc13'?gc13DirectURL():(f==='glx'?glxDirectURL(gid):directURL(gid))))),au=f==='ton'?tonApiURL():(f==='sla'?slaApiURL(gid):(f==='kho'?khoApiURL():(f==='gc13'?gc13ApiURL():(f==='glx'?glxApiURL(gid):apiURL(gid)))));
      const d=await probe(du);let use=d,via='direct';
      if(!d.ok){const a=await probe(au);if(a.ok){use=a;via='api';}else{via='fail';use=a.head?a:d;}}
      tr.children[0].innerHTML=`<span class="stdot ${via==='direct'?'ok':(via==='api'?'warn':'bad')}"></span>`;
