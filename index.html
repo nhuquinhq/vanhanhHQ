@@ -1502,16 +1502,19 @@ function glxFromRows(rows){
  for(let r=0;r<Math.min(rows.length,10);r++){const row=(rows[r]||[]).map(lo);
   const iAmt=row.findIndex(x=>x==='amount'),iCre=row.findIndex(x=>/^created\s*at$/.test(x));
   if(iAmt<0||iCre<0)continue;
-  const iDone=row.findIndex(x=>/^quantity\s*done$/.test(x)),iCur=row.findIndex(x=>x==='currency');
+  const iDone=row.findIndex(x=>/^(quantity|qty)\s*done$/.test(x)),iCur=row.findIndex(x=>x==='currency');
+  const iSt=row.findIndex(x=>/^status$/.test(x)); /* tab GalaxyLink Orders: chỉ tính đơn completed (loại refunded / processing) */
+  const OKST=/^(completed|success|done|hoàn\s*tất|thành\s*công)$/i;
   const o={};let n=0,usdN=0,curN=0;
   for(let r2=r+1;r2<rows.length;r2++){const rw=rows[r2];if(!rw)continue;
    const dt=parseDateCell(rw[iCre]);if(!dt||dt.mo<0||dt.mo>11)continue;
+   if(iSt>-1&&!OKST.test((''+(rw[iSt]||'')).trim()))continue; /* chưa completed thì bỏ */
    if(iDone>-1&&(''+(rw[iDone]||'')).trim()!==''&&!(num(rw[iDone])>0))continue; /* đơn chưa done thì bỏ */
    const v=num(rw[iAmt]);if(!(v>0))continue;
    if(iCur>-1){curN++;if(/usd/i.test(''+rw[iCur]))usdN++;}
    const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;}
   if(n){GLXUSD=curN?usdN>=curN/2:true;
-   GLXCOLS='khuôn Galaxy Link data (Amount · Created At'+(iDone>-1?' · lọc Quantity Done':'')+')'+(GLXUSD?' · USD quy VND':' · VND');
+   GLXCOLS='khuôn GalaxyLink (Amount · Created At'+(iSt>-1?' · lọc Status completed':'')+(iDone>-1?' · lọc Qty Done':'')+')'+(GLXUSD?' · USD quy VND':' · VND');
    return o;}
   break;}
  /* 2) dự phòng: tự dò tổng quát */
