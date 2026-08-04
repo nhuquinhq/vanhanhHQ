@@ -812,25 +812,43 @@ const PAGES={
  PVH3:{title:"PVH3 · NXT theo Nhân viên (mỗi SPDV 1 dashboard)",meta:"Nguồn: Data Nhập Theo Nhân viên (theo tháng)",render(host){
    renderGroupReport(host,{page:'PVH3',skey:'nv',pfx:'p3',unit:'NV',name:'Data Nhập Theo Nhân viên',gid:GIDS.nv,src:()=>NV_ALL,tots:()=>NV_TOT,apply:applyNV});
  }},
- PVH9:{title:"PVH9 · Automation / thủ công (đơn Bot)",meta:"★ BOD · nguồn: Data Razergold",render(host){
-   host.innerHTML=spinner("Đang đọc đơn Bot/thủ công từ Data Razergold…");
-   razerBotRecs().then(recs=>{
-     if(!recs){const f=factor();const bot=Math.round(RAZER.bot*f),tay=Math.max(0,Math.round(RAZER.tay*f)),tot=bot+tay;
-       host.innerHTML=`<div class="note">Chưa nhận diện được cột Bot/Tay trong Data Razergold — đang hiển thị <b>số dự phòng</b> co theo phạm vi ${scopeLabel()}.</div>
-        <div class="kpis" style="margin-top:12px">${kpi("% Automation",pct(bot/(tot||1)),"Bot/tổng")}${kpi("Đơn Bot",fmtn(bot),"tự động")}${kpi("Đơn thủ công",fmtn(tay),"")}${kpi("Tổng đơn",fmtn(tot),scopeLabel())}</div>
-        <div class="grid2">${cc("Tự động vs Thủ công","p9a",true)}<div class="card"><h3>Mở rộng</h3><div class="note">Sàn/QLTT/Daily chưa có cờ tự-động — bổ sung để gộp %Automation toàn khối.</div></div></div>`;
-       mk("p9a",donut(['Tự động (Bot)','Thủ công'],[bot,tay],[GREEN,RED],true));return;}
-     const fk=iso(FROM),tk=iso(TO);const inScope=recs.filter(r=>r.dk>=fk&&r.dk<=tk);
-     const bot=inScope.filter(r=>r.bot).length,tay=inScope.length-bot,tot=inScope.length;
-     const botM=Array(12).fill(0),tayM=Array(12).fill(0);
-     recs.forEach(r=>{const mo=+r.dk.slice(5,7)-1;if(r.bot)botM[mo]++;else tayM[mo]++;});
-     host.innerHTML=`<div class="ok">Nguồn thật: Data Razergold — đếm số đơn có cờ Bot / thủ công trong phạm vi ${scopeLabel()}.</div>
-      <div class="kpis" style="margin-top:12px">${kpi("% Automation",pct(bot/(tot||1)),"đơn Bot / tổng đơn")}${kpi("Đơn Bot",fmtn(bot),"tự động")}${kpi("Đơn thủ công",fmtn(tay),"")}${kpi("Tổng đơn",fmtn(tot),scopeLabel())}</div>
-      <div class="grid2">${cc("Tự động vs Thủ công (theo phạm vi)","p9a",true)}${cc("Đơn Bot vs thủ công theo tháng (cả kỳ)","p9b",true)}</div>
-      <div class="note">Mở rộng: Sàn/QLTT/Daily chưa có cờ tự-động — bổ sung để gộp %Automation toàn khối.</div>`;
-     mk("p9a",donut(['Tự động (Bot)','Thủ công'],[bot,tay],[GREEN,RED],true));
-     mk("p9b",{type:'bar',data:{labels:MN,datasets:[{label:'Bot',data:botM,backgroundColor:GREEN,stack:'s'},{label:'Thủ công',data:tayM,backgroundColor:RED,stack:'s'}]},
-      options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
+ PVH9:{title:"PVH9 · Automation / thủ công (đơn Bot)",meta:"★ BOD · nguồn: tab Automation / thủ công (đơn Bot) — ma trận tháng, khối Thủ công vs Tự động theo từng nguồn",render(host){
+   host.innerHTML=spinner("Đang đọc tab Automation / thủ công (đơn Bot)…");
+   autoTCData().then(A=>{
+     if(!A){
+       host.innerHTML=`<div class="note"><b>Không đọc được tab Automation / thủ công</b> (gid ${AUTO_GID}) — ${AUTOPREV&&AUTOPREV.length?'đọc được dữ liệu nhưng không dò ra hàng tiêu đề 1/2026…12/2026':'không tải được CSV (kiểm tra Publish to web)'}.<br><button class="btn" style="margin-top:8px" onclick="AUTOD=undefined;render()">↻ Thử lại</button></div>`
+       +(AUTOPREV&&AUTOPREV.length?`<div class="card" style="margin-top:12px"><h3>10 dòng đầu tab (chụp màn hình gửi lại để chỉnh)</h3><div class="scroll"><table class="tbl"><thead><tr><th>#</th>${Array.from({length:16},(_,c)=>`<th>${String.fromCharCode(65+c)}</th>`).join('')}</tr></thead><tbody>${AUTOPREV.map((r,i)=>`<tr><td>${i+1}</td>${Array.from({length:16},(_,c)=>`<td>${((''+((r||[])[c]??'')).slice(0,12))}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`:'');
+       return;}
+     const m0=FROM.mo,m1=TO.mo;
+     const sel=[];for(let i=0;i<12;i++)if(i>=m0&&i<=m1&&(A.tot[i]||A.man.m[i]||A.auto.m[i]))sel.push(i);
+     const sum=arr=>sel.reduce((a,i)=>a+arr[i],0);
+     const manS=sum(A.man.m),autoS=sum(A.auto.m),totS=manS+autoS;
+     const withData=[];for(let i=0;i<12;i++)if(A.man.m[i]||A.auto.m[i])withData.push(i);
+     const rate=i=>{const t=A.man.m[i]+A.auto.m[i];return t?A.auto.m[i]/t:0;};
+     const lastM=withData[withData.length-1],prevM=withData.length>1?withData[withData.length-2]:null;
+     const dRate=prevM!=null?(rate(lastM)-rate(prevM))*100:null;
+     const kidRows=K=>K.kids.filter(k=>sum(k.m)>0||k.year>0).sort((a,b)=>sum(b.m)-sum(a.m));
+     const tbl=K=>`<div class="scroll"><table class="tbl"><thead><tr><th>Nguồn</th>${sel.map(i=>`<th class="n">T${pad2(i+1)}</th>`).join('')}<th class="n">Tổng kỳ</th><th class="n">Cả năm</th></tr></thead><tbody>
+      ${kidRows(K).map(k=>`<tr><td>${k.name}</td>${sel.map(i=>`<td class="n">${k.m[i]?fmtn(k.m[i]):''}</td>`).join('')}<td class="n"><b>${fmtn(sum(k.m))}</b></td><td class="n">${fmtn(k.year)}</td></tr>`).join('')}
+      <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${sel.map(i=>`<td class="n">${fmtn(K.m[i])}</td>`).join('')}<td class="n">${fmtn(sum(K.m))}</td><td class="n">${fmtn(K.year)}</td></tr>
+      </tbody></table></div>`;
+     host.innerHTML=`
+      <div class="kpis">
+       ${kpi("% Automation trong kỳ",pct(autoS/(totS||1)),"đơn Bot / tổng đơn · "+scopeLabel())}
+       ${kpi("Đơn tự động (Bot)",fmtn(autoS),"trong kỳ")}
+       ${kpi("Đơn thủ công",fmtn(manS),"trong kỳ")}
+       ${kpi("Xu hướng tự động hóa",dRate==null?'—':((dRate>=0?'+':'−')+Math.abs(dRate).toFixed(1).replace('.',',')+' điểm'),prevM!=null?('T'+(prevM+1)+' '+pct(rate(prevM))+' → T'+(lastM+1)+' '+pct(rate(lastM))):'')}
+      </div>
+      <div class="grid2">${cc("Tự động vs Thủ công — trong kỳ","p9a",true)}${cc("Thủ công vs Tự động theo tháng + đường % tự động","p9b",true)}</div>
+      <div class="grid2"><div class="card"><h3>🖐 Thủ công — theo nguồn</h3>${tbl(A.man)}</div><div class="card"><h3>🤖 Tự động — theo nguồn</h3>${tbl(A.auto)}</div></div>
+      <div class="small" style="margin-top:6px">Nguồn: tab "Automation / thủ công (đơn Bot)" (gid ${AUTO_GID}) — cột 1/2026…12/2026, khối Thủ công / Tự động cộng từ các nguồn con. Bộ lọc Từ–Đến áp theo THÁNG (kỳ đang chọn: ${sel.length?sel.map(i=>'T'+(i+1)).join(', '):'chưa có tháng nào có số'}).</div>`;
+     mk("p9a",donut(['Tự động (Bot)','Thủ công'],[autoS,manS],[GREEN,RED],true));
+     mk("p9b",{type:'bar',data:{labels:withData.map(i=>'T'+pad2(i+1)),datasets:[
+       {label:'Thủ công',data:withData.map(i=>A.man.m[i]),backgroundColor:RED,stack:'s',order:2},
+       {label:'Tự động',data:withData.map(i=>A.auto.m[i]),backgroundColor:GREEN,stack:'s',order:2},
+       {label:'% tự động',data:withData.map(i=>+(rate(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#1e5fd0',backgroundColor:'#1e5fd0',tension:.3,order:1}]},
+      options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
+       scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
    });
  }},
  PVH10:{title:"PVH10 · Năng suất xử lý đơn thủ công (SLA/Accuracy)",meta:"Đơn thủ công = Gamepass + nạp game Pokémon · Nguồn: Báo cáo Năng xuất Xử lý đơn 2026",render(host){
@@ -1583,7 +1601,39 @@ function groupAvgUnit(key,field){const o={},c={};recsIn(key).forEach(r=>{if(r.un
 function monthlyAvgUnit(key){const cfg=RAWCFG[key];const sum=Array(12).fill(0),cnt=Array(12).fill(0);
  (RAWDATA[key]||[]).forEach(r=>{if(!(r.unit>0))return;const mo=+r.dk.slice(5,7)-1;if(mo<0||mo>11)return;const u=cfg.usd?r.unit*fxRate(r.dk):r.unit;if(!(u>0))return;sum[mo]+=u;cnt[mo]++;});
  return sum.map((s,i)=>cnt[i]?Math.round(s/cnt[i]):0);}
-/* PVH9: đơn Bot vs thủ công từ Data Razergold — tự dò cột chứa giá trị Bot/Tay */
+/* PVH9: tab "Automation / thủ công (đơn Bot)" — ma trận tháng: hàng tiêu đề 1/2026…12/2026 + Tổng năm;
+   khối "Thủ công" và "Tự động" (mỗi khối có các dòng nguồn con, nhãn nằm ở cột A/B/C tuỳ dòng) */
+const AUTO_GID="1785292172";
+let AUTOD,AUTOPREV=null,AUTOTS=0;
+function parseAutoTC(rows){
+ if(!rows||rows.length<3)return null;
+ const N=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
+ let H=-1,mcols=null,iYear=-1;
+ for(let r=0;r<Math.min(rows.length,12);r++){const row=rows[r]||[];const cols=[];let iy=-1;
+  row.forEach((v,c)=>{const m=N(v).match(/^(\d{1,2})\/20\d{2}$/);if(m&&+m[1]>=1&&+m[1]<=12)cols.push({ci:c,mi:+m[1]-1});if(/tổng\s*năm/i.test(N(v)))iy=c;});
+  if(cols.length>=6){H=r;mcols=cols;iYear=iy>-1?iy:cols[0].ci-1;break;}}
+ if(H<0)return null;
+ const Lc=iYear>-1?Math.min(iYear,4):3; /* nhãn chỉ nằm trước cột Tổng năm */
+ const lab=r=>{const row=rows[r]||[];let l='';for(let c=0;c<Math.min(row.length,Lc);c++){const v=N(row[c]);if(v)l=v;}return l;};
+ const take=r=>{const row=rows[r]||[];const m=Array(12).fill(0);mcols.forEach(mc=>{m[mc.mi]=num(row[mc.ci]);});return{m,year:iYear>-1?num(row[iYear]):m.reduce((a,b)=>a+b,0)};};
+ const out={tot:null,man:null,auto:null};let sec=null;
+ for(let r=H+1;r<rows.length;r++){const l=lab(r);
+  if(!l){if(!out.tot){const t=take(r);if(t.year||t.m.some(x=>x))out.tot=t.m;}continue;}
+  if(/^tỷ\s*lệ/i.test(l))continue;
+  if(/^thủ\s*công$/i.test(l)){const t=take(r);out.man={m:t.m,year:t.year,kids:[]};sec='man';continue;}
+  if(/^tự\s*động$/i.test(l)){const t=take(r);out.auto={m:t.m,year:t.year,kids:[]};sec='auto';continue;}
+  if(!sec)continue;
+  const t=take(r);if(!(t.year||t.m.some(x=>x)))continue;
+  out[sec].kids.push({name:l,m:t.m,year:t.year});}
+ if(!out.man&&!out.auto)return null;
+ out.man=out.man||{m:Array(12).fill(0),year:0,kids:[]};out.auto=out.auto||{m:Array(12).fill(0),year:0,kids:[]};
+ if(!out.tot)out.tot=out.man.m.map((v,i)=>v+out.auto.m[i]);
+ return out;}
+async function autoTCData(){if(AUTOD!==undefined&&Date.now()-AUTOTS<RAW_TTL)return AUTOD;
+ let rows=await loadCSV(directURL(AUTO_GID));let o=parseAutoTC(rows);
+ if(!o){const r2=await loadCSV(apiURL(AUTO_GID));if(r2)rows=r2;o=parseAutoTC(rows);}
+ AUTOPREV=rows?rows.slice(0,10):null;AUTOTS=Date.now();AUTOD=o||undefined;return o;}
+/* PVH9 cũ: đơn Bot vs thủ công từ Data Razergold — tự dò cột chứa giá trị Bot/Tay */
 let RAZERRECS;
 function botRecsFromRows(rows){
  if(!rows||rows.length<2)return null;
@@ -2371,7 +2421,7 @@ function renderSRC(){const host=document.getElementById('content');
  /* nhóm tab theo file nguồn */
  const groups=[
   ['FILE CHÍNH — Google Sheet vận hành',[
-   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Data Supercell (PVH13)','564846337'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK]]],
+   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Data Supercell (PVH13)','564846337'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK],['Automation / thủ công (PVH9)','1785292172']]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE GIFT CARD (PVH13)',[['GC nhập theo ngày',GC13_GID,'gc13']]],
