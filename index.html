@@ -1490,8 +1490,8 @@ async function gc13Daily(){if(GC13DAILY!==undefined&&Date.now()-GC13TS<RAW_TTL)r
  GC13DAILY=o||undefined; /* không cache kết quả rỗng */
  return o;}
 /* PVH13: Galaxylink — FILE RIÊNG; tự dò cột ngày / trạng thái (loại refund·hủy) / giá trị; dò trượt sẽ hiện bảng thô ở khối 🩺 */
-const BASE_GLX="https://docs.google.com/spreadsheets/d/e/2PACX-1vT0ni4Ntgb0PgMYKwJGdrcYrA4P7t7Be0jem5w7n58dksNt3DrlzBDqSobmyRn9Bi0dFWDknEE9i2uJ/pub";
-const GLX_GID="1473618411";
+const BASE_GLX="https://docs.google.com/spreadsheets/d/e/2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie/pub";
+const GLX_GID="511652200";
 function glxDirectURL(){return BASE_GLX+"?gid="+GLX_GID+"&single=true&output=csv";}
 function glxApiURL(){return "/api/csv?f=glx&gid="+GLX_GID;}
 let GLXDAILY,GLXPREV=null,GLXCOLS='',GLXUSD=true;
