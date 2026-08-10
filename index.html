@@ -1225,7 +1225,17 @@ const PAGES={
        const rows9=[{name:'Đơn tự động (Bot)',a:aut[mi],b:pm!=null?aut[pm]:0,c:pm!=null?aut[pm]:0},
                     {name:'Đơn thủ công',a:man[mi],b:pm!=null?man[pm]:0,c:pm!=null?man[pm]:0}];
        h+=`<div class="kpis">${kpi("% Automation T"+pad2(mi+1),pct(rt(mi)),"đơn Bot / tổng đơn")}${kpi("Tháng trước",pm!=null?pct(rt(pm)):'—',pm!=null?"T"+pad2(pm+1):'')}${kpi("Chênh lệch",pm!=null?((rt(mi)>=rt(pm)?'+':'−')+Math.abs((rt(mi)-rt(pm))*100).toFixed(1).replace('.',',')+' điểm'):'—',"so tháng trước")}${kpi("Đơn tự động T"+pad2(mi+1),fmtn(aut[mi]),"thủ công "+fmtn(man[mi]))}</div>
-        <div class="grid2" style="grid-template-columns:1fr">${cc("Thủ công vs Tự động theo THÁNG (cả năm) + đường % tự động — cột đậm là T"+pad2(mi+1),"w4")}</div>`;
+        <div class="grid2" style="grid-template-columns:1fr">${cc("Thủ công vs Tự động theo THÁNG (cả năm) + đường % tự động — cột đậm là T"+pad2(mi+1),"w4")}</div>
+        <div class="grid2">${cc("Cơ cấu ĐƠN THỦ CÔNG theo nguồn — T"+pad2(mi+1),"w6")}${cc("Cơ cấu ĐƠN TỰ ĐỘNG theo nguồn — T"+pad2(mi+1),"w7")}</div>
+        <div class="card"><h3>Chi tiết nguồn trong tháng ${pad2(mi+1)}</h3><div class="scroll"><table class="tbl"><thead><tr><th>Nguồn</th><th class="n">Thủ công</th><th class="n">% trong thủ công</th><th class="n">Tự động</th><th class="n">% trong tự động</th><th class="n">Tổng</th><th class="n">% tự động hoá</th></tr></thead><tbody>
+        ${(function(){const km={};(AU.man.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:0,a:0};km[k.name].m+=k.m[mi]||0;});
+          (AU.auto.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:0,a:0};km[k.name].a+=k.m[mi]||0;});
+          const L=Object.keys(km).filter(n=>km[n].m||km[n].a).sort((x,y)=>(km[y].m+km[y].a)-(km[x].m+km[x].a));
+          const sm=AU.man.m[mi]||0,sa=AU.auto.m[mi]||0;
+          return L.map(n=>{const v=km[n];const t=v.m+v.a;
+            return `<tr><td>${n}</td><td class="n">${fmtn(v.m)}</td><td class="n">${sm?pct(v.m/sm):'—'}</td><td class="n">${fmtn(v.a)}</td><td class="n">${sa?pct(v.a/sa):'—'}</td><td class="n"><b>${fmtn(t)}</b></td><td class="n">${t?pct(v.a/t):'—'}</td></tr>`;}).join('')
+          +`<tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(sm)}</td><td class="n">100%</td><td class="n">${fmtn(sa)}</td><td class="n">100%</td><td class="n">${fmtn(sm+sa)}</td><td class="n">${(sm+sa)?pct(sa/(sm+sa)):'—'}</td></tr>`;})()}
+        </tbody></table></div><div class="small" style="margin-top:6px">Nguồn nào có ở cả hai khối (vd Razergold, Topup, OG, Galaxylink) thì cột cuối cho biết đã tự động hoá được bao nhiêu phần trăm đơn của nguồn đó.</div></div>`;
      } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
      /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
      h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
@@ -1254,7 +1264,11 @@ const PAGES={
          {label:'Tự động',data:ms.map(i=>aut[i]),backgroundColor:ms.map(i=>dim(GREEN,i)),stack:'s',order:2},
          {label:'% tự động',data:ms.map(i=>+(rt(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#1e5fd0',backgroundColor:'#1e5fd0',tension:.3,order:1}]},
         options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
-         scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});}
+         scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
+       const pie=(id,kids)=>{const L=(kids||[]).map(k=>({n:k.name,v:k.m[mi]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
+         if(!L.length){const el=document.getElementById(id);if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có số ở khối này.</div>';return;}
+         mk(id,donut(L.map(x=>x.n),L.map(x=>x.v),BLUE));};
+       pie("w6",AU.man.kids);pie("w7",AU.auto.kids);}
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
  }},
