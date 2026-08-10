@@ -1359,14 +1359,17 @@ function preset(k){const t=today();const mx=new Date(t.y,t.mo,t.d);
 function rangeDays(){const out=[];const a=new Date(FROM.y,FROM.mo,FROM.d),b=new Date(TO.y,TO.mo,TO.d);for(let t=new Date(a);t<=b;t.setDate(t.getDate()+1))out.push({y:t.getFullYear(),mo:t.getMonth(),d:t.getDate()});return out;}
 function monthsInRange(){const mm={};rangeDays().forEach(x=>{if(x.y===2026&&x.mo<12)mm[x.mo]=(mm[x.mo]||0)+1;});return mm;}
 function aggArr(arr,sp,map,seed){if(map&&sp&&map[sp]){let t=0;rangeDays().forEach(x=>{if(x.y===2026)t+=map[sp][dkey(x.mo,x.d)]||0;});return t;}const mm=monthsInRange();let t=0;for(const m in mm){const mi=+m;t+=(arr&&arr[mi]?arr[mi]:0)*mm[m]/DAYS_IN[mi];}return Math.round(t);}
-function parseFX(rows){const map={};for(let r=0;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[1]);const rate=num(row[2]);if(dt&&rate>0)map[dkey(dt.mo,dt.d)]=rate;}if(Object.keys(map).length){FXMAP=map;FXKEYS=Object.keys(map).sort();}}
+function parseFX(rows){const map={};for(let r=0;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[1]);const rate=num(row[2]);if(dt&&okY(dt)&&rate>0)map[dkey(dt.mo,dt.d)]=rate;}if(Object.keys(map).length){FXMAP=map;FXKEYS=Object.keys(map).sort();}}
 function fxRate(key){if(FXMAP[key])return FXMAP[key];let best=0;for(const k of FXKEYS){if(k<=key)best=FXMAP[k];else break;}if(best)return best;return FXKEYS.length?FXMAP[FXKEYS[0]]:0;}
-function parseDateCell(v){if(v==null)return null;v=(''+v).trim();let m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return{mo:+m[2]-1,d:+m[3]};m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m){let a=+m[1],b=+m[2],mo,dd;if(a>12){dd=a;mo=b;}else if(b>12){mo=a;dd=b;}else{dd=a;mo=b;}return{mo:mo-1,d:dd};}const dt=new Date(v);return isNaN(dt)?null:{mo:dt.getMonth(),d:dt.getDate()};}
+/* trả kèm NĂM khi ô có ghi năm — mọi báo cáo chỉ tính 2026, dòng năm khác bị loại (xem okY) */
+function parseDateCell(v){if(v==null)return null;v=(''+v).trim();let m=v.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);if(m)return{y:+m[1],mo:+m[2]-1,d:+m[3]};m=v.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);if(m){let a=+m[1],b=+m[2],mo,dd;if(a>12){dd=a;mo=b;}else if(b>12){mo=a;dd=b;}else{dd=a;mo=b;}return{y:+m[3],mo:mo-1,d:dd};}const dt=new Date(v);return isNaN(dt)?null:{y:dt.getFullYear(),mo:dt.getMonth(),d:dt.getDate()};}
+const DYEAR=2026;
+function okY(dt){return !!dt&&(!dt.y||dt.y===DYEAR);} /* ô không ghi năm (vd 26/04) thì hiểu là năm báo cáo */
 function hIdx(rows,need){for(let r=0;r<Math.min(rows.length,15);r++){const row=(rows[r]||[]).map(x=>(''+x).trim());if(need.every(n=>row.includes(n))){const i={};row.forEach((v,c)=>{if(!(v in i))i[v]=c;});return{r,i};}}return{r:-1,i:{}};}
 function findc(row,re){if(!row)return -1;for(let c=0;c<row.length;c++)if(re.test((''+row[c]).trim()))return c;return -1;}
 function buildRobux(rows){const H=hIdx(rows,['NGÀY NHẬP','THÀNH TIỀN']);if(H.r<0)return false;const iD=H.i['NGÀY NHẬP'],iT=H.i['THÀNH TIỀN'];const iDie=findc(rows[H.r],/tiền rb die|die.*(kbh|không)/i);const iDon=findc(rows[H.r],/tiền robux dồn/i);
  DAILY.nhap['Robux']={};DAILY.die['Robux']={};DAILY.don={};DAILY._donLoaded=true;
- for(let r=H.r+1;r<rows.length;r++){const row=rows[r];if(!row)continue;const dt=parseDateCell(row[iD]);if(!dt||dt.mo<0||dt.mo>11)continue;const k=dkey(dt.mo,dt.d);
+ for(let r=H.r+1;r<rows.length;r++){const row=rows[r];if(!row)continue;const dt=parseDateCell(row[iD]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;const k=dkey(dt.mo,dt.d);
   DAILY.nhap['Robux'][k]=(DAILY.nhap['Robux'][k]||0)+num(row[iT]);
   if(iDie>=0)DAILY.die['Robux'][k]=(DAILY.die['Robux'][k]||0)+num(row[iDie]);
   if(iDon>=0)DAILY.don[k]=(DAILY.don[k]||0)+num(row[iDon]);}
@@ -1422,7 +1425,7 @@ function rowsToRecs(cfg,rows){
  rowsToRecs.usedCfg=cfg; /* cho khối chẩn đoán biết cột thực dùng (sau autoDate) */
  /* chấp nhận cả ngày "26/04" không kèm năm (tab RBX HQS) — hiểu là năm 2026 */
  const pdm=v=>{v=(''+v).trim();const m=v.match(/^(\d{1,2})\/(\d{1,2})$/);if(m){const dd=+m[1],mo=+m[2];if(dd>=1&&dd<=31&&mo>=1&&mo<=12)return{mo:mo-1,d:dd};}return parseDateCell(v);};
- const recs=[];(rows||[]).forEach(row=>{const dt=pdm(row[cfg.date]);if(!dt||dt.mo<0)return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
+ const recs=[];(rows||[]).forEach(row=>{const dt=pdm(row[cfg.date]);if(!dt||dt.mo<0||!okY(dt))return;if(cfg.onlyCol!=null&&(''+(row[cfg.onlyCol]||'')).trim().toLowerCase()!==cfg.onlyVal)return;recs.push({dk:dkey(dt.mo,dt.d),val:num(row[cfg.val]),unit:num(row[cfg.unit]),emp:cfg.emp>=0?(''+(row[cfg.emp]||'')).trim():'',ncc:cfg.ncc>=0?(''+(row[cfg.ncc]||'')).trim():'',cat:cfg.cat>=0?(''+(row[cfg.cat]||'')).trim():''});});return recs;}
 let RAWTS={};
 const RAW_TTL=300000; /* dữ liệu RAW tự đọc lại sau 5 phút — sheet có số mới thì dashboard tự nhận, không cần F5 */
 function fetchRaw(key){
@@ -1482,7 +1485,7 @@ function robuxDailyFromRows(rows){
  if(H<0)return null;
  const o={};
  for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
-  const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11)continue;
+  const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;
   const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;}}
  return Object.keys(o).length?o:null;}
 /* PVH13: Gift Card — FILE RIÊNG nhẹ (tab Data giftcard gốc 47k dòng bị publish cắt ở ~41k) */
@@ -1504,7 +1507,7 @@ function gc13FromRows(rows){
  /* 1) khuôn Data giftcard: D="Thêm mới code" · ngày N · giá ưu tiên K (Giá Hub) — file GC mới K toàn N/A thì dùng J (Đơn giá) */
  const tryRaw=vc=>{const o={};let n=0;
   rows.forEach(row=>{if(!row)return;if((''+(row[3]||'')).trim().toLowerCase()!=='thêm mới code')return;
-   const dt=parseDateCell(row[13]);if(!dt||dt.mo<0)return;const v=num(row[vc]);if(!(v>0))return;
+   const dt=parseDateCell(row[13]);if(!dt||dt.mo<0||!okY(dt))return;const v=num(row[vc]);if(!(v>0))return;
    const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;});return[o,n];};
  let r1=tryRaw(10);
  if(r1[1]>=3)return done(r1[0],r1[1],'khuôn Data giftcard (lọc D · Giá Hub K · ngày N)');
@@ -1529,7 +1532,7 @@ function gc13FromRows(rows){
  const o2={};let n2=0;
  rows.forEach(row=>{if(!row||!isD(row[dCol]))return;
   if(fCol>-1&&(''+(row[fCol]||'')).trim().toLowerCase()!=='thêm mới code')return;
-  const dt=parseDateCell(row[dCol]);if(!dt||dt.mo<0)return;
+  const dt=parseDateCell(row[dCol]);if(!dt||dt.mo<0||!okY(dt))return;
   const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o2[k]=(o2[k]||0)+v;n2++;});
  const L=c=>c<26?String.fromCharCode(65+c):'cột '+(c+1);
  return done(o2,n2,'ngày '+L(dCol)+' · giá trị '+L(vCol));}
@@ -1570,7 +1573,7 @@ function glxFromRows(rows){
   const OKST=/^(completed|success|done|hoàn\s*tất|thành\s*công)$/i;
   const o={};let n=0,usdN=0,curN=0;
   for(let r2=r+1;r2<rows.length;r2++){const rw=rows[r2];if(!rw)continue;
-   const dt=parseDateCell(rw[iCre]);if(!dt||dt.mo<0||dt.mo>11)continue;
+   const dt=parseDateCell(rw[iCre]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;
    if(iSt>-1&&!OKST.test((''+(rw[iSt]||'')).trim()))continue; /* chưa completed thì bỏ */
    if(iDone>-1&&(''+(rw[iDone]||'')).trim()!==''&&!(num(rw[iDone])>0))continue; /* đơn chưa done thì bỏ */
    const v=num(rw[iAmt]);if(!(v>0))continue;
@@ -1602,7 +1605,7 @@ function glxFromRows(rows){
   if(score>best){best=score;vCol=c;}}
  if(vCol<0)return null;
  const o={};let n=0;
- rows.forEach(row=>{if(!row||!isD(row[dCol])||!okRow(row))return;const dt=pdm(row[dCol]);if(!dt||dt.mo<0)return;
+ rows.forEach(row=>{if(!row||!isD(row[dCol])||!okRow(row))return;const dt=pdm(row[dCol]);if(!dt||dt.mo<0||!okY(dt))return;
   const v=num(row[vCol]);if(!(v>0))return;const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+v;n++;});
  if(!n)return null;
  const ks=Object.keys(o);const avg=ks.reduce((a,k)=>a+o[k],0)/ks.length;GLXUSD=avg<200000;
@@ -1690,7 +1693,7 @@ function botRecsFromRows(rows){
   if(hits>bestHits&&bot>0){bestHits=hits;best=c;}}
  if(best<0)return null;
  const recs=[];
- for(let r=1;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[RAWCFG.razer.date]);if(!dt||dt.mo<0||dt.mo>11)continue;
+ for(let r=1;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[RAWCFG.razer.date]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;
   const v=(''+(row[best]||'')).trim();if(!v)continue;
   if(isBot(v))recs.push({dk:dkey(dt.mo,dt.d),bot:1});else if(isTay(v))recs.push({dk:dkey(dt.mo,dt.d),bot:0});}
  return recs.length?recs:null;}
@@ -1711,7 +1714,7 @@ function nickStatusFromRows(rows){
  const recs=[];
  for(let r=1;r<rows.length;r++){const row=rows[r]||[];const st=(''+(row[best]||'')).trim();if(!st)continue;
   const dt=parseDateCell(row[RAWCFG.nick.date]);
-  recs.push({dk:(dt&&dt.mo>=0&&dt.mo<12)?dkey(dt.mo,dt.d):null,st:st.toUpperCase()});}
+  recs.push({dk:(dt&&dt.mo>=0&&dt.mo<12&&okY(dt))?dkey(dt.mo,dt.d):null,st:st.toUpperCase()});}
  return recs.length?recs:null;}
 async function nickStatusRecs(){if(NICKST!==undefined)return NICKST;
  let recs=nickStatusFromRows(await loadCSV(directURL(RAWCFG.nick.gid)));
@@ -1832,7 +1835,7 @@ function parseCostTab(rows,cfg){
  if(H<0)return null;
  const M=Array.from({length:12},()=>({rows:0,sl:0,tien:0,donRows:0,donSl:0}));
  for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
-  const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11)continue;
+  const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;
   const sl=num(row[iSL]),tien=num(row[iTien]);
   if(tien>0){const m=M[dt.mo];m.rows++;m.sl+=sl;m.tien+=tien;}
   else if(sl>0){const m=M[dt.mo];m.donRows++;m.donSl+=sl;} /* dòng tiền 0 (nick dồn/gom) — chỉ đối chiếu, KHÔNG tính GV */}
