@@ -334,17 +334,17 @@ const SUPER_ADMIN="quynhhtn@hqplay.vn";
 const ROLE_LABEL={admin:"Admin (toàn quyền)",leader:"Leader (vận hành)",nhanvien:"Nhân viên"};
 const ROLE_PAGES={
  admin:"all",
- leader:["TQ","PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"],
+ leader:["TQ","PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13","PVH15"],
  nhanvien:["PVH10"]
 };
-const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","PVH13","PVH14","SRC"];
+const ALL_PAGES=["TQ","PVH1","PVH2","PVH3","PVH4","PVH5","PVH6","PVH7","PVH8","PVH9","PVH10","PVH11","PVH12","PVH13","PVH14","PVH15","SRC"];
 function pageName(id){if(id==='TQ')return 'Tổng quan';if(id==='SRC')return 'Nguồn & Cấu hình';return PAGES[id]?PAGES[id].title.replace(/^PVH\d+\s*·\s*/,'PVH'+id.slice(3)+' · '):id;}
 let MY_EMAIL=null,MY_ROLE=null,MY_PAGES=[];
 /* ô nhập "báo cáo được xem": "all"/"tất cả" · danh sách mã "TQ,PVH1,PVH10" · trống = null (theo vai trò) */
 function parsePages(s){s=(''+s).trim();if(!s)return null;
  if(/^(all|tất\s*cả|toàn\s*bộ|hết)$/i.test(s))return 'all';
  const ids=[];s.split(/[,;\/\s]+/).forEach(t=>{t=t.trim().toUpperCase();
-  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-4])$/.test(t))ids.push(t);});
+  if(t==='TQ'||t==='SRC'||/^PVH([1-9]|1[0-5])$/.test(t))ids.push(t);});
  return ids.length?ids:null;}
 function resolvePages(entry){if(!entry)return [];
  if(entry.role==='admin')return ALL_PAGES.slice();
@@ -1168,6 +1168,92 @@ const PAGES={
      }
    });
  }},
+ PVH15:{title:"PVH15 · Báo cáo tuần",meta:"Chọn tuần → so sánh với TUẦN LIỀN TRƯỚC và CÙNG KỲ THÁNG TRƯỚC (7 ngày cùng vị trí, lùi 1 tháng)",render(host){
+   w15Init();
+   host.innerHTML=spinner("Đang gom số liệu tuần: nhập chi tiết · giá vốn Robux · tồn kho · automation · năng suất…");
+   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),autoTCData(),khoCTData()]).then(([,,,,,Rt,AU,KC])=>{
+     if(curr!=='PVH15')return;
+     const A=w15Rng(W15,0,0),B=w15Rng(W15,-1,0),C=w15Rng(W15,0,-1);
+     const chg=(a,b)=>a?`<span class="${b>=a?'up':'down'}">${b>=a?'+':'−'}${pct(Math.abs(b-a)/a)}</span>`:'—';
+     const box=(t,sub)=>`<div style="margin:22px 4px 10px;font-size:13px;font-weight:800;letter-spacing:.4px;color:#5b6b7b;text-transform:uppercase">${t}</div>${sub?`<div class="small" style="margin:-6px 4px 8px">${sub}</div>`:''}`;
+     /* bảng 3 kỳ dùng chung: [{name,a,b,c}] */
+     const tbl=(rows,fm,unit)=>`<div class="card"><div class="scroll"><table class="tbl"><thead><tr><th>Hạng mục</th>
+       <th class="n">Tuần này<br><span class="small">${A.lab}</span></th><th class="n">Tuần trước<br><span class="small">${B.lab}</span></th><th class="n">± tuần</th>
+       <th class="n">Cùng kỳ T.trước<br><span class="small">${C.lab}</span></th><th class="n">± tháng</th></tr></thead><tbody>
+       ${rows.map(r=>`<tr><td>${r.name}</td><td class="n"><b>${fm(r.a)}</b></td><td class="n">${fm(r.b)}</td><td class="n">${chg(r.b,r.a)}</td><td class="n">${fm(r.c)}</td><td class="n">${chg(r.c,r.a)}</td></tr>`).join('')}
+       </tbody></table></div>${unit?`<div class="small" style="margin-top:6px">${unit}</div>`:''}</div>`;
+     const grp=(id,names,rows)=>mk(id,{type:'bar',data:{labels:names,datasets:[
+        {label:'Tuần này',data:rows.map(r=>r.a),backgroundColor:'#1e5fd0'},
+        {label:'Tuần trước',data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
+        {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#c7d6ec'}]},options:barOpt(true)});
+     let h=`<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+        <b style="font-size:12.5px;color:#1c2c4a">Tuần báo cáo:</b>
+        <select onchange="setW15(this.value)" style="padding:7px 11px;border-radius:9px;border:1px solid #c8d8f0;font-size:12.5px;background:#fff;color:#14243d">${w15Opts()}</select>
+        <span class="small">So sánh: <b>${A.lab}</b> ↔ tuần trước <b>${B.lab}</b> ↔ cùng kỳ tháng trước <b>${C.lab}</b></span></div>`;
+     /* ---------- 1) PVH13 · Nhập chi tiết theo SPDV ---------- */
+     const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
+     const spRows=S3[0].map((x,i)=>({name:x.name,a:x.tot,b:S3[1][i].tot,c:S3[2][i].tot})).filter(r=>r.a||r.b||r.c);
+     const tA=spRows.reduce((x,r)=>x+r.a,0),tB=spRows.reduce((x,r)=>x+r.b,0),tC=spRows.reduce((x,r)=>x+r.c,0);
+     const topSp=[...spRows].sort((x,y)=>y.a-x.a)[0];
+     h+=box('1 · PVH13 — Nhập chi tiết theo SPDV','Đọc RAW các tab chi tiết · tab USD quy VND theo tỷ giá ngày')
+      +`<div class="kpis">${kpi("CO Nhập tuần này",fmt(tA),A.lab)}${kpi("So tuần trước",tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("SPDV lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
+       <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo SPDV — 3 kỳ (VND)","w1")}</div>`
+      +tbl(spRows.concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VND.');
+     /* ---------- 2) PVH4 · Giá vốn Robux ---------- */
+     const rbx=r=>{let t=0,q=0;rangeDays2(r.f,r.t).forEach(k=>{t+=(ROBUXDAILY||{})[k]||0;q+=(ROBUXSL||{})[k]||0;});return{t,q,gv:q?t/q:0};};
+     const R3=[A,B,C].map(rbx);
+     const fgv=n=>n?n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
+     h+=box('2 · PVH4 — Biến động giá vốn: Robux','GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân gia quyền, chỉ dòng tiền > 0)')
+      +`<div class="kpis">${kpi("Giá vốn ĐV tuần này",fgv(R3[0].gv),"đ/robux")}${kpi("So tuần trước",R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần này",fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
+       <div class="grid2">${cc("Giá vốn ĐV Robux — 3 kỳ (đ/robux)","w2")}${cc("Sản lượng & thành tiền — 3 kỳ","w2b")}</div>`
+      +tbl([{name:'Giá vốn ĐV (đ/robux)',a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}],fgv)
+      +tbl([{name:'SL nhập (robux)',a:R3[0].q,b:R3[1].q,c:R3[2].q},{name:'Thành tiền (đ)',a:R3[0].t,b:R3[1].t,c:R3[2].t}],fmtn);
+     /* ---------- 3) PVH6 · Tồn kho & tuổi tồn ---------- */
+     h+=box('3 · PVH6 — Tồn kho & tuổi tồn','⚠ Nguồn tồn kho là ẢNH CHỤP HIỆN TẠI (sheet không lưu lịch sử theo ngày) — không so sánh được theo tuần');
+     if(KC&&KC.items&&KC.items.length){
+       const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton);
+       const tot=KC.tot?KC.tot.ton:its.reduce((a,x)=>a+x.ton,0);
+       h+=`<div class="kpis">${kpi("Tổng CO tồn",fmt(tot),"ảnh chụp hiện tại")}${kpi("Số hạng mục còn tồn",fmtn(its.length),"")}${kpi("Tồn lớn nhất",its[0]?its[0].label:'—',its[0]?fmt(its[0].ton)+' đ · '+pct(its[0].ton/(tot||1)):'')}${kpi("Top 3 chiếm",pct(its.slice(0,3).reduce((a,x)=>a+x.ton,0)/(tot||1)),"tổng tồn")}</div>
+        <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tồn theo hạng mục (top 12)","w3")}<div class="card"><h3>Bảng tồn theo hạng mục</h3><div class="scroll" style="max-height:260px"><table class="tbl"><thead><tr><th>Hạng mục</th><th class="n">CO tồn</th><th class="n">%</th></tr></thead><tbody>${its.slice(0,20).map(x=>`<tr><td>${x.label}</td><td class="n">${fmtn(x.ton)}</td><td class="n">${pct(x.ton/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>`;
+     } else h+=`<div class="note">Chưa đọc được file TỒN KHO HQGROUP — xem trang PVH6 để biết chi tiết lỗi.</div>`;
+     /* ---------- 4) PVH9 · Automation / thủ công ---------- */
+     const mi=+A.f.slice(5,7)-1, pm=mi>0?mi-1:null;
+     h+=box('4 · PVH9 — Automation / thủ công (đơn Bot)','⚠ Nguồn chỉ có số THEO THÁNG — so sánh ở cấp tháng chứa tuần đang chọn');
+     if(AU){
+       const man=AU.man.m,aut=AU.auto.m;
+       const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
+       const rows9=[{name:'Đơn tự động (Bot)',a:aut[mi],b:pm!=null?aut[pm]:0,c:pm!=null?aut[pm]:0},
+                    {name:'Đơn thủ công',a:man[mi],b:pm!=null?man[pm]:0,c:pm!=null?man[pm]:0}];
+       h+=`<div class="kpis">${kpi("% Automation T"+pad2(mi+1),pct(rt(mi)),"đơn Bot / tổng đơn")}${kpi("Tháng trước",pm!=null?pct(rt(pm)):'—',pm!=null?"T"+pad2(pm+1):'')}${kpi("Chênh lệch",pm!=null?((rt(mi)>=rt(pm)?'+':'−')+Math.abs((rt(mi)-rt(pm))*100).toFixed(1).replace('.',',')+' điểm'):'—',"so tháng trước")}${kpi("Đơn tự động T"+pad2(mi+1),fmtn(aut[mi]),"thủ công "+fmtn(man[mi]))}</div>
+        <div class="grid2" style="grid-template-columns:1fr">${cc("Tự động vs Thủ công — T"+pad2(mi+1)+(pm!=null?" so T"+pad2(pm+1):""),"w4")}</div>`;
+     } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
+     /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
+     h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
+     const P=Rt?parseSlaTongTC(Rt):null;
+     let slaRows3=[];
+     if(P){
+       const sum=(t,r)=>rangeDays2(r.f,r.t).reduce((a,k)=>a+(t.daily[k]||0),0);
+       slaRows3=P.types.map(t=>({name:t.name,a:sum(t,A),b:sum(t,B),c:sum(t,C)})).filter(r=>r.a||r.b||r.c);
+       const sA=slaRows3.reduce((x,r)=>x+r.a,0),sB=slaRows3.reduce((x,r)=>x+r.b,0),sC=slaRows3.reduce((x,r)=>x+r.c,0);
+       const nd=rangeDays2(A.f,A.t).filter(k=>P.types.some(t=>t.daily[k]!=null)).length;
+       h+=`<div class="kpis">${kpi("Đơn thủ công tuần này",fmtn(sA),A.lab)}${kpi("So tuần trước",sB?chg(sB,sA):'—',sB?fmtn(sB)+' đơn':'chưa có số')}${kpi("So cùng kỳ tháng trước",sC?chg(sC,sA):'—',sC?fmtn(sC)+' đơn':'chưa có số')}${kpi("Bình quân/ngày",nd?fmtn(sA/nd):'—',nd?nd+" ngày có số"+(P.kpi?" · KPI "+P.kpi:""):"")}</div>
+        <div class="grid2" style="grid-template-columns:1fr">${cc("Đơn thủ công theo loại — 3 kỳ","w5")}</div>`
+        +tbl(slaRows3.concat([{name:'<b>TỔNG</b>',a:sA,b:sB,c:sC}]),fmtn,'Đơn vị: đơn.');
+     } else h+=`<div class="note">Chưa đọc được tab "Tổng đơn xử lý thủ công" — xem trang PVH10.</div>`;
+     host.innerHTML=h;
+     grp("w1",spRows.map(r=>r.name),spRows);
+     grp("w2",['Giá vốn ĐV'],[{a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}]);
+     grp("w2b",['SL nhập (robux)','Thành tiền (đ)'],[{a:R3[0].q,b:R3[1].q,c:R3[2].q},{a:R3[0].t,b:R3[1].t,c:R3[2].t}]);
+     if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
+       mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
+     if(AU){const man=AU.man.m,aut=AU.auto.m;
+       mk("w4",{type:'bar',data:{labels:pm!=null?['T'+pad2(pm+1),'T'+pad2(mi+1)]:['T'+pad2(mi+1)],datasets:[
+         {label:'Thủ công',data:pm!=null?[man[pm],man[mi]]:[man[mi]],backgroundColor:RED,stack:'s'},
+         {label:'Tự động',data:pm!=null?[aut[pm],aut[mi]]:[aut[mi]],backgroundColor:GREEN,stack:'s'}]},
+        options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});}
+     if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
+   });
+ }},
  PVH4:{title:"PVH4 · Biến động giá vốn theo tháng — Robux · Razer Gold",meta:"GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân GIA QUYỀN, loại dòng tiền = 0) · Razer: Rate = giá vốn (USD/RG) · cả kỳ, không phụ thuộc bộ lọc ngày",render(host){
    host.innerHTML=spinner("Đang đọc Data Robux · Data Razergold và tính giá vốn gia quyền…");
    Promise.all([costMonths('robux'),costMonths('razer')]).then(([MR,MZ])=>{
@@ -1445,6 +1531,7 @@ const LAKE={
  rbx:"01-01:886.1,01-02:2096.28,01-03:1397.66,01-04:1404.21,01-05:943.1,01-06:418.23,01-07:836.37,01-08:1045.99,01-09:870.19,01-10:1059.89,01-11:1290.55,01-12:976.45,01-13:716.83,01-14:967.62,01-15:1061.23,01-16:1087.23,01-17:478.68,01-18:544.56,01-19:826.66,01-20:2280.48,01-21:1554.69,01-22:696,01-23:1527.27,01-24:1584.23,01-25:1875.36,01-26:2239.71,01-27:705.45,01-28:731.74,01-29:892.57,01-30:544.88,01-31:650.52,02-01:563.44,02-02:745.53,02-03:977.16,02-04:657.08,02-05:1161.26,02-06:684.96,02-07:841.87,02-08:1004.41,02-09:563.42,02-10:1170.46,02-11:519.6,02-12:367.6,02-13:344.07,02-14:442.66,02-15:175.97,02-16:456.34,02-17:565.82,02-18:123.27,02-19:142.11,02-20:121.74,02-21:468.34,02-22:520.96,02-23:216.56,02-24:502.05,02-25:1202.74,02-26:1454.36,02-27:963.51,02-28:514.18,03-01:1030.9,03-02:1715.36,03-03:910.97,03-04:981.87,03-05:1247.58,03-06:1225.9,03-07:208.88,03-08:476.47,03-09:1541.99,03-10:788.65,03-11:1392.98,03-12:732.86,03-13:1935.84,03-14:2424.27,03-15:2105.33,03-16:1427.69,03-17:1887.91,03-18:1596.56,03-19:1099.42,03-20:1180.7,03-21:1105.94,03-22:925.48,03-23:2594.91,03-24:481.74,03-25:1173.64,03-26:259.83,03-27:1597.85,03-28:912.15,03-29:1026.08,03-30:1439.45,03-31:597.13,04-01:1006.92,04-02:690.11,04-03:870.21,04-04:396.34,04-05:1652.9,04-06:673.64,04-07:1040.77,04-08:830.89,04-09:1219.38,04-10:344.77,04-11:650.89,04-12:699.59,04-13:900.54,04-14:1290.01,04-15:404.55,04-16:215.49,04-17:1104.53,04-18:359.5,04-19:1129.6,04-20:732.2,04-21:1456.04,04-22:1058.53,04-23:328.85,04-24:1214.56,04-25:812.04,04-26:1216.13,04-27:1291.39,04-28:434.71,04-29:185.91,04-30:328.66,05-01:268.63,05-02:694.84,05-03:853.56,05-04:1856.1,05-05:1450.54,05-06:1115.79,05-07:990.46,05-08:941.89,05-09:713.27,05-10:1002.32,05-11:867.08,05-12:1284.35,05-13:756.99,05-14:380.32,05-15:614.68,05-16:429.26,05-17:657.58,05-18:678.96,05-19:405.62,05-20:606.26,05-21:681.8,05-22:428.05,05-23:563.35,05-24:660.17,05-25:458.9,05-26:527.25,05-27:743.24,05-28:414.75,05-29:821.56,05-30:564.42,05-31:654.49,06-01:961.98,06-02:170.24,06-03:637.5,06-04:1078.66,06-05:228.34,06-06:1149.74,06-07:583.98,06-08:804.44,06-09:615.85,06-10:589.41,06-11:267.36,06-12:878.01,06-13:642.35,06-14:26.79,06-15:635.24,06-16:432.6,06-17:610.76,06-18:942.73,06-19:1043.42,06-20:731.28,06-21:459.98,06-22:477.31,06-23:384.72,06-24:507.2,06-25:579.42,06-26:415.58,06-27:641.63,06-28:535.17,06-29:804.4,06-30:720.6,07-01:707.38,07-02:625.02,07-03:203.94,07-04:419.81,07-05:238.49,07-06:867.4,07-07:884.19,07-08:200.14,07-10:1499.25,07-11:510.27,07-12:685.35,07-13:702.36,07-14:264.66,07-15:536.5,07-16:522.22,07-17:556.22,07-18:284.07,07-19:449.67,07-20:443.15,07-21:192.17,07-22:73.6,07-23:308.88,07-24:247.02,07-25:252.61,07-26:305.38,07-27:357.69,07-28:273.06,07-29:140.44,07-30:291.87,07-31:446.15",
  sc:"04-02:277.26,04-03:200.8275,04-04:104.1525,04-05:198.57,04-06:265.2675,04-07:38.2125,04-08:87.66,04-16:26.9775,04-17:65.94,04-18:83.1675,04-19:70.425,04-20:34.455,04-21:32.9625,04-22:72.675,04-23:67.4325,04-24:98.9025,04-25:103.395,04-26:68.9175,04-27:36.7125,04-28:110.88,04-29:71.925,04-30:68.1675,05-01:26.2275,05-03:39.7125,05-04:50.1975,05-05:43.455,05-06:55.4325,05-07:203.0475,05-08:213.5325,05-09:216.5325,05-10:38.2125,05-11:288.4725,05-12:197.055,05-13:104.1375,05-14:93.66,05-15:72.6825,05-16:126.6225,05-17:122.88,05-18:228.54,05-19:65.94,05-20:68.94,05-21:99.645,05-22:125.8725,05-23:86.16,05-24:17.985,05-25:86.1675,05-30:0.75,06-01:8.9925,06-02:17.985,06-04:44.1975,06-05:69.69,06-06:8.985,06-07:6.7425,06-08:6.7425,06-09:17.2275,06-10:158.865,06-11:141.6375,06-12:77.175,06-13:26.2275,06-14:37.47,06-15:154.3725,06-16:291.5175,06-17:227.82,06-18:292.2675,06-19:281.7825,06-20:316.245,06-21:202.335,06-22:296.76,06-23:220.3125,06-24:318.4875,06-25:266.775,06-26:282.5175,06-27:292.2675,06-28:251.7975,06-29:154.365,06-30:311.288,07-01:628.74,07-02:1586.568,07-03:743.4075,07-04:505.845,07-05:334.23,07-06:476.6175,07-07:586.02,07-08:337.2075,07-09:297.495,07-10:400.2375,07-11:486.375,07-12:375.4275,07-13:307.23,07-14:173.1075,07-15:166.365,07-16:101.9325,07-17:93.6225,07-18:140.865,07-19:180.5925,07-20:63.6975,07-21:112.425,07-22:128.1525,07-23:57.6825,07-24:58.749,07-25:241.6155,07-26:305.646,07-27:161.366,07-28:450.0805,07-29:340.14,07-30:590.2585,07-31:746.0955",
  robux:"01-01:163486390,01-02:134737220,01-03:93071712,01-04:122951420,01-05:101594625,01-06:109807012,01-07:103094061,01-08:79582102,01-09:79809546,01-10:98630990,01-11:123104521,01-12:122644905,01-13:58781996,01-14:64931779,01-15:97945475,01-16:83137530,01-17:79620452,01-18:94922243,01-19:64487480,01-20:65319630,01-21:52189010,01-22:85420285,01-23:79523090,01-24:84286070,01-25:68820448,01-26:53114752,01-27:59786012,01-28:80320520,01-29:38035927,01-30:54545590,01-31:84493930,02-01:62190378,02-02:115902534,02-03:85577235,02-04:45743113,02-05:61666955,02-06:42519400,02-07:50419250,02-08:61960585,02-09:61566264,02-10:50380180,02-11:28011560,02-12:49749060,02-13:43460809,02-14:72005245,02-15:33750340,02-18:4111250,02-19:4943020,02-20:35908550,02-21:30849480,02-22:48383530,02-23:31153162,02-24:37486530,02-25:30294630,02-26:33617092,02-27:52562260,02-28:54359138,03-01:86317007,03-02:38529464,03-03:65506340,03-04:49510800,03-05:44918188,03-06:55347234,03-07:54617907,03-08:55062540,03-09:40040952,03-10:46719530,03-11:33807298,03-12:36878301,03-13:57700283,03-14:67875090,03-15:52503084,03-16:26491394,03-17:46153204,03-18:73193446,03-19:21905040,03-20:43109886,03-21:57044545,03-22:45735564,03-23:63018312,03-24:35325850,03-25:32525251,03-26:31056961,03-27:48788593,03-28:21717470,03-29:50584875,03-31:24713887,04-01:25437765,04-02:22773302,04-03:24948299,04-04:25431632,04-05:35449232,04-06:35950400,04-07:25829725,04-08:31127179,04-09:21632096,04-10:45432002,04-11:38426100,04-12:22843130,04-13:28301500,04-14:29308320,04-15:30354140,04-16:30311385,04-17:39187484,04-18:36091840,04-19:70638252,04-20:17449786,04-21:27486166,04-22:26068276,04-23:20020370,04-24:33406200,04-25:39934400,04-26:34190325,04-27:25157214,04-28:29616268,04-29:36685292,04-30:42615765,05-01:28882486,05-02:32819172,05-03:26181237,05-04:15654221,05-05:28659670,05-06:30545163,05-07:44876625,05-08:42707255,05-09:68251034,05-10:83002489,05-11:55632347,05-12:28363180,05-13:30910537,05-14:38897710,05-15:25642702,05-16:40420631,05-17:48535085,05-18:14947188,05-19:34535709,05-20:34572400,05-21:20094788,05-22:22172408,05-23:23671262,05-24:31456778,05-25:36979978,05-26:17172321,05-27:29570370,05-28:29567993,05-29:34138383,05-30:52589027,05-31:45796222,06-01:40115619,06-02:43373809,06-03:27577966,06-04:21198880,06-05:30705882,06-06:33114038,06-07:41688873,06-08:18012336,06-09:22486184,06-10:32398704,06-11:19548060,06-12:20226831,06-13:40022178,06-14:43366148,06-15:45714156,06-16:14688768,06-17:15458954,06-18:6420630,06-19:6407600,06-20:12106280,06-21:11033690,06-22:26271218,06-23:9858648,06-24:18426992,06-25:14485516,06-26:29867317,06-27:25420450,06-28:17408900,06-30:30219960,07-01:18580520,07-02:17669820,07-03:10447945,07-04:9625080,07-05:17060650,07-06:11646800,07-07:7543170,07-08:9734680,07-09:10082980,07-10:17180109,07-11:10746880,07-12:15998580,07-13:10902320,07-14:17316590,07-15:6887600,07-16:6342280,07-17:9330890,07-18:57384860,07-19:26151740,07-20:26077940,07-21:27706429,07-22:25632581,07-23:48303124,07-24:70167320,07-25:6650280,07-26:40182460,07-27:92020485,07-28:8611260,07-29:8533980,07-30:6299440,07-31:6550740",
+ robuxSl:"01-01:1374200,01-02:1207275,01-03:900202,01-04:1119770,01-05:896615,01-06:1024854,01-07:870060,01-08:660933,01-09:729714,01-10:854002,01-11:1033005,01-12:992247,01-13:472058,01-14:574997,01-15:920159,01-16:766470,01-17:747119,01-18:887234,01-19:613358,01-20:627600,01-21:509910,01-22:827744,01-23:771848,01-24:762850,01-25:560661,01-26:443619,01-27:566982,01-28:746400,01-29:343371,01-30:474940,01-31:721285,02-01:508168,02-02:920283,02-03:700187,02-04:375587,02-05:511613,02-06:346615,02-07:409165,02-08:504726,02-09:502851,02-10:413748,02-11:232964,02-12:417590,02-13:352069,02-14:563711,02-15:245291,02-18:28750,02-19:34810,02-20:248150,02-21:218860,02-22:348814,02-23:237626,02-24:277785,02-25:229070,02-26:261001,02-27:415288,02-28:434036,03-01:644337,03-02:294164,03-03:498744,03-04:388100,03-05:353244,03-06:453975,03-07:442047,03-08:434180,03-09:321362,03-10:380485,03-11:278377,03-12:308881,03-13:490413,03-14:591850,03-15:419316,03-16:210714,03-17:377907,03-18:601020,03-19:183280,03-20:362638,03-21:461465,03-22:372973,03-23:500867,03-24:283834,03-25:258841,03-26:244543,03-27:392653,03-28:174882,03-29:375683,03-31:192911,04-01:194695,04-02:173842,04-03:196809,04-04:203398,04-05:287754,04-06:283534,04-07:208923,04-08:252671,04-09:178724,04-10:374389,04-11:307502,04-12:183380,04-13:240180,04-14:264188,04-15:264770,04-16:248733,04-17:327266,04-18:300937,04-19:576576,04-20:142182,04-21:229596,04-22:216954,04-23:164185,04-24:278385,04-25:327989,04-26:281278,04-27:203331,04-28:238502,04-29:291205,04-30:341409,05-01:235411,05-02:261059,05-03:210175,05-04:126037,05-05:236206,05-06:257520,05-07:450153,05-08:427924,05-09:646870,05-10:717322,05-11:452322,05-12:231979,05-13:266839,05-14:335420,05-15:225536,05-16:354716,05-17:412558,05-18:126493,05-19:291676,05-20:291587,05-21:170641,05-22:189020,05-23:201089,05-24:268116,05-25:315421,05-26:146060,05-27:251491,05-28:253538,05-29:289699,05-30:441903,05-31:386290,06-01:338915,06-02:365686,06-03:231413,06-04:175790,06-05:261666,06-06:282312,06-07:346466,06-08:149048,06-09:187584,06-10:270346,06-11:162625,06-12:163522,06-13:312718,06-14:313674,06-15:325327,06-16:103798,06-17:110983,06-18:46630,06-19:45800,06-20:85040,06-21:77735,06-22:198146,06-23:73359,06-24:132537,06-25:104492,06-26:224317,06-27:189985,06-28:125300,06-30:215792,07-01:131180,07-02:124540,07-03:74115,07-04:67560,07-05:119089,07-06:81100,07-07:51640,07-08:69260,07-09:69660,07-10:118054,07-11:75045,07-12:110340,07-13:76240,07-14:122250,07-15:49015,07-16:45302,07-17:66653,07-18:409732,07-19:184923,07-20:183494,07-21:195502,07-22:182448,07-23:342777,07-24:500386,07-25:47502,07-26:282460,07-27:654856,07-28:61509,07-29:60957,07-30:44996,07-31:46791",
  cost:{robux:[[1623,24001482,2682196723,60,443197],[582,9738758,1228571550,22,144062],[738,11293686,1406698296,20,38004],[520,7783287,952103845,28,102123],[724,9471071,1097246371,31,67510],[512,5621006,717624587,32,73868],[375,4649376,657369533,23,52481]],razer:[[0,0,0,0,0],[0,0,0,0,0],[50,26881.7,22891.1187,0,0],[74,38544.52,32608.2802,0,0],[84,39309.93,32940.4138,0,0],[28,10579.0,8934.839,0,0],[23,7861.77,6731.3794,0,0]]},
  nickLg:{h:"HOÀN THÀNH",d:"DIE",t:"ĐÃ HOÀN TIỀN",c:"CHƯA BÁN",x:"ĐÃ XỬ LÝ"},
  nick:"01-01:c31|h73|t2,01-02:h152,01-05:h176,01-06:h123,01-07:h153|t1,01-08:h204,01-09:h113,01-10:h147,01-12:h44,01-13:d25|h138,01-14:h15,01-15:h29,01-16:h106|t1,01-19:d4|h425|t5,01-20:h35,01-21:h63,01-22:h80,01-23:d9|h84|t1,01-24:h5,01-26:h301|t1,01-27:d19|h46,01-28:d43|h118|t4,01-30:d47|h51,01-31:d30|h30,02-02:h181,02-03:h197|t3,02-04:h544|t1,02-05:d27|h326|t6,02-06:h167,02-07:h43,02-09:h1320,02-10:h189,02-12:h63,02-13:h802,02-14:h87|t1,02-15:h30,02-16:h150,02-17:h3,02-18:h299,02-19:h375,02-20:h109,02-21:h310,02-22:h30,02-23:h184,02-24:h1175|t1,02-25:h90,02-26:h414|t13,02-27:h49|t1,02-28:h55,03-02:d28|h87,03-03:d15|h4|t1,03-05:d48|h28|t12,03-06:h21,03-07:h55,03-09:h89|t2,03-10:d63|h340|t2,03-11:d2|h86|t5,03-12:h44|t1,03-13:d6|h147|t4,03-16:d31|h145|t1,03-17:d1|h396|t3,03-18:d1|h68,03-19:h14,03-20:d5|h121|t1,03-21:h72,03-23:h69|t1,03-24:h81|t1,03-25:h25,03-26:h100,03-27:h139,03-30:d49|h385,04-01:h98,04-02:h101,04-03:h10,04-04:h67,04-06:h181,04-07:d5|h104|t2,04-08:h20,04-09:h5,04-10:h169,04-13:h115,04-14:h54,04-15:h196|t2,04-16:h29,04-17:h7,04-18:c9|h93,04-20:h55,04-21:h50|t1,04-22:h104,04-23:h92,04-24:h270|x5,04-25:h9,04-28:h155,04-29:d7|h348|t2,05-01:d15|h19,05-04:h180,05-05:h10,05-06:h25,05-07:h150,05-08:h75,05-09:h100,05-11:h60,05-12:d50|h129|t1,05-13:d5|h220,05-14:h11,05-15:c15|h56|t3,05-16:h50,05-18:h240,05-19:h200|t1,05-20:d22|h233,05-21:h10,05-22:h430|t2,05-25:d2|h264|t1|x3,05-26:c2|h213|x3,05-27:c3|h302|t3|x6,05-28:c3|d57|h217|t1,05-29:h107,05-30:c13|h643|t4|x12,05-31:h83|x5,06-01:h81|x5,06-02:h87|x3,06-03:d15|h170|t6|x33,06-04:h263|t1|x22,06-05:d10|h97|t1|x99,06-06:h172|t3|x53,06-08:h77|x140,06-09:c1|d3|h101|t1|x17,06-10:c6|h254|t5|x34,06-11:h11,06-12:c2|d1|h59,06-13:c1|h168|t1,06-15:c8|h279|x2,06-16:c20|h54|x1,06-17:h244|t1,06-18:c7|d2|h208|t6,06-19:h30,06-20:h148,06-22:c89|h521|x4,06-23:c17|d1|h18|t1|x3,06-24:c3|h79|x1,06-25:c26|h31|x2,06-26:c12|h17,06-27:c61|h282|x2,06-30:d1,07-08:h50,07-10:h77,07-13:h1,07-15:d1|h2,07-20:h10,07-21:c18|d29|h252"
@@ -1536,10 +1623,12 @@ function robuxDailyFromRows(rows){
   const a=row.findIndex(cfg.sl),b=row.findIndex(cfg.tien),c=row.findIndex(x=>/ngày/.test(x));
   if(a>-1&&b>-1&&c>-1){H=r;iTien=b;iNgay=c;break;}}
  if(H<0)return null;
- const o={};
+ const iSL=(rows[H]||[]).map(norm).findIndex(cfg.sl);
+ const o={};ROBUXSL={}; /* SL robux theo ngày — để tính giá vốn ĐV theo TUẦN ở báo cáo tuần */
  for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
   const dt=parseDateCell(row[iNgay]);if(!dt||dt.mo<0||dt.mo>11||!okY(dt))continue;
-  const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;}}
+  const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;
+   if(iSL>-1){const sl=num(row[iSL]);if(sl>0)ROBUXSL[k]=(ROBUXSL[k]||0)+sl;}}}
  return Object.keys(o).length?o:null;}
 /* PVH13: Gift Card — FILE RIÊNG nhẹ (tab Data giftcard gốc 47k dòng bị publish cắt ở ~41k) */
 /* Gift Card T1–T7/2026: số CHỐT từ datalake (file GC 2026 — tab Data GC, Thành tiền Nhập USD/ngày).
@@ -1683,13 +1772,14 @@ async function glxDaily(){if(GLXDAILY!==undefined&&Date.now()-GLXTS<RAW_TTL)retu
  const o={};use.forEach(p=>{for(const k in p.o)o[k]=(o[k]||0)+p.o[k];});
  GLXUSD=use[0].usd;GLXCOLS=descs.join('  +  ');
  GLXDAILY=o;return o;}
-let ROBUXPREV=null,ROBUXTS=0,ROBUXLIVE=0;
+let ROBUXPREV=null,ROBUXTS=0,ROBUXLIVE=0,ROBUXSL={};
 async function robuxDaily(){if(ROBUXDAILY!==undefined&&Date.now()-ROBUXTS<RAW_TTL)return ROBUXDAILY;
  let rows=await loadCSV(directURL(COSTCFG.robux.gid));
  let o=robuxDailyFromRows(rows);
  if(!o){const r2=await loadCSV(apiURL(COSTCFG.robux.gid));if(r2)rows=r2;o=robuxDailyFromRows(rows);}
  ROBUXPREV=rows?rows.slice(0,8):null;ROBUXTS=Date.now();
  /* T1–T7 số chốt datalake + từ T8 số live */
+ const HS=lakeDays(LAKE.robuxSl);for(const k in HS)if(k<LAKE_CUT)ROBUXSL[k]=HS[k];
  const HL=lakeDays(LAKE.robux);ROBUXLIVE=0;
  if(Object.keys(HL).length){const out={};for(const k in HL)out[k]=HL[k];
   if(o)for(const k in o){if(k<LAKE_CUT)continue;out[k]=o[k];ROBUXLIVE++;}
@@ -2223,6 +2313,27 @@ async function costMonths(key){const cfg=COSTCFG[key];if(COSTD[key]!==undefined)
 function spinner(t){return '<div class="center"><div class="spin"></div>'+t+'</div>';}
 
 /* ===== ROUTER ===== */
+/* ===== PVH15 · BÁO CÁO TUẦN — chọn tuần, so tuần trước & cùng kỳ tháng trước ===== */
+let W15='';
+function w15Init(){if(W15)return;const d=new Date(TO.y,TO.mo,TO.d);d.setDate(d.getDate()-((d.getDay()+6)%7));
+ W15=iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()});}
+function setW15(v){W15=v;render();}
+function rangeDays2(f,t){const a=parseISO(f),b=parseISO(t);const out=[];
+ for(let d=new Date(a.y,a.mo,a.d);d<=new Date(b.y,b.mo,b.d);d.setDate(d.getDate()+1))out.push(iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()}));return out;}
+/* trả khoảng 7 ngày: dw tuần dịch, dm tháng dịch (giữ nguyên độ dài 7 ngày) */
+function w15Rng(mon,dw,dm){const m=parseISO(mon);let s=new Date(m.y,m.mo,m.d);
+ if(dw)s.setDate(s.getDate()+dw*7);
+ if(dm)s=new Date(s.getFullYear(),s.getMonth()+dm,s.getDate());
+ const e=new Date(s);e.setDate(s.getDate()+6);
+ const F=iso({y:s.getFullYear(),mo:s.getMonth(),d:s.getDate()}),T=iso({y:e.getFullYear(),mo:e.getMonth(),d:e.getDate()});
+ return{f:F,t:T,lab:pad2(s.getDate())+'/'+pad2(s.getMonth()+1)+' – '+pad2(e.getDate())+'/'+pad2(e.getMonth()+1)};}
+function w15Opts(){const t=today();const lim=new Date(t.y,t.mo,t.d);let h='';
+ let a=new Date(2026,0,1);a.setDate(a.getDate()-((a.getDay()+6)%7));const L=[];
+ for(let i=0;i<54;i++){const s0=new Date(a);s0.setDate(a.getDate()+i*7);if(s0>lim)break;
+  const e0=new Date(s0);e0.setDate(s0.getDate()+6);if(e0<new Date(2026,0,1))continue;L.push({s:s0,e:e0});}
+ L.reverse().forEach((w,i)=>{const v=iso({y:w.s.getFullYear(),mo:w.s.getMonth(),d:w.s.getDate()});
+  h+=`<option value="${v}"${v===W15?' selected':''}>${pad2(w.s.getDate())}/${pad2(w.s.getMonth()+1)} – ${pad2(w.e.getDate())}/${pad2(w.e.getMonth()+1)}${i===0?' (tuần này)':''}</option>`;});
+ return h;}
 /* ===== PVH14: Số dư NCC — gọi /api/ncc kèm id_token Google (server tự verify quyền admin) ===== */
 function nccApi(params){let tok='';try{tok=sessionStorage.getItem('pvh_idtoken')||'';}catch(e){}
  return fetch('/api/ncc',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.assign({id_token:tok},params||{}))}).then(r=>r.json()).catch(()=>({error:'network'}));}
@@ -2445,7 +2556,7 @@ async function xuatSlideRun(){
   slideClose();
  }catch(e){alert('Không xuất được slide: '+(e&&e.message?e.message:e));}
  finally{if(btn){btn.disabled=false;btn.textContent=old||'⚡ Tạo slide';}}}
-const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8","PVH14"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]]];
+const TIERS=[[1,"Tầng 1 · Điều hành (CEO · Tháng)",["PVH1","PVH2","PVH8","PVH14"]],[2,"Tầng 2 · Kiểm soát (Leader · Tuần)",["PVH3","PVH4","PVH5","PVH6","PVH7","PVH9","PVH10","PVH11","PVH12","PVH13"]],[3,"Tầng 3 · Báo cáo tuần",["PVH15"]]];
 function buildNav(){let h='';TIERS.forEach(([t,label,ids])=>{const vis=ids.filter(canSee);if(!vis.length)return;h+=`<div class="tier">${label}</div>`;
  vis.forEach(k=>{h+=`<div class="nav" data-id="${k}" onclick="go('${k}')"><span class="code">${k}</span><span class="dot" style="color:#2e86e6;background:#2e86e6"></span><span>${PAGES[k].title.split('· ')[1]}</span></div>`;});});
  document.getElementById('nav').innerHTML=h;
