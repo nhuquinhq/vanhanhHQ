@@ -1205,7 +1205,7 @@ const PAGES={
      const fgv=n=>n?n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
      h+=box('2 · PVH4 — Biến động giá vốn: Robux','GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân gia quyền, chỉ dòng tiền > 0)')
       +`<div class="kpis">${kpi("Giá vốn ĐV tuần "+A.no,fgv(R3[0].gv),"đ/robux")}${kpi("So tuần "+B.no,R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần "+A.no,fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
-       <div class="grid2">${cc("Giá vốn ĐV Robux — 3 kỳ (đ/robux)","w2")}${cc("Sản lượng & thành tiền — 3 kỳ","w2b")}</div>`
+       <div class="grid2" style="grid-template-columns:1fr">${cc("Giá vốn ĐV Robux — 3 kỳ (đ/robux)","w2")}</div>`
       +tbl([{name:'Giá vốn ĐV (đ/robux)',a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}],fgv)
       +tbl([{name:'SL nhập (robux)',a:R3[0].q,b:R3[1].q,c:R3[2].q},{name:'Thành tiền (đ)',a:R3[0].t,b:R3[1].t,c:R3[2].t}],fmtn);
      /* ---------- 3) PVH6 · Tồn kho & tuổi tồn ---------- */
@@ -1243,7 +1243,6 @@ const PAGES={
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
      grp("w2",['Giá vốn ĐV'],[{a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}]);
-     grp("w2b",['SL nhập (robux)','Thành tiền (đ)'],[{a:R3[0].q,b:R3[1].q,c:R3[2].q},{a:R3[0].t,b:R3[1].t,c:R3[2].t}]);
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
      if(AU){const man=AU.man.m,aut=AU.auto.m;
