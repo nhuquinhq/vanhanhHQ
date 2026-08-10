@@ -646,7 +646,7 @@ function monthOpts(){const t=today();let h='<option value="">— Chọn —</opt
  for(let m=0;m<=(t.y===2026?t.mo:11);m++)h+=`<option value="${m}"${FMONTH===m?' selected':''}>Tháng ${pad2(m+1)}</option>`;
  return h;}
 function weekOpts(){let h='<option value="">— Chọn —</option>';
- weekList().forEach(w=>{h+=`<option value="${iso({y:w.s.getFullYear(),mo:w.s.getMonth(),d:w.s.getDate()})}"${FWEEK===w.i?' selected':''}>Tuần ${pad2(w.i+1)}: ${optD(w.s)} – ${optD(w.e)}</option>`;});
+ weekList().forEach(w=>{h+=`<option value="${iso({y:w.s.getFullYear(),mo:w.s.getMonth(),d:w.s.getDate()})}"${FWEEK===w.i?' selected':''}>Tuần ${wkNo(w.s)}: ${optD(w.s)} – ${optD(w.e)}</option>`;});
  return h;}
 function pickMonth(v){
  if(v===''){FMONTH=null;FWEEK=null;renderFilters();return;}
@@ -1178,25 +1178,25 @@ const PAGES={
      const box=(t,sub)=>`<div style="margin:22px 4px 10px;font-size:13px;font-weight:800;letter-spacing:.4px;color:#5b6b7b;text-transform:uppercase">${t}</div>${sub?`<div class="small" style="margin:-6px 4px 8px">${sub}</div>`:''}`;
      /* bảng 3 kỳ dùng chung: [{name,a,b,c}] */
      const tbl=(rows,fm,unit)=>`<div class="card"><div class="scroll"><table class="tbl"><thead><tr><th>Hạng mục</th>
-       <th class="n">Tuần này<br><span class="small">${A.lab}</span></th><th class="n">Tuần trước<br><span class="small">${B.lab}</span></th><th class="n">± tuần</th>
+       <th class="n">Tuần ${A.no}<br><span class="small">${A.lab}</span></th><th class="n">Tuần ${B.no}<br><span class="small">${B.lab}</span></th><th class="n">± tuần</th>
        <th class="n">Cùng kỳ T.trước<br><span class="small">${C.lab}</span></th><th class="n">± tháng</th></tr></thead><tbody>
        ${rows.map(r=>`<tr><td>${r.name}</td><td class="n"><b>${fm(r.a)}</b></td><td class="n">${fm(r.b)}</td><td class="n">${chg(r.b,r.a)}</td><td class="n">${fm(r.c)}</td><td class="n">${chg(r.c,r.a)}</td></tr>`).join('')}
        </tbody></table></div>${unit?`<div class="small" style="margin-top:6px">${unit}</div>`:''}</div>`;
      const grp=(id,names,rows)=>mk(id,{type:'bar',data:{labels:names,datasets:[
-        {label:'Tuần này',data:rows.map(r=>r.a),backgroundColor:'#1e5fd0'},
-        {label:'Tuần trước',data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
+        {label:'Tuần '+A.no,data:rows.map(r=>r.a),backgroundColor:'#1e5fd0'},
+        {label:'Tuần '+B.no,data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
         {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#c7d6ec'}]},options:barOpt(true)});
      let h=`<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
         <b style="font-size:12.5px;color:#1c2c4a">Tuần báo cáo:</b>
         <select onchange="setW15(this.value)" style="padding:7px 11px;border-radius:9px;border:1px solid #c8d8f0;font-size:12.5px;background:#fff;color:#14243d">${w15Opts()}</select>
-        <span class="small">So sánh: <b>${A.lab}</b> ↔ tuần trước <b>${B.lab}</b> ↔ cùng kỳ tháng trước <b>${C.lab}</b></span></div>`;
+        <span class="small">So sánh: <b>Tuần ${A.no}</b> (${A.lab}) ↔ <b>Tuần ${B.no}</b> (${B.lab}) ↔ cùng kỳ tháng trước (${C.lab})</span></div>`;
      /* ---------- 1) PVH13 · Nhập chi tiết theo SPDV ---------- */
      const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
      const spRows=S3[0].map((x,i)=>({name:x.name,a:x.tot,b:S3[1][i].tot,c:S3[2][i].tot})).filter(r=>r.a||r.b||r.c);
      const tA=spRows.reduce((x,r)=>x+r.a,0),tB=spRows.reduce((x,r)=>x+r.b,0),tC=spRows.reduce((x,r)=>x+r.c,0);
      const topSp=[...spRows].sort((x,y)=>y.a-x.a)[0];
      h+=box('1 · PVH13 — Nhập chi tiết theo SPDV','Đọc RAW các tab chi tiết · tab USD quy VND theo tỷ giá ngày')
-      +`<div class="kpis">${kpi("CO Nhập tuần này",fmt(tA),A.lab)}${kpi("So tuần trước",tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("SPDV lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
+      +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab)}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("SPDV lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
        <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo SPDV — 3 kỳ (VND)","w1")}</div>`
       +tbl(spRows.concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VND.');
      /* ---------- 2) PVH4 · Giá vốn Robux ---------- */
@@ -1204,7 +1204,7 @@ const PAGES={
      const R3=[A,B,C].map(rbx);
      const fgv=n=>n?n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
      h+=box('2 · PVH4 — Biến động giá vốn: Robux','GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân gia quyền, chỉ dòng tiền > 0)')
-      +`<div class="kpis">${kpi("Giá vốn ĐV tuần này",fgv(R3[0].gv),"đ/robux")}${kpi("So tuần trước",R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần này",fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
+      +`<div class="kpis">${kpi("Giá vốn ĐV tuần "+A.no,fgv(R3[0].gv),"đ/robux")}${kpi("So tuần "+B.no,R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần "+A.no,fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
        <div class="grid2">${cc("Giá vốn ĐV Robux — 3 kỳ (đ/robux)","w2")}${cc("Sản lượng & thành tiền — 3 kỳ","w2b")}</div>`
       +tbl([{name:'Giá vốn ĐV (đ/robux)',a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}],fgv)
       +tbl([{name:'SL nhập (robux)',a:R3[0].q,b:R3[1].q,c:R3[2].q},{name:'Thành tiền (đ)',a:R3[0].t,b:R3[1].t,c:R3[2].t}],fmtn);
@@ -1236,7 +1236,7 @@ const PAGES={
        slaRows3=P.types.map(t=>({name:t.name,a:sum(t,A),b:sum(t,B),c:sum(t,C)})).filter(r=>r.a||r.b||r.c);
        const sA=slaRows3.reduce((x,r)=>x+r.a,0),sB=slaRows3.reduce((x,r)=>x+r.b,0),sC=slaRows3.reduce((x,r)=>x+r.c,0);
        const nd=rangeDays2(A.f,A.t).filter(k=>P.types.some(t=>t.daily[k]!=null)).length;
-       h+=`<div class="kpis">${kpi("Đơn thủ công tuần này",fmtn(sA),A.lab)}${kpi("So tuần trước",sB?chg(sB,sA):'—',sB?fmtn(sB)+' đơn':'chưa có số')}${kpi("So cùng kỳ tháng trước",sC?chg(sC,sA):'—',sC?fmtn(sC)+' đơn':'chưa có số')}${kpi("Bình quân/ngày",nd?fmtn(sA/nd):'—',nd?nd+" ngày có số"+(P.kpi?" · KPI "+P.kpi:""):"")}</div>
+       h+=`<div class="kpis">${kpi("Đơn thủ công tuần "+A.no,fmtn(sA),A.lab)}${kpi("So tuần "+B.no,sB?chg(sB,sA):'—',sB?fmtn(sB)+' đơn':'chưa có số')}${kpi("So cùng kỳ tháng trước",sC?chg(sC,sA):'—',sC?fmtn(sC)+' đơn':'chưa có số')}${kpi("Bình quân/ngày",nd?fmtn(sA/nd):'—',nd?nd+" ngày có số"+(P.kpi?" · KPI "+P.kpi:""):"")}</div>
         <div class="grid2" style="grid-template-columns:1fr">${cc("Đơn thủ công theo loại — 3 kỳ","w5")}</div>`
         +tbl(slaRows3.concat([{name:'<b>TỔNG</b>',a:sA,b:sB,c:sC}]),fmtn,'Đơn vị: đơn.');
      } else h+=`<div class="note">Chưa đọc được tab "Tổng đơn xử lý thủ công" — xem trang PVH10.</div>`;
@@ -2315,6 +2315,9 @@ function spinner(t){return '<div class="center"><div class="spin"></div>'+t+'</d
 /* ===== ROUTER ===== */
 /* ===== PVH15 · BÁO CÁO TUẦN — chọn tuần, so tuần trước & cùng kỳ tháng trước ===== */
 let W15='';
+/* số tuần trong năm: Tuần 1 = tuần chứa 01/01 (bắt đầu Thứ 2) — khớp cột TUẦN trên sheet */
+const W1START=(function(){const a=new Date(2026,0,1);a.setDate(a.getDate()-((a.getDay()+6)%7));return a;})();
+function wkNo(d){return Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate())-W1START)/604800000)+1;}
 function w15Init(){if(W15)return;const d=new Date(TO.y,TO.mo,TO.d);d.setDate(d.getDate()-((d.getDay()+6)%7));
  W15=iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()});}
 function setW15(v){W15=v;render();}
@@ -2326,13 +2329,13 @@ function w15Rng(mon,dw,dm){const m=parseISO(mon);let s=new Date(m.y,m.mo,m.d);
  if(dm)s=new Date(s.getFullYear(),s.getMonth()+dm,s.getDate());
  const e=new Date(s);e.setDate(s.getDate()+6);
  const F=iso({y:s.getFullYear(),mo:s.getMonth(),d:s.getDate()}),T=iso({y:e.getFullYear(),mo:e.getMonth(),d:e.getDate()});
- return{f:F,t:T,lab:pad2(s.getDate())+'/'+pad2(s.getMonth()+1)+' – '+pad2(e.getDate())+'/'+pad2(e.getMonth()+1)};}
+ return{f:F,t:T,no:wkNo(s),lab:pad2(s.getDate())+'/'+pad2(s.getMonth()+1)+' – '+pad2(e.getDate())+'/'+pad2(e.getMonth()+1)};}
 function w15Opts(){const t=today();const lim=new Date(t.y,t.mo,t.d);let h='';
  let a=new Date(2026,0,1);a.setDate(a.getDate()-((a.getDay()+6)%7));const L=[];
  for(let i=0;i<54;i++){const s0=new Date(a);s0.setDate(a.getDate()+i*7);if(s0>lim)break;
   const e0=new Date(s0);e0.setDate(s0.getDate()+6);if(e0<new Date(2026,0,1))continue;L.push({s:s0,e:e0});}
  L.reverse().forEach((w,i)=>{const v=iso({y:w.s.getFullYear(),mo:w.s.getMonth(),d:w.s.getDate()});
-  h+=`<option value="${v}"${v===W15?' selected':''}>${pad2(w.s.getDate())}/${pad2(w.s.getMonth()+1)} – ${pad2(w.e.getDate())}/${pad2(w.e.getMonth()+1)}${i===0?' (tuần này)':''}</option>`;});
+  h+=`<option value="${v}"${v===W15?' selected':''}>Tuần ${wkNo(w.s)} · ${pad2(w.s.getDate())}/${pad2(w.s.getMonth()+1)} – ${pad2(w.e.getDate())}/${pad2(w.e.getMonth()+1)}${i===0?' (tuần này)':''}</option>`;});
  return h;}
 /* ===== PVH14: Số dư NCC — gọi /api/ncc kèm id_token Google (server tự verify quyền admin) ===== */
 function nccApi(params){let tok='';try{tok=sessionStorage.getItem('pvh_idtoken')||'';}catch(e){}
