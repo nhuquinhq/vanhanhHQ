@@ -721,6 +721,7 @@ function insNote(tmn){if(!tmn||!tmn.length)return null;const t=TD,last=tmn[tmn.l
 const PAGES={
  TQ:{title:"Tổng quan vận hành",meta:"Nguồn: Data theo SPDV — Nhập · Xuất · Thiệt hại · Dồn · Tồn theo tháng",render(host){
    const sc=scopeData();const prev=prevScope(scopeData);const mom=prev&&prev.totalNhap?sc.totalNhap/prev.totalNhap-1:0;
+   const dayMode=rangeDays().length<=62; /* chọn 1 tháng (hoặc ngắn hơn) → xem cột theo từng ngày */
    const tmn=Object.keys(monthsInRange()).map(Number).sort((a,b)=>a-b);
    const lbl=tmn.map(mi=>'T'+pad2(mi+1));
    /* chỉ đưa vào biểu đồ các SPDV có phát sinh trong phạm vi (Topup=0 tự ẩn) */
@@ -751,13 +752,25 @@ const PAGES={
      ${kpi("Robux Dồn (thu hồi)",fmt(sc.don),"tái sử dụng")}
      ${kpi("Thiệt hại (die/lỗi)",fmt(sc.totalDie),"Gross Loss "+pct(sc.totalDie/(sc.totalNhap||1)))}
      ${kpi("Tổng CO Tồn",sc.ton?fmt(sc.ton):"—",sc.ton?"cộng các tháng trong phạm vi":"sheet chưa có số / chưa LIVE")}</div>
-    <div class="grid2" style="grid-template-columns:1fr 1fr">${cc("Tổng CO Nhập theo SPDV — theo tháng","tq1")}${cc("Tổng CO Xuất theo SPDV — theo tháng","tq2")}</div>
-    <div class="grid2" style="grid-template-columns:1fr 1.4fr">${cc("Tỉ trọng CO Nhập theo SPDV — "+scopeLabel(),"tq3")}${cc("Thiệt hại theo SPDV — theo tháng","tq4")}</div>
+    <div class="grid2" style="grid-template-columns:1fr 1fr">${cc("Tổng CO Nhập theo SPDV — "+scopeLabel(),"tq1")}${cc("Tổng CO Xuất theo SPDV — "+scopeLabel(),"tq2")}</div>
+    <div class="grid2" style="grid-template-columns:1.5fr 1fr">${cc(dayMode?"CO Nhập theo NGÀY × SPDV — "+scopeLabel():"Tổng CO Nhập theo SPDV — theo tháng","tq5")}${cc("Thiệt hại theo SPDV — theo tháng","tq4")}</div>
+    ${dayMode?'<div class="small" style="margin:-6px 4px 10px">Cột theo ngày đọc từ các tab chi tiết (Robux · Gift Card · OG · Supercell · Razer Gold · RBX · Galaxylink) như PVH13 — có thể lệch nhẹ so với bảng tổng theo tháng. Chọn phạm vi dài hơn 2 tháng thì biểu đồ tự chuyển về theo tháng.</div>':''}
     ${insightCard(tqIns)}`;
-   mk("tq1",stackCfg(lbl,dss(NHAP)));
-   mk("tq2",stackCfg(lbl,dss(XUAT)));
-   mk("tq3",donut(ST,ST.map(s=>sc.nhap[s]),ST.map(s=>SPCOL[s])));
+   const nzN=ST.filter(s=>(sc.nhap[s]||0)>0),nzX=ST.filter(s=>(sc.xuat[s]||0)>0);
+   mk("tq1",donut(nzN.map(shortSP),nzN.map(s=>sc.nhap[s]),nzN.map(s=>SPCOL[s])));
+   mk("tq2",donut(nzX.map(shortSP),nzX.map(s=>sc.xuat[s]),nzX.map(s=>SPCOL[s])));
    mk("tq4",stackCfg(lbl,dss(DIE)));
+   if(!dayMode)mk("tq5",stackCfg(lbl,dss(NHAP)));
+   else{ /* cột theo NGÀY — dùng chung nguồn chi tiết với PVH13 */
+    Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily()]).then(()=>{
+      if(curr!=='TQ')return; /* người dùng đã sang trang khác */
+      const S=p13Series(iso(FROM),iso(TO)).filter(x=>x.tot>0);
+      const days=rangeDays().map(d=>iso(d)).filter(k=>S.some(x=>x.daily[k]));
+      const el=document.getElementById('tq5');
+      if(!days.length){if(el&&el.parentElement)el.parentElement.innerHTML='<div class="note" style="margin:0">Chưa có số theo ngày trong phạm vi này.</div>';return;}
+      mk("tq5",stackCfg(days.map(k=>k.slice(8,10)+'/'+k.slice(5,7)),
+        S.map(x=>({label:x.name,data:days.map(k=>x.daily[k]||0),backgroundColor:x.color,stack:'s'}))));
+    });}
  }},
  PVH2:{title:"PVH2 · Dồn & Die theo SPDV",meta:"Tần suất: Tháng/Tuần/Ngày",render(host){
    const sc=scopeData();const dieT=sc.totalDie;
