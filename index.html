@@ -1225,7 +1225,7 @@ const PAGES={
        const rows9=[{name:'Đơn tự động (Bot)',a:aut[mi],b:pm!=null?aut[pm]:0,c:pm!=null?aut[pm]:0},
                     {name:'Đơn thủ công',a:man[mi],b:pm!=null?man[pm]:0,c:pm!=null?man[pm]:0}];
        h+=`<div class="kpis">${kpi("% Automation T"+pad2(mi+1),pct(rt(mi)),"đơn Bot / tổng đơn")}${kpi("Tháng trước",pm!=null?pct(rt(pm)):'—',pm!=null?"T"+pad2(pm+1):'')}${kpi("Chênh lệch",pm!=null?((rt(mi)>=rt(pm)?'+':'−')+Math.abs((rt(mi)-rt(pm))*100).toFixed(1).replace('.',',')+' điểm'):'—',"so tháng trước")}${kpi("Đơn tự động T"+pad2(mi+1),fmtn(aut[mi]),"thủ công "+fmtn(man[mi]))}</div>
-        <div class="grid2" style="grid-template-columns:1fr">${cc("Tự động vs Thủ công — T"+pad2(mi+1)+(pm!=null?" so T"+pad2(pm+1):""),"w4")}</div>`;
+        <div class="grid2" style="grid-template-columns:1fr">${cc("Thủ công vs Tự động theo THÁNG (cả năm) + đường % tự động — cột đậm là T"+pad2(mi+1),"w4")}</div>`;
      } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
      /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
      h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
@@ -1246,10 +1246,15 @@ const PAGES={
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
      if(AU){const man=AU.man.m,aut=AU.auto.m;
-       mk("w4",{type:'bar',data:{labels:pm!=null?['T'+pad2(pm+1),'T'+pad2(mi+1)]:['T'+pad2(mi+1)],datasets:[
-         {label:'Thủ công',data:pm!=null?[man[pm],man[mi]]:[man[mi]],backgroundColor:RED,stack:'s'},
-         {label:'Tự động',data:pm!=null?[aut[pm],aut[mi]]:[aut[mi]],backgroundColor:GREEN,stack:'s'}]},
-        options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});}
+       const ms=[];for(let i=0;i<12;i++)if(man[i]||aut[i])ms.push(i);
+       const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
+       const dim=(c,i)=>i===mi?c:c+'66'; /* tháng chứa tuần đang chọn để màu đậm, còn lại nhạt */
+       mk("w4",{type:'bar',data:{labels:ms.map(i=>'T'+pad2(i+1)),datasets:[
+         {label:'Thủ công',data:ms.map(i=>man[i]),backgroundColor:ms.map(i=>dim(RED,i)),stack:'s',order:2},
+         {label:'Tự động',data:ms.map(i=>aut[i]),backgroundColor:ms.map(i=>dim(GREEN,i)),stack:'s',order:2},
+         {label:'% tự động',data:ms.map(i=>+(rt(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#1e5fd0',backgroundColor:'#1e5fd0',tension:.3,order:1}]},
+        options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
+         scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});}
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
  }},
