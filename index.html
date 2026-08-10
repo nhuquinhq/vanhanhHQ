@@ -998,7 +998,7 @@ const PAGES={
      const sumRaw=key=>{const cfg=RAWCFG[key];return (RAWDATA[key]||[]).reduce((a,r)=>a+(cfg.usd?r.val*fxRate(r.dk):r.val),0);};
      const srcs=[
       {name:'Robux — giá vốn',gid:''+COSTCFG.robux.gid,dks:Object.keys(ROBUXDAILY||{}),prev:ROBUXPREV,cols:'dò theo tên tiêu đề',tot:sumMap(ROBUXDAILY,false)},
-      {name:'Gift Card (file riêng)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò',tot:sumMap(GC13DAILY,GC13USD)},
+      {name:'Gift Card (chốt T1–T7 + live T8+)',gid:GC13_GID,dks:Object.keys(GC13DAILY||{}),prev:GC13PREV,cols:GC13COLS||'tự dò',tot:sumMap(GC13DAILY,GC13USD)},
       {name:'OG',gid:''+RAWCFG.og.gid,dks:(RAWDATA.og||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.og||[]).length,prev:RAWPREV.og,cols:colsOf('og'),tot:sumRaw('og')},
       {name:'Supercell',gid:''+RAWCFG.sc.gid,dks:(RAWDATA.sc||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.sc||[]).length,prev:RAWPREV.sc,cols:colsOf('sc'),tot:sumRaw('sc')},
       {name:'Razer Gold',gid:''+RAWCFG.razer.gid,dks:(RAWDATA.razer||[]).filter(r=>r.val>0).map(r=>r.dk),nAll:(RAWDATA.razer||[]).length,prev:RAWPREV.razer,cols:colsOf('razer'),tot:sumRaw('razer')},
@@ -1457,8 +1457,12 @@ function robuxDailyFromRows(rows){
   const tien=num(row[iTien]);if(tien>0){const k=dkey(dt.mo,dt.d);o[k]=(o[k]||0)+tien;}}
  return Object.keys(o).length?o:null;}
 /* PVH13: Gift Card — FILE RIÊNG nhẹ (tab Data giftcard gốc 47k dòng bị publish cắt ở ~41k) */
-const BASE_GC13="https://docs.google.com/spreadsheets/d/e/2PACX-1vQK6QIZLs18ZsAPvoOHqSKtF419Qb3trrOQQ7DTWrANCTBEedAuDazP6-QsoH4uQk9inAJ1KC3SixfK/pub";
-const GC13_GID="1216897209"; /* tab "Data GC" — tổng Thành tiền Nhập (USD) theo ngày, do sheet tự cộng */
+/* Gift Card T1–T7/2026: số CHỐT từ datalake (file GC 2026 — tab Data GC, Thành tiền Nhập USD/ngày).
+   Từ T8 đọc LIVE tab GiftCards của file publish mới. */
+const GC_HIST_CUT="2026-08-01";
+const GC_HIST=(function(){const o={};"01-01:7303.23,01-02:6191.36,01-03:4307.3,01-04:3313,01-05:13697.03,01-06:4422.01,01-07:3927.17,01-08:4582.98,01-09:4138.43,01-10:5401.12,01-11:3715.82,01-12:5651.48,01-13:7945.53,01-14:1951.69,01-15:1758.22,01-16:1895.93,01-17:1935.53,01-18:2449.3,01-19:1842.31,01-20:1540.62,01-21:2822.41,01-22:1338.73,01-23:3802.61,01-24:3603.19,01-25:2310.8,01-26:2749.49,01-27:2584.63,01-28:3690.85,01-29:2368.36,01-30:3370.4,01-31:2506.32,02-01:3810.71,02-02:1580.51,02-03:2202.29,02-04:1198.64,02-05:3493.08,02-06:4351.56,02-07:1382.43,02-08:3260.42,02-09:2019.55,02-10:1506.04,02-11:4053.29,02-12:2726.97,02-13:2533.08,02-14:3605.79,02-15:2342.09,02-16:399.58,02-17:84.25,02-18:626.87,02-19:1030.19,02-20:1424.12,02-21:1834.19,02-22:1972.84,02-23:1917.64,02-24:3266.71,02-25:2671.03,02-26:1835.76,02-27:2367.12,02-28:2441.87,03-01:2514.17,03-02:1647.52,03-03:2621.35,03-04:1713.73,03-05:3751.44,03-06:4908.67,03-07:3178.3,03-08:3424.4,03-09:4349.38,03-10:3999.99,03-11:5700.42,03-12:3008.85,03-13:3832.35,03-14:4189.63,03-15:2608.97,03-16:2225.15,03-17:2649.84,03-18:2431.7,03-19:1805.89,03-20:2992.51,03-21:3696.05,03-22:3337.86,03-23:3608.51,03-24:2813.38,03-25:3652.05,03-26:2035.05,03-27:3549.77,03-28:1951.95,03-29:3330.15,03-30:1988.17,03-31:4329.33,04-01:4411.73,04-02:2757.02,04-03:4010.52,04-04:5113.6,04-05:3622.88,04-06:5483.76,04-07:3604.59,04-08:5065.37,04-09:4040.85,04-10:4922.68,04-11:3073.02,04-12:2177.73,04-13:4443.31,04-14:3529.8,04-15:4357.38,04-16:5240.95,04-17:4399.9,04-18:3190.56,04-19:2877.18,04-20:6042.2,04-21:2656.21,04-22:3271.12,04-23:3136.86,04-24:2776.58,04-25:3231.08,04-26:4240.14,04-27:4470.74,04-28:3711.01,04-29:3599.3,04-30:4044.2,05-01:5343.3,05-02:2519.65,05-03:2176.22,05-04:3824.99,05-05:2711.48,05-06:2740.61,05-07:2888.72,05-08:5863.95,05-09:5230.68,05-10:3726.32,05-11:2729.44,05-12:2111.51,05-13:4937.93,05-14:5162.32,05-15:2953.59,05-16:5204.67,05-17:2541.56,05-18:4121.49,05-19:4511.48,05-20:3320.82,05-21:3533.5,05-22:3463.61,05-23:2968.83,05-24:2799.99,05-25:5491.1,05-26:3621.29,05-27:3345.65,05-28:4537.64,05-29:5407.92,05-30:5829.23,05-31:3867.92,06-01:2520.79,06-02:1793.88,06-03:2027.89,06-04:2095.85,06-05:2219.57,06-06:3538,06-07:2255.68,06-08:2532.65,06-09:2438.56,06-10:1995.87,06-11:2843.25,06-12:2996.62,06-13:1902.92,06-14:1910.49,06-15:2228.99,06-16:2161.06,06-17:2954.16,06-18:2202.95,06-19:2354.56,06-20:2641.16,06-21:4174.59,06-22:2917.15,06-23:2484.78,06-24:2834.28,06-25:4239.99,06-26:2930.81,06-27:3749.59,06-28:3086.48,06-29:3187.76,06-30:2551.83,07-01:2921.32,07-02:6375.33,07-03:3888.99,07-04:2473.48,07-05:2555.88,07-06:4364.48,07-07:3962.67,07-08:3605.5,07-09:4931.31,07-10:4010.84,07-11:4072.19,07-12:2187.98,07-13:5585.59,07-14:5292.87,07-15:3492.69,07-16:4470.2,07-17:7423.2,07-18:3713.04,07-19:6920.28,07-20:4581.53,07-21:3297.34,07-22:6262.04,07-23:3784.01,07-24:4711.09,07-25:3215.29,07-26:3086.65,07-27:4030.14,07-28:4706.89,07-29:3727.38,07-30:7228.76,07-31:5108.48".split(",").forEach(function(s){const i=s.indexOf(":");o["2026-"+s.slice(0,i)]=+s.slice(i+1);});return o;})();
+const BASE_GC13="https://docs.google.com/spreadsheets/d/e/2PACX-1vSlOzVTuSNAfW-lVKF7xjLAPwVtnebtOFxCDiJKaseD8xQ9NfRpAWRQG-ivkUSMM83Tf1Ea2xnnRX_4/pub";
+const GC13_GID="505929777"; /* tab GiftCards (raw) — chỉ lấy phần từ T8 trở đi */
 function gc13DirectURL(){return BASE_GC13+"?gid="+GC13_GID+"&single=true&output=csv";}
 function gc13ApiURL(){return "/api/csv?f=gc13&gid="+GC13_GID;}
 let GC13DAILY,GC13PREV=null,GC13COLS='',GC13USD=true;
@@ -1505,8 +1509,16 @@ async function gc13Daily(){if(GC13DAILY!==undefined&&Date.now()-GC13TS<RAW_TTL)r
  let rows=await loadCSV(gc13DirectURL());let o=gc13FromRows(rows);
  if(!o){const r2=await loadCSV(gc13ApiURL());if(r2)rows=r2;o=gc13FromRows(rows);}
  GC13PREV=rows?rows.slice(0,8):null;GC13TS=Date.now();
- GC13DAILY=o||undefined; /* không cache kết quả rỗng */
- return o;}
+ const liveCols=o?GC13COLS.replace(/\s·\s(USD quy VND|VND)$/,''):'';
+ /* ghép: T1–T7 số chốt datalake + từ T8 số live (bỏ phần trước mốc để không đếm hai lần) */
+ if(o&&!GC13USD){ /* live ra VND (bất thường) — không trộn lẫn đơn vị với số chốt USD */
+  GC13COLS='⚠ live đang ra VND nên chưa ghép số chốt T1–T7 · '+liveCols;GC13DAILY=o;return o;}
+ const out={};for(const k in GC_HIST)out[k]=GC_HIST[k];
+ let nLive=0,lastLive='';
+ if(o)for(const k in o){if(k<GC_HIST_CUT)continue;out[k]=o[k];nLive++;if(k>lastLive)lastLive=k;}
+ GC13USD=true;
+ GC13COLS='T1–T7 số chốt datalake ('+Object.keys(GC_HIST).length+' ngày) + từ T8 live: '+(nLive?nLive+' ngày → '+lastLive.slice(8)+'/'+lastLive.slice(5,7)+' · '+liveCols:'<b style="color:#b91c1c">chưa đọc được file live</b>')+' · USD quy VND';
+ GC13DAILY=out;return out;}
 /* PVH13: Galaxylink — FILE RIÊNG; tự dò cột ngày / trạng thái (loại refund·hủy) / giá trị; dò trượt sẽ hiện bảng thô ở khối 🩺 */
 /* Galaxylink lấy từ CẢ HAI file: file cũ (Galaxy Link data — lịch sử) + file mới (GalaxyLink Orders — số đang chạy) */
 const GLX_SRCS=[
@@ -2424,7 +2436,7 @@ function renderSRC(){const host=document.getElementById('content');
    ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Data Supercell (PVH13)','564846337'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK],['Automation / thủ công (PVH9)','1785292172']]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
-  ['FILE GIFT CARD (PVH13)',[['GC nhập theo ngày',GC13_GID,'gc13']]],
+  ['FILE GIFT CARD (PVH13)',[['GiftCards raw — live từ T8',GC13_GID,'gc13']]],
   ['FILE GALAXYLINK (PVH13)',[['GalaxyLink Orders (file mới)','511652200','glx'],['Galaxy Link data (file cũ)','1473618411','glx']]],
   ['FILE NĂNG SUẤT XỬ LÝ ĐƠN THỦ CÔNG (PVH10)',[['Tổng đơn thủ công','1496740945','sla'],['SLA Gamepass theo năm','1982526665','sla'],['SLA Gamepass theo ngày/tháng','511745866','sla'],['Đơn Pokémon','287243650','sla']]]];
  const nTests=groups.reduce((a,g)=>a+g[1].length,0);

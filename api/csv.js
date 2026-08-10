@@ -6,7 +6,7 @@ module.exports = async (req, res) => {
     ton: "2PACX-1vQToyJFyIIxiDtucrAhxnTVZmjNWF2InPci5r-C75DfkHR6aQbUrmZNBcwDDadNrET82VwxtdjDhITE",
     sla: "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W",
     kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5",
-    gc13: "2PACX-1vQK6QIZLs18ZsAPvoOHqSKtF419Qb3trrOQQ7DTWrANCTBEedAuDazP6-QsoH4uQk9inAJ1KC3SixfK",
+    gc13: "2PACX-1vSlOzVTuSNAfW-lVKF7xjLAPwVtnebtOFxCDiJKaseD8xQ9NfRpAWRQG-ivkUSMM83Tf1Ea2xnnRX_4",
     glx: "2PACX-1vT0ni4Ntgb0PgMYKwJGdrcYrA4P7t7Be0jem5w7n58dksNt3DrlzBDqSobmyRn9Bi0dFWDknEE9i2uJ",
     glx2: "2PACX-1vQq0flVcmBo_tCnguArmDmbqpTSPMoiAJUM7nRP1-R2LMECKMm6ofwiQC89Y9HXtJguwq600o7oDMie"
   };
