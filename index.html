@@ -579,6 +579,7 @@ function today(){const t=new Date();return{y:t.getFullYear(),mo:t.getMonth(),d:t
 const TD=today();
 /* mặc định mở trang: CẢ NĂM (01/01 → hôm nay) — trang Tổng quan cần cái nhìn tổng năm & so sánh tháng */
 let FROM={y:TD.y,mo:0,d:1},TO={y:TD.y,mo:TD.mo,d:TD.d};
+let FMONTH=null,FWEEK=null; /* ô chọn Tháng / Tuần đang chọn (null = chưa chọn) */
 
 /* ===== tiện ích ===== */
 const fmtAxis=n=>{if(!n)return"0";const a=Math.abs(n);if(a>=1e9)return(n/1e9).toFixed(1)+"tỷ";if(a>=1e6)return(n/1e6).toFixed(0)+"tr";if(a>=1e3)return(n/1e3).toFixed(0)+"k";return ''+Math.round(n);};
@@ -621,12 +622,47 @@ function renderFilters(){const f=document.getElementById('filters');if(curr==="S
  f.innerHTML=`
   <div class="fg"><label>Từ ngày</label><input type="date" id="fFrom" value="${iso(FROM)}" min="2026-01-01" max="2026-12-31" onchange="setRange(this.value,null)"></div>
   <div class="fg"><label>Đến ngày</label><input type="date" id="fTo" value="${iso(TO)}" min="2026-01-01" max="2026-12-31" onchange="setRange(null,this.value)"></div>
+  <div class="fg"><label>Tháng</label><select id="fMonth" onchange="pickMonth(this.value)">${monthOpts()}</select></div>
+  <div class="fg"><label>Tuần</label><select id="fWeek" onchange="pickWeek(this.value)">${weekOpts()}</select></div>
   <div class="fg"><label>Nhanh</label><div class="presets"><button class="pbtn" onclick="preset(7)">7N</button><button class="pbtn" onclick="preset(30)">30N</button><button class="pbtn" onclick="preset('m')">Tháng này</button><button class="pbtn" onclick="preset('y')">Cả kỳ</button></div></div>
   <button class="btn" style="background:linear-gradient(90deg,#7c3aed,#2e86e6)" onclick="askOpen()">💬 Hỏi đáp</button>
   <button class="btn" onclick="xuatSlide(this)">📤 Xuất slide</button>
   <button class="btn" onclick="applyFilter()">↻ Làm mới</button>`;}
-function onM(v){window._m=+v;window._w=0;window._d=0;renderFilters();applyFilter();}
-function onW(v){window._w=+v;window._d=0;renderFilters();applyFilter();}
+/* ===== CHỌN NHANH THEO THÁNG / TUẦN ===== */
+const MAXD=()=>{const t=today();return new Date(t.y,t.mo,t.d);}; /* không cho vượt quá hôm nay */
+/* tuần tính từ Thứ 2 → Chủ nhật; danh sách tuần bám theo tháng đang chọn, chưa chọn tháng thì cả năm */
+function weekList(){const out=[];const t=today();const lim=MAXD();
+ let a=new Date(2026,0,1);a.setDate(a.getDate()-((a.getDay()+6)%7)); /* thứ 2 của tuần chứa 01/01 */
+ for(let i=0;i<54;i++){const s0=new Date(a);s0.setDate(a.getDate()+i*7);const e0=new Date(s0);e0.setDate(s0.getDate()+6);
+  if(s0>lim)break;
+  if(e0<new Date(2026,0,1))continue;
+  if(FMONTH!=null){ /* chỉ giữ tuần có ngày rơi vào tháng đang chọn */
+   const ms=new Date(2026,FMONTH,1),me=new Date(2026,FMONTH+1,0);
+   if(e0<ms||s0>me)continue;}
+  out.push({i:out.length,s:s0,e:e0});}
+ return out;}
+function optD(d){return pad2(d.getDate())+'/'+pad2(d.getMonth()+1);}
+function monthOpts(){const t=today();let h='<option value="">— Chọn —</option>';
+ for(let m=0;m<=(t.y===2026?t.mo:11);m++)h+=`<option value="${m}"${FMONTH===m?' selected':''}>Tháng ${pad2(m+1)}</option>`;
+ return h;}
+function weekOpts(){let h='<option value="">— Chọn —</option>';
+ weekList().forEach(w=>{h+=`<option value="${iso({y:w.s.getFullYear(),mo:w.s.getMonth(),d:w.s.getDate()})}"${FWEEK===w.i?' selected':''}>Tuần ${pad2(w.i+1)}: ${optD(w.s)} – ${optD(w.e)}</option>`;});
+ return h;}
+function pickMonth(v){
+ if(v===''){FMONTH=null;FWEEK=null;renderFilters();return;}
+ const m=+v;FMONTH=m;FWEEK=null;
+ const t=today();const last=new Date(2026,m+1,0);const lim=MAXD();
+ FROM={y:2026,mo:m,d:1};
+ const e=last>lim?lim:last;TO={y:e.getFullYear(),mo:e.getMonth(),d:e.getDate()};
+ renderFilters();applyFilter();}
+function pickWeek(v){
+ if(v===''){FWEEK=null;renderFilters();return;}
+ const s0=parseISO(v);const st=new Date(s0.y,s0.mo,s0.d);const e0=new Date(st);e0.setDate(st.getDate()+6);
+ const lim=MAXD();const e=e0>lim?lim:e0;
+ FROM={y:st.getFullYear(),mo:st.getMonth(),d:st.getDate()};
+ TO={y:e.getFullYear(),mo:e.getMonth(),d:e.getDate()};
+ const L=weekList();const f=L.find(w=>w.s.getTime()===st.getTime());FWEEK=f?f.i:null;
+ renderFilters();applyFilter();}
 function applyFilter(){document.getElementById('upd').textContent="Cập nhật "+new Date().toLocaleTimeString('vi-VN');render();}
 
 /* ===== RENDER TỪNG TRANG ===== */
@@ -1362,15 +1398,17 @@ function iso(o){return o.y+'-'+pad2(o.mo+1)+'-'+pad2(o.d);}
 function parseISO(x){const p=x.split('-');return{y:+p[0],mo:+p[1]-1,d:+p[2]};}
 function clampD(o){let t=new Date(o.y,o.mo,o.d);const mn=new Date(2026,0,1),mx=new Date(2026,11,31);if(t<mn)t=mn;if(t>mx)t=mx;return{y:t.getFullYear(),mo:t.getMonth(),d:t.getDate()};}
 function setRange(from,to){if(from)FROM=clampD(parseISO(from));if(to)TO=clampD(parseISO(to));
+ FMONTH=null;FWEEK=null; /* tự nhập ngày → bỏ chọn Tháng/Tuần */
+ const fm=document.getElementById('fMonth'),fw=document.getElementById('fWeek');if(fm)fm.value='';if(fw)fw.value='';
  const a=new Date(FROM.y,FROM.mo,FROM.d),b=new Date(TO.y,TO.mo,TO.d);if(a>b){const t=FROM;FROM=TO;TO=t;}
  const ff=document.getElementById('fFrom'),ft=document.getElementById('fTo');if(ff)ff.value=iso(FROM);if(ft)ft.value=iso(TO);
  applyFilter();}
 function preset(k){const t=today();const mx=new Date(t.y,t.mo,t.d);
+ FMONTH=(k==='m')?t.mo:null;FWEEK=null;
  if(k==='y'){FROM={y:t.y,mo:0,d:1};TO=t;}
  else if(k==='m'){FROM={y:t.y,mo:t.mo,d:1};TO=t;}
  else{const f=new Date(mx);f.setDate(f.getDate()-(k-1));FROM={y:f.getFullYear(),mo:f.getMonth(),d:f.getDate()};TO=t;}
- const ff=document.getElementById('fFrom'),ft=document.getElementById('fTo');if(ff)ff.value=iso(FROM);if(ft)ft.value=iso(TO);
- applyFilter();}
+ renderFilters();applyFilter();}
 function rangeDays(){const out=[];const a=new Date(FROM.y,FROM.mo,FROM.d),b=new Date(TO.y,TO.mo,TO.d);for(let t=new Date(a);t<=b;t.setDate(t.getDate()+1))out.push({y:t.getFullYear(),mo:t.getMonth(),d:t.getDate()});return out;}
 function monthsInRange(){const mm={};rangeDays().forEach(x=>{if(x.y===2026&&x.mo<12)mm[x.mo]=(mm[x.mo]||0)+1;});return mm;}
 function aggArr(arr,sp,map,seed){if(map&&sp&&map[sp]){let t=0;rangeDays().forEach(x=>{if(x.y===2026)t+=map[sp][dkey(x.mo,x.d)]||0;});return t;}const mm=monthsInRange();let t=0;for(const m in mm){const mi=+m;t+=(arr&&arr[mi]?arr[mi]:0)*mm[m]/DAYS_IN[mi];}return Math.round(t);}
