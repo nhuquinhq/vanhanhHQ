@@ -619,6 +619,14 @@ function prevScope(fn){const n=rangeDays().length;const cf=FROM,ct=TO;
 
 /* ===== BỘ LỌC (mọi trang) ===== */
 function renderFilters(){const f=document.getElementById('filters');if(curr==="SRC"){f.innerHTML='';return;}
+ if(curr==="PVH15"){ /* trang báo cáo tuần chỉ dùng MỘT bộ lọc: chọn tuần */
+  w15Init();
+  f.innerHTML=`
+  <div class="fg" style="min-width:260px"><label>Tuần báo cáo</label><select id="fW15" onchange="setW15(this.value)">${w15Opts()}</select></div>
+  <button class="btn" style="background:linear-gradient(90deg,#7c3aed,#2e86e6)" onclick="askOpen()">💬 Hỏi đáp</button>
+  <button class="btn" onclick="xuatSlide(this)">📤 Xuất slide</button>
+  <button class="btn" onclick="applyFilter()">↻ Làm mới</button>`;
+  return;}
  f.innerHTML=`
   <div class="fg"><label>Từ ngày</label><input type="date" id="fFrom" value="${iso(FROM)}" min="2026-01-01" max="2026-12-31" onchange="setRange(this.value,null)"></div>
   <div class="fg"><label>Đến ngày</label><input type="date" id="fTo" value="${iso(TO)}" min="2026-01-01" max="2026-12-31" onchange="setRange(null,this.value)"></div>
@@ -1169,7 +1177,8 @@ const PAGES={
    });
  }},
  PVH15:{title:"PVH15 · Báo cáo tuần",meta:"Chọn tuần → so sánh với TUẦN LIỀN TRƯỚC và CÙNG KỲ THÁNG TRƯỚC (7 ngày cùng vị trí, lùi 1 tháng)",render(host){
-   w15Init();
+   w15Init();w15Sync();
+   document.getElementById('rmeta').innerHTML=`<span class="badge" style="background:#1e5fd0">Tuần ${w15Rng(W15,0,0).no}: ${w15Rng(W15,0,0).lab}</span> &nbsp; ${PAGES.PVH15.meta}`;
    host.innerHTML=spinner("Đang gom số liệu tuần: nhập chi tiết · giá vốn Robux · tồn kho · automation · năng suất…");
    Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),autoTCData(),khoCTData()]).then(([,,,,,Rt,AU,KC])=>{
      if(curr!=='PVH15')return;
@@ -1186,10 +1195,7 @@ const PAGES={
         {label:'Tuần '+A.no,data:rows.map(r=>r.a),backgroundColor:'#1e5fd0'},
         {label:'Tuần '+B.no,data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
         {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#c7d6ec'}]},options:barOpt(true)});
-     let h=`<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
-        <b style="font-size:12.5px;color:#1c2c4a">Tuần báo cáo:</b>
-        <select onchange="setW15(this.value)" style="padding:7px 11px;border-radius:9px;border:1px solid #c8d8f0;font-size:12.5px;background:#fff;color:#14243d">${w15Opts()}</select>
-        <span class="small">So sánh: <b>Tuần ${A.no}</b> (${A.lab}) ↔ <b>Tuần ${B.no}</b> (${B.lab}) ↔ cùng kỳ tháng trước (${C.lab})</span></div>`;
+     let h=`<div class="small" style="margin:0 4px 8px">So sánh: <b>Tuần ${A.no}</b> (${A.lab}) ↔ <b>Tuần ${B.no}</b> (${B.lab}) ↔ cùng kỳ tháng trước (${C.lab})</div>`;
      /* ---------- 1) PVH13 · Nhập chi tiết theo SPDV ---------- */
      const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
      const spRows=S3[0].map((x,i)=>({name:x.name,a:x.tot,b:S3[1][i].tot,c:S3[2][i].tot})).filter(r=>r.a||r.b||r.c);
@@ -2338,7 +2344,10 @@ const W1START=(function(){const a=new Date(2026,0,1);a.setDate(a.getDate()-((a.g
 function wkNo(d){return Math.floor((new Date(d.getFullYear(),d.getMonth(),d.getDate())-W1START)/604800000)+1;}
 function w15Init(){if(W15)return;const d=new Date(TO.y,TO.mo,TO.d);d.setDate(d.getDate()-((d.getDay()+6)%7));
  W15=iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()});}
-function setW15(v){W15=v;render();}
+function setW15(v){W15=v;w15Sync();renderFilters();applyFilter();}
+/* đồng bộ phạm vi Từ–Đến theo tuần đang chọn để badge "Phạm vi" và Xuất slide khớp nhau */
+function w15Sync(){if(!W15)return;const R=w15Rng(W15,0,0);
+ const a=parseISO(R.f),b=parseISO(R.t);FROM={y:a.y,mo:a.mo,d:a.d};TO={y:b.y,mo:b.mo,d:b.d};FMONTH=null;FWEEK=null;}
 function rangeDays2(f,t){const a=parseISO(f),b=parseISO(t);const out=[];
  for(let d=new Date(a.y,a.mo,a.d);d<=new Date(b.y,b.mo,b.d);d.setDate(d.getDate()+1))out.push(iso({y:d.getFullYear(),mo:d.getMonth(),d:d.getDate()}));return out;}
 /* trả khoảng 7 ngày: dw tuần dịch, dm tháng dịch (giữ nguyên độ dài 7 ngày) */
