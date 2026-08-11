@@ -1212,7 +1212,7 @@ const PAGES={
      const fgv=n=>n?n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
      h+=box('2 · PVH4 — Biến động giá vốn: Robux','GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân gia quyền, chỉ dòng tiền > 0)')
       +`<div class="kpis">${kpi("Giá vốn ĐV tuần "+A.no,fgv(R3[0].gv),"đ/robux")}${kpi("So tuần "+B.no,R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần "+A.no,fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
-       <div class="grid2" style="grid-template-columns:1fr">${cc("Giá vốn ĐV Robux — 3 kỳ (đ/robux)","w2")}</div>`
+       <div class="grid2" style="grid-template-columns:1fr">${cc("Giá vốn ĐV Robux theo NGÀY trong tuần — 3 kỳ (đ/robux)","w2")}</div>`
       +tbl([{name:'Giá vốn ĐV (đ/robux)',a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}],fgv)
       +tbl([{name:'SL nhập (robux)',a:R3[0].q,b:R3[1].q,c:R3[2].q},{name:'Thành tiền (đ)',a:R3[0].t,b:R3[1].t,c:R3[2].t}],fmtn);
      /* ---------- 3) PVH6 · Tồn kho & tuổi tồn ---------- */
@@ -1259,7 +1259,17 @@ const PAGES={
      } else h+=`<div class="note">Chưa đọc được tab "Tổng đơn xử lý thủ công" — xem trang PVH10.</div>`;
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
-     grp("w2",['Giá vốn ĐV'],[{a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}]);
+     /* giá vốn ĐV theo từng ngày trong tuần — 3 đường để so dáng biến động */
+     {const DOW=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','CN'];
+      const gvDay=r=>rangeDays2(r.f,r.t).map(k=>{const t=(ROBUXDAILY||{})[k]||0,q=(ROBUXSL||{})[k]||0;return q?+(t/q).toFixed(2):null;});
+      const cols=['#1e5fd0','#94a3b8','#c7d6ec'];
+      mk("w2",{type:'line',data:{labels:DOW,datasets:[A,B,C].map((r,i)=>({
+        label:i===0?'Tuần '+A.no:(i===1?'Tuần '+B.no:'Cùng kỳ T.trước ('+C.lab+')'),
+        data:gvDay(r),borderColor:cols[i],backgroundColor:cols[i],borderWidth:i===0?2.6:2,
+        tension:.3,pointRadius:3,fill:false,spanGaps:true}))},
+       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},
+         tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':c.parsed.y.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2})+' đ/robux')}}},
+        scales:{x:noX,y:{...yG,ticks:{callback:v=>Math.round(v).toLocaleString('vi-VN')}}}}});}
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
      if(AU){const man=AU.man.m,aut=AU.auto.m;
