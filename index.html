@@ -632,7 +632,6 @@ function renderFilters(){const f=document.getElementById('filters');if(curr==="S
   <div class="fg"><label>Đến ngày</label><input type="date" id="fTo" value="${iso(TO)}" min="2026-01-01" max="2026-12-31" onchange="setRange(null,this.value)"></div>
   <div class="fg"><label>Tháng</label><select id="fMonth" onchange="pickMonth(this.value)">${monthOpts()}</select></div>
   <div class="fg"><label>Tuần</label><select id="fWeek" onchange="pickWeek(this.value)">${weekOpts()}</select></div>
-  <div class="fg"><label>Nhanh</label><div class="presets"><button class="pbtn" onclick="preset(7)">7N</button><button class="pbtn" onclick="preset(30)">30N</button><button class="pbtn" onclick="preset('m')">Tháng này</button><button class="pbtn" onclick="preset('y')">Cả kỳ</button></div></div>
   <button class="btn" style="background:linear-gradient(90deg,#7c3aed,#2e86e6)" onclick="askOpen()">💬 Hỏi đáp</button>
   <button class="btn" onclick="xuatSlide(this)">📤 Xuất slide</button>
   <button class="btn" onclick="applyFilter()">↻ Làm mới</button>`;}
@@ -644,13 +643,14 @@ function weekList(){const out=[];const t=today();const lim=MAXD();
  for(let i=0;i<54;i++){const s0=new Date(a);s0.setDate(a.getDate()+i*7);const e0=new Date(s0);e0.setDate(s0.getDate()+6);
   if(s0>lim)break;
   if(e0<new Date(2026,0,1))continue;
-  if(FMONTH!=null){ /* chỉ giữ tuần có ngày rơi vào tháng đang chọn */
+  if(FMONTH!=null&&FMONTH!=='y'){ /* chỉ giữ tuần có ngày rơi vào tháng đang chọn */
    const ms=new Date(2026,FMONTH,1),me=new Date(2026,FMONTH+1,0);
    if(e0<ms||s0>me)continue;}
   out.push({i:out.length,s:s0,e:e0});}
  return out;}
 function optD(d){return pad2(d.getDate())+'/'+pad2(d.getMonth()+1);}
 function monthOpts(){const t=today();let h='<option value="">— Chọn —</option>';
+ h+=`<option value="y"${FMONTH==='y'?' selected':''}>Cả năm 2026</option>`;
  for(let m=0;m<=(t.y===2026?t.mo:11);m++)h+=`<option value="${m}"${FMONTH===m?' selected':''}>Tháng ${pad2(m+1)}</option>`;
  return h;}
 function weekOpts(){let h='<option value="">— Chọn —</option>';
@@ -658,6 +658,7 @@ function weekOpts(){let h='<option value="">— Chọn —</option>';
  return h;}
 function pickMonth(v){
  if(v===''){FMONTH=null;FWEEK=null;renderFilters();return;}
+ if(v==='y'){const t=today();FMONTH='y';FWEEK=null;FROM={y:2026,mo:0,d:1};TO={y:t.y,mo:t.mo,d:t.d};renderFilters();applyFilter();return;}
  const m=+v;FMONTH=m;FWEEK=null;
  const t=today();const last=new Date(2026,m+1,0);const lim=MAXD();
  FROM={y:2026,mo:m,d:1};
