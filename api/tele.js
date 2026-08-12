@@ -136,7 +136,10 @@ async function buildPVH10(q) {
     const cum = P.types.map(t => ({ name: t.name, v: Object.keys(t.daily).filter(k => k.slice(0, 2) === mm && k <= key).reduce((a, k) => a + t.daily[k], 0) }));
     const cTot = cum.reduce((a, x) => a + x.v, 0);
     const nDays = P.dateCols.filter(c => c.dk.slice(0, 2) === mm && c.dk <= key && P.types.some(t => t.daily[c.dk] != null)).length;
-    lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b>" + (P.kpi ? " · KPI " + P.kpi : ""));
+    /* Bỏ phần "· KPI ..." đằng sau: kpiTxt gom CẢ DÒNG trên sheet rồi nối
+       bằng dấu cách nên in ra một dãy số dài (tổng + từng ngày + các ô 0)
+       chứ không phải một con số KPI. Tin nhắn chỉ cần con số lũy kế. */
+    lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b>");
     cum.forEach(x => lines.push(" • " + x.name + ": " + fmt(x.v) + (cTot ? " (" + pct(x.v / cTot) + ")" : "")));
     if (nDays) lines.push(" • Bình quân: " + fmt(cTot / nDays) + " đơn/ngày");
   } else lines.push("", '⚠️ Không đọc được tab "Tổng đơn xử lý thủ công" — kiểm tra Publish to web.');
