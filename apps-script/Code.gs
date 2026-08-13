@@ -12,6 +12,19 @@ var SECRET = 'doi-chuoi-nay-di-1234';
 
 var TAB_VIEC = 'VIEC';
 var TAB_LOG = 'NHAT_KY';
+var TAB_CL = 'CHECKLIST';
+var COT_CL = ['ma', 'noi_dung', 'pic', 'phong', 'lap_lai', 'gio_chot', 'bat'];
+/* Vài dòng mẫu tạo sẵn để bạn sửa lại cho đúng nghiệp vụ — cột "bat" để trống là chưa bật */
+var CL_MAU = [
+  ['VH01', 'Đối soát NCC Galaxylink', '', 'VH', 'ngaylam', '17:00', ''],
+  ['VH02', 'Kiểm tra tồn kho & tuổi tồn', '', 'VH', 'hangngay', '10:00', ''],
+  ['VH03', 'Rà số dư deposit các NCC', '', 'VH', 't2,t5', '09:00', ''],
+  ['HR01', 'Chốt chấm công', '', 'HR', 'hangngay', '18:00', ''],
+  ['HR02', 'Rà hợp đồng sắp hết hạn', '', 'HR', 'hangtuan:t2', '10:00', ''],
+  ['KT01', 'Đối soát HubPay', '', 'KT', 'ngaylam', '17:00', ''],
+  ['KT02', 'Sao kê ngân hàng', '', 'KT', 'hangngay', '17:30', ''],
+  ['KT03', 'Chốt sổ tháng', '', 'KT', 'cuoithang', '17:00', '']
+];
 var COT_VIEC = ['ma', 'ngay_giao', 'noi_dung', 'pic', 'han', 'box_ten', 'phong', 'trang_thai',
   'uu_tien', 'nguoi_giao_ten', 'luc_nhan', 'luc_xong', 'so_lan_doi_han', 'link_tin'];
 /* Các cột sẽ được tự thêm vào tab nhân sự nếu chưa có */
@@ -119,6 +132,46 @@ function sheetLog_() {
   return sh;
 }
 
+/** Tab checklist định kỳ — lần đầu tự tạo kèm dòng mẫu (đều đang tắt) */
+function sheetChecklist_() {
+  var ss = ss_(), sh = ss.getSheetByName(TAB_CL);
+  if (!sh) {
+    sh = ss.insertSheet(TAB_CL);
+    sh.getRange(1, 1, 1, COT_CL.length).setValues([COT_CL]).setFontWeight('bold');
+    sh.getRange(2, 1, CL_MAU.length, COT_CL.length).setValues(CL_MAU);
+    sh.setFrozenRows(1);
+    sh.getRange(1, 1, 1, COT_CL.length).setNote(
+      'lap_lai: hangngay · ngaylam (T2-T6) · t2,t4,t6 · hangtuan:t2 · ngay5 · cuoithang · dauthang\n' +
+      'gio_chot: 17:00 hoac 17h\n' +
+      'bat: go x de bat, de trong la tat\n' +
+      'pic: dung dung ten trong tab nhan su');
+  }
+  return sh;
+}
+function docChecklist_() {
+  var sh = sheetChecklist_();
+  var n = sh.getLastRow() - 1;
+  if (n < 1) return [];
+  var head = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(bo_dau_);
+  var rows = sh.getRange(2, 1, n, sh.getLastColumn()).getValues();
+  var i = function (t) { return head.indexOf(t); };
+  var out = [];
+  for (var r = 0; r < rows.length; r++) {
+    var nd = String(rows[r][i('noi_dung')] || '').trim();
+    if (!nd) continue;
+    out.push({
+      ma: String(rows[r][i('ma')] || '').trim(),
+      noi_dung: nd,
+      pic: String(rows[r][i('pic')] || '').trim(),
+      phong: String(rows[r][i('phong')] || '').trim().toUpperCase(),
+      lap_lai: String(rows[r][i('lap_lai')] || '').trim(),
+      gio_chot: String(rows[r][i('gio_chot')] || '').trim(),
+      bat: String(rows[r][i('bat')] || '').trim()
+    });
+  }
+  return out;
+}
+
 function gio_(ms) { return ms ? new Date(Number(ms)) : ''; }
 
 /** Ghi (hoặc cập nhật) một việc — tìm theo cột "ma" */
@@ -156,6 +209,7 @@ function doPost(e) {
   try { lock.waitLock(20000); } catch (err) { return json_({ ok: false, error: 'busy' }); }
   try {
     if (body.a === 'roster') return json_({ ok: true, list: docNhanSu_() });
+    if (body.a === 'checklist') return json_({ ok: true, list: docChecklist_() });
     if (body.a === 'upsert') return json_(upsertViec_(body.task || {}));
     if (body.a === 'set_tgid') return json_({ ok: ghiTgId_(body.ma, body.tg_id) });
     if (body.a === 'log') { sheetLog_().appendRow([new Date(), body.ma || '', body.viec || '', body.ghi_chu || '']); return json_({ ok: true }); }

@@ -55,6 +55,54 @@ async function quetViec(now, roster, dry, log) {
   return ds;
 }
 
+/* ---------- sinh việc từ checklist định kỳ (07:30 mỗi ngày) ---------- */
+async function sinhDinhKy(now, roster, dry, log) {
+  const p = L.vnParts(now);
+  const ngay = p.y + "-" + L.pad2(p.m) + "-" + L.pad2(p.d);
+  const ds = await L.docChecklist();
+  const theoPhong = {};
+
+  for (const c of ds) {
+    if (!L.BAT(c.bat)) continue;
+    if (!L.hopNgay(c.lap_lai, p)) continue;
+
+    const khoa = "task:cl:" + (c.ma || c.noi_dung).slice(0, 40) + ":" + ngay;
+    if (dry) { log.push("[dry] checklist " + c.ma + " → " + (c.pic || "chưa gán")); continue; }
+    if (!(await L.kvLock(khoa, 3 * 86400))) continue; /* hôm nay đã sinh rồi */
+
+    const g = L.gioChot(c.gio_chot);
+    const nv = roster.find(x => x.ma === c.pic) || null;
+    const phong = (nv && nv.phong) || String(c.phong || "").toUpperCase() || "VC";
+    const ma = await L.sinhMa(phong);
+    const t = {
+      ma, ngay_giao: now, noi_dung: c.noi_dung || c.ma,
+      pic: nv ? nv.ma : "", han: L.vnToMs({ y: p.y, m: p.m, d: p.d, h: g.h, mi: g.mi }),
+      box: BOX[phong] ? String(BOX[phong]) : "", box_ten: "", phong,
+      trang_thai: "MOI", uu_tien: "binh_thuong",
+      nguoi_giao: "checklist", nguoi_giao_ten: "Checklist định kỳ",
+      luc_nhan: 0, luc_xong: 0, so_lan_doi_han: 0, link_tin: "",
+      dinh_ky: c.ma || "", canh_bao: [],
+      lich_su: [{ t: now, v: "Sinh từ checklist " + (c.lap_lai || "") }]
+    };
+    await L.ghiTask(t);
+    (theoPhong[phong] = theoPhong[phong] || []).push({ t, nv });
+    if (nv) await L.nhanRieng(nv, "🔁 <b>" + ma + "</b> · checklist hôm nay\n📋 " + t.noi_dung +
+      "\n⏰ Chốt " + L.fmtGio(t.han), { reply_markup: L.nutNhan(ma) });
+    log.push("checklist " + (c.ma || "") + " → " + ma);
+  }
+
+  /* gửi một tin gộp vào box mỗi phòng, thay vì bắn lẻ từng việc */
+  for (const ph in theoPhong) {
+    if (!BOX[ph]) continue;
+    const arr = theoPhong[ph];
+    const out = ["🔁 <b>Checklist phòng " + ph + " · " + L.fmtNgay(now) + "</b> (" + arr.length + " việc)"];
+    arr.forEach(({ t, nv }) => out.push(" • <b>" + t.ma + "</b> " + t.noi_dung +
+      " — " + (nv ? nv.ho_ten : "⚠️ chưa gán người") + " · chốt " + L.fmtGio(t.han)));
+    await L.guiTin(BOX[ph], out.join("\n"));
+  }
+  return Object.keys(theoPhong).reduce((a, k) => a + theoPhong[k].length, 0);
+}
+
 /* Bảng chốt cuối ngày theo phòng */
 function bangPhong(ds, phong, now) {
   const cua = ds.filter(t => t.phong === phong);
@@ -98,6 +146,10 @@ module.exports = async (req, res) => {
     const roster = await L.layNhanSu();
     if (!roster.length) { res.status(200).json({ ok: false, error: "chua_doc_duoc_bang_nhan_su" }); return; }
 
+    /* 07:00–07:59 giờ VN: sinh việc từ checklist định kỳ trước, rồi mới quét nhắc */
+    let sinh = 0;
+    if (p.h === 7 || q.sinh) sinh = await sinhDinhKy(now, roster, dry, log);
+
     const ds = await quetViec(now, roster, dry, log);
 
     /* mốc cố định trong ngày — nhận trong 1 tiếng sau mốc, mỗi ngày 1 lần */
@@ -118,7 +170,10 @@ module.exports = async (req, res) => {
       }
     }
 
-    res.status(200).json({ ok: true, gio_vn: L.pad2(p.h) + ":" + L.pad2(p.mi), so_viec_mo: ds.length, da_lam: log });
+    res.status(200).json({
+      ok: true, gio_vn: L.pad2(p.h) + ":" + L.pad2(p.mi),
+      so_viec_mo: ds.length, sinh_dinh_ky: sinh, da_lam: log
+    });
   } catch (e) {
     res.status(500).json({ ok: false, error: String(e && e.message ? e.message : e), da_lam: log });
   }

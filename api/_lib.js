@@ -296,6 +296,35 @@ function docViec(text, roster, nowMs) {
   };
 }
 
+/* ============ Checklist định kỳ ============
+   Cột "lap_lai" nhận: hangngay · ngaylam (T2–T6) · t2,t4,t6 · hangtuan:t2
+                       ngay5 / hangthang:5 · cuoithang
+   Cột "gio_chot": 17:00 · 17h · 8h30 (trống → 18:00) */
+function hopNgay(lap, p) {
+  const s = bothDau(lap).replace(/\s+/g, "");
+  if (!s) return false;
+  if (s === "hangngay" || s === "moingay") return true;
+  if (s === "ngaylam" || s === "ngaylamviec") return p.dow >= 1 && p.dow <= 5;
+  if (s === "cuoithang") return p.d === new Date(Date.UTC(p.y, p.m, 0)).getUTCDate();
+  if (s === "dauthang") return p.d === 1;
+  const mt = s.match(/^(?:hangthang:?|ngay)(\d{1,2})$/);
+  if (mt) return p.d === +mt[1];
+  const ds = s.replace(/^hangtuan:?/, "").split(",").filter(x => /^(t[2-7]|cn)$/.test(x));
+  if (ds.length) return ds.some(d => THU[d] === p.dow);
+  return false;
+}
+function gioChot(s) {
+  const m = bothDau(s || "").match(/(\d{1,2})\s*(?:h|gio|:)\s*(\d{2})?/);
+  if (!m) return { h: 18, mi: 0 };
+  let h = +m[1]; if (h > 23) h = 23;
+  return { h, mi: m[2] ? +m[2] : 0 };
+}
+const BAT = v => /^(x|co|1|true|bat|yes)$/.test(bothDau(v || "").trim());
+async function docChecklist() {
+  const res = await gs("checklist");
+  return (res && res.ok && Array.isArray(res.list)) ? res.list : [];
+}
+
 /* ============ Việc: đọc / ghi ============ */
 const PHONG_PREFIX = { VH: "VH", HR: "HR", KT: "KT" };
 async function sinhMa(phong) {
@@ -370,6 +399,7 @@ module.exports = {
   fmtHan, fmtNgay, fmtGio, fmtConLai, bothDau,
   kv, kvGetJson, kvSetJson, kvLock, gs,
   layNhanSu, doNguoi, doHan, docViec,
+  hopNgay, gioChot, BAT, docChecklist,
   sinhMa, docTask, ghiTask, dsMo,
   tg, guiTin, suaTin, nhanRieng,
   theViec, nut, nutGiao, nutNhan, ICON

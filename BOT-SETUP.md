@@ -118,6 +118,44 @@ người giao có `✏️ Sửa hạn` `👤 Đổi người` `🗑 Huỷ`.
 
 ---
 
+## Checklist định kỳ
+
+Apps Script tự tạo tab `CHECKLIST` kèm 8 dòng mẫu, **tất cả đang tắt**. Bạn sửa lại rồi gõ `x`
+vào cột `bat` để bật từng dòng.
+
+| ma | noi_dung | pic | phong | lap_lai | gio_chot | bat |
+|---|---|---|---|---|---|---|
+| VH01 | Đối soát NCC Galaxylink | QuangLM | VH | `ngaylam` | 17:00 | x |
+| KT02 | Sao kê ngân hàng | NinhHT | KT | `hangngay` | 17:30 | x |
+| HR02 | Rà hợp đồng sắp hết hạn | HaDT | HR | `hangtuan:t2` | 10:00 | x |
+| KT03 | Chốt sổ tháng | NinhHT | KT | `cuoithang` | 17:00 | x |
+
+Giá trị cột `lap_lai`:
+
+| Gõ | Sinh việc vào |
+|---|---|
+| `hangngay` | mọi ngày, kể cả cuối tuần |
+| `ngaylam` | Thứ Hai → Thứ Sáu |
+| `t2,t4,t6` | đúng những thứ liệt kê |
+| `hangtuan:t2` | mỗi tuần một lần |
+| `ngay5` hoặc `hangthang:5` | ngày 5 hằng tháng |
+| `dauthang` · `cuoithang` | ngày đầu / ngày cuối tháng |
+
+**Mỗi sáng 07:30** bot sinh việc cho những dòng khớp ngày hôm đó: nhắn riêng cho `pic`,
+và gửi một tin gộp vào box của phòng. Từ lúc đó việc đi vào đúng thang nhắc như việc giao tay —
+quá giờ `gio_chot` chưa tick là lên bảng trễ.
+
+Mỗi dòng chỉ sinh **một lần mỗi ngày** (khoá trong KV), nên cron chạy trùng cũng không nhân đôi việc.
+
+Bỏ trống `pic` thì việc vẫn được tạo và đẩy vào box, nhưng gắn cờ `⚠️ chưa gán người` —
+bấm `👤 Đổi người` để giao.
+
+**Chạy thử ngay không cần đợi 07:30:**
+`https://<domain>/api/remind?key=<TASKBOT_SECRET>&sinh=1&dry=1` — chỉ liệt kê, không gửi.
+Bỏ `dry=1` là sinh thật.
+
+---
+
 ## Thang nhắc
 
 | Mốc | Bot làm gì | Ai nhận |
