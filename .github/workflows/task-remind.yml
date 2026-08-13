@@ -1,0 +1,33 @@
+# Bộ nhắc việc — gõ cửa /api/remind mỗi 30 phút trong giờ làm.
+# Giờ cron ghi theo UTC = giờ VN trừ 7 → 0-15 UTC = 07:00–22:59 giờ VN.
+# Mỗi mốc nhắc có khoá NX trong KV nên gõ cửa trùng hay trễ đều vô hại:
+# server tự xét lại toàn bộ việc đang mở ở mỗi lần gọi.
+# Ước tính ~32 lần/ngày ≈ 960 phút Actions/tháng.
+name: Nhac viec
+
+on:
+  schedule:
+    - cron: '0,30 0-15 * * *'
+  workflow_dispatch:
+    inputs:
+      dry:
+        description: 'dry=1 → chỉ liệt kê sẽ nhắc gì, KHÔNG gửi'
+        required: false
+        default: ''
+
+jobs:
+  nhac:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Goi bo nhac viec
+        run: |
+          if [ -z "${{ secrets.TASK_REMIND_URL }}" ]; then
+            echo "Chua khai bao secret TASK_REMIND_URL (Settings -> Secrets and variables -> Actions)"; exit 1
+          fi
+          URL="${{ secrets.TASK_REMIND_URL }}"
+          if [ "${{ inputs.dry }}" = "1" ]; then
+            case "$URL" in *\?*) URL="$URL&dry=1";; *) URL="$URL?dry=1";; esac
+          fi
+          code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" "$URL")
+          cat /tmp/resp.json; echo
+          [ "$code" = "200" ] && grep -q '"ok":true' /tmp/resp.json
