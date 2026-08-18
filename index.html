@@ -1181,7 +1181,7 @@ const PAGES={
    w15Init();w15Sync();
    document.getElementById('rmeta').innerHTML=`<span class="badge" style="background:#1e5fd0">Tuần ${w15Rng(W15,0,0).no}: ${w15Rng(W15,0,0).lab}</span> &nbsp; ${PAGES.PVH15.meta}`;
    host.innerHTML=spinner("Đang gom số liệu tuần: nhập chi tiết · giá vốn Robux · tồn kho · automation · năng suất…");
-   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),autoTCData(),khoCTData()]).then(([,,,,,Rt,AU,KC])=>{
+   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),khoCTData()]).then(([,,,,,Rt,KC])=>{
      if(curr!=='PVH15')return;
      const A=w15Rng(W15,0,0),B=w15Rng(W15,-1,0),C=w15Rng(W15,0,-1);
      const chg=(a,b)=>a?`<span class="${b>=a?'up':'down'}">${b>=a?'+':'−'}${pct(Math.abs(b-a)/a)}</span>`:'—';
@@ -1233,29 +1233,9 @@ const PAGES={
        h+=`<div class="kpis">${kpi("Tổng CO tồn",fmt(tot),"ảnh chụp hiện tại")}${kpi("Số hạng mục còn tồn",fmtn(its.length),"")}${kpi("Tồn lớn nhất",its[0]?its[0].label:'—',its[0]?fmt(its[0].ton)+' đ · '+pct(its[0].ton/(tot||1)):'')}${kpi("Top 3 chiếm",pct(its.slice(0,3).reduce((a,x)=>a+x.ton,0)/(tot||1)),"tổng tồn")}</div>
         <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tồn theo hạng mục (top 12)","w3")}<div class="card"><h3>Bảng tồn theo hạng mục</h3><div class="scroll" style="max-height:260px"><table class="tbl"><thead><tr><th>Hạng mục</th><th class="n">CO tồn</th><th class="n">%</th></tr></thead><tbody>${its.slice(0,20).map(x=>`<tr><td>${x.label}</td><td class="n">${fmtn(x.ton)}</td><td class="n">${pct(x.ton/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>`;
      } else h+=`<div class="note">Chưa đọc được file TỒN KHO HQGROUP — xem trang PVH6 để biết chi tiết lỗi.</div>`;
-     /* ---------- 4) PVH9 · Automation / thủ công ---------- */
-     const mi=+A.f.slice(5,7)-1, pm=mi>0?mi-1:null;
-     h+=box('4 · PVH9 — Automation / thủ công (đơn Bot)','⚠ Nguồn chỉ có số THEO THÁNG — so sánh ở cấp tháng chứa tuần đang chọn');
-     if(AU){
-       const man=AU.man.m,aut=AU.auto.m;
-       const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
-       const rows9=[{name:'Đơn tự động (Bot)',a:aut[mi],b:pm!=null?aut[pm]:0,c:pm!=null?aut[pm]:0},
-                    {name:'Đơn thủ công',a:man[mi],b:pm!=null?man[pm]:0,c:pm!=null?man[pm]:0}];
-       h+=`<div class="kpis">${kpi("% Automation T"+pad2(mi+1),pct(rt(mi)),"đơn Bot / tổng đơn")}${kpi("Tháng trước",pm!=null?pct(rt(pm)):'—',pm!=null?"T"+pad2(pm+1):'')}${kpi("Chênh lệch",pm!=null?((rt(mi)>=rt(pm)?'+':'−')+Math.abs((rt(mi)-rt(pm))*100).toFixed(1).replace('.',',')+' điểm'):'—',"so tháng trước")}${kpi("Đơn tự động T"+pad2(mi+1),fmtn(aut[mi]),"thủ công "+fmtn(man[mi]))}</div>
-        <div class="grid2" style="grid-template-columns:1fr">${cc("Thủ công vs Tự động theo THÁNG (cả năm) + đường % tự động — cột đậm là T"+pad2(mi+1),"w4")}</div>
-        <div class="grid2">${cc("Cơ cấu ĐƠN THỦ CÔNG theo nguồn — T"+pad2(mi+1),"w6")}${cc("Cơ cấu ĐƠN TỰ ĐỘNG theo nguồn — T"+pad2(mi+1),"w7")}</div>
-        <div class="card"><h3>Chi tiết nguồn trong tháng ${pad2(mi+1)}</h3><div class="scroll"><table class="tbl"><thead><tr><th>Nguồn</th><th class="n">Thủ công</th><th class="n">% trong thủ công</th><th class="n">Tự động</th><th class="n">% trong tự động</th><th class="n">Tổng</th><th class="n">% tự động hoá</th></tr></thead><tbody>
-        ${(function(){const km={};(AU.man.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:0,a:0};km[k.name].m+=k.m[mi]||0;});
-          (AU.auto.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:0,a:0};km[k.name].a+=k.m[mi]||0;});
-          const L=Object.keys(km).filter(n=>km[n].m||km[n].a).sort((x,y)=>(km[y].m+km[y].a)-(km[x].m+km[x].a));
-          const sm=AU.man.m[mi]||0,sa=AU.auto.m[mi]||0;
-          return L.map(n=>{const v=km[n];const t=v.m+v.a;
-            return `<tr><td>${n}</td><td class="n">${fmtn(v.m)}</td><td class="n">${sm?pct(v.m/sm):'—'}</td><td class="n">${fmtn(v.a)}</td><td class="n">${sa?pct(v.a/sa):'—'}</td><td class="n"><b>${fmtn(t)}</b></td><td class="n">${t?pct(v.a/t):'—'}</td></tr>`;}).join('')
-          +`<tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(sm)}</td><td class="n">100%</td><td class="n">${fmtn(sa)}</td><td class="n">100%</td><td class="n">${fmtn(sm+sa)}</td><td class="n">${(sm+sa)?pct(sa/(sm+sa)):'—'}</td></tr>`;})()}
-        </tbody></table></div><div class="small" style="margin-top:6px">Nguồn nào có ở cả hai khối (vd Razergold, Topup, OG, Galaxylink) thì cột cuối cho biết đã tự động hoá được bao nhiêu phần trăm đơn của nguồn đó.</div></div>`;
-     } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
+     /* ---------- 4) PVH9 · Automation / thủ công — TẠM BỎ theo yêu cầu (giữ code ở nhánh git để bật lại) ---------- */
      /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
-     h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
+     h+=box('4 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
      const P=Rt?parseSlaTongTC(Rt):null;
      let slaRows3=[];
      if(P){
@@ -1282,20 +1262,6 @@ const PAGES={
         scales:{x:noX,y:{...yG,ticks:{callback:v=>Math.round(v).toLocaleString('vi-VN')}}}}});}
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
-     if(AU){const man=AU.man.m,aut=AU.auto.m;
-       const ms=[];for(let i=0;i<12;i++)if(man[i]||aut[i])ms.push(i);
-       const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
-       const dim=(c,i)=>i===mi?c:c+'66'; /* tháng chứa tuần đang chọn để màu đậm, còn lại nhạt */
-       mk("w4",{type:'bar',data:{labels:ms.map(i=>'T'+pad2(i+1)),datasets:[
-         {label:'Thủ công',data:ms.map(i=>man[i]),backgroundColor:ms.map(i=>dim(RED,i)),stack:'s',order:2},
-         {label:'Tự động',data:ms.map(i=>aut[i]),backgroundColor:ms.map(i=>dim(GREEN,i)),stack:'s',order:2},
-         {label:'% tự động',data:ms.map(i=>+(rt(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#1e5fd0',backgroundColor:'#1e5fd0',tension:.3,order:1}]},
-        options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
-         scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
-       const pie=(id,kids)=>{const L=(kids||[]).map(k=>({n:k.name,v:k.m[mi]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
-         if(!L.length){const el=document.getElementById(id);if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có số ở khối này.</div>';return;}
-         mk(id,donut(L.map(x=>x.n),L.map(x=>x.v),BLUE));};
-       pie("w6",AU.man.kids);pie("w7",AU.auto.kids);}
      grp("w2c",['Dồn (thu hồi)','Die (mất thật)'],[{a:D3[0].dn,b:D3[1].dn,c:D3[2].dn},{a:D3[0].de,b:D3[1].de,c:D3[2].de}]);
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
