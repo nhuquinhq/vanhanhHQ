@@ -271,11 +271,20 @@ function parseNS(rows) {
     for (let c = dCol + 1; c < W; c++) if (isLab(nrm(row[c]))) n++;
     if (n >= 2) { GR = r; break; }
   }
-  /* ô gộp: kéo tên nhóm sang phải — CHỈ nhận ô có chữ, ô số (tổng của nhóm) không được coi là tên nhóm */
-  const groups = [], emps = []; let cur = "";
+  /* Hàng nhóm xếp kiểu: [ô TỔNG của nhóm][TÊN NHÓM][... các cột nhân viên].
+     Vậy khối của một nhóm BẮT ĐẦU ở cột đứng ngay TRƯỚC ô tên (nếu ô đó là số tổng),
+     kéo dài tới trước khối kế tiếp — nếu lấy đúng từ ô tên thì nhóm bị lệch một cột. */
+  const labs = [];
   for (let c = 0; c < W; c++) {
-    const g = GR >= 0 ? nrm((rows[GR] || [])[c]) : ""; if (isLab(g) && !isTot(g)) cur = g;
-    groups[c] = cur; emps[c] = nrm((rows[HR] || [])[c]);
+    const g = GR >= 0 ? nrm((rows[GR] || [])[c]) : "";
+    if (!isLab(g) || isTot(g)) continue;
+    const prev = c > 0 ? nrm((rows[GR] || [])[c - 1]) : "";
+    labs.push({ from: (prev && !isLab(prev)) ? c - 1 : c, g });
+  }
+  const groups = [], emps = []; let gi = -1;
+  for (let c = 0; c < W; c++) {
+    while (gi + 1 < labs.length && labs[gi + 1].from <= c) gi++;
+    groups[c] = gi >= 0 ? labs[gi].g : ""; emps[c] = nrm((rows[HR] || [])[c]);
   }
   const cols = [];
   for (let c = dCol + 1; c < W; c++) if (emps[c] && /[a-zA-ZÀ-ỹ]/.test(emps[c]) && !/^\d/.test(emps[c]) && !isTot(emps[c]) && !isTot(groups[c]))
