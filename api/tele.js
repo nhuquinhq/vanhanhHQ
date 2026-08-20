@@ -335,8 +335,8 @@ async function buildNS(q) {
   const days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
   lines.push("🗓 Ngày " + key.slice(3) + "/" + mm + "/2026");
   const dG = P.byDayGrp[key] || {};
+  /* cơ cấu theo loại đơn KHÔNG nhắc lại ở đây — đã có ở báo cáo PVH10 bắn ngay phía trên */
   lines.push("", "🧮 <b>Đơn xử lý trong ngày: " + fmt(P.byDay[key] || 0) + "</b>");
-  P.grpOrder.filter(g => dG[g]).sort((a, b) => dG[b] - dG[a]).forEach(g => lines.push(" • " + g + ": " + fmt(dG[g])));
   /* ai làm gì trong ngày — trả lời thẳng "Thuỳ mua bao nhiêu giftcard, bao nhiêu robux…" */
   const dEmp = P.byDayEmpGrp[key] || {};
   const sumOf = o => Object.keys(o).reduce((t, g) => t + o[g], 0);
@@ -350,15 +350,10 @@ async function buildNS(q) {
     });
     if (dList.length > 12) lines.push(" … và " + (dList.length - 12) + " nhân sự khác (xem biểu đồ)");
   }
-  const cum = {}, emp = {};
-  days.forEach(k => {
-    Object.keys(P.byDayGrp[k] || {}).forEach(g => cum[g] = (cum[g] || 0) + P.byDayGrp[k][g]);
-    Object.keys(P.byEmp[k] || {}).forEach(e => emp[e] = (emp[e] || 0) + P.byEmp[k][e]);
-  });
+  const emp = {};
+  days.forEach(k => Object.keys(P.byEmp[k] || {}).forEach(e => emp[e] = (emp[e] || 0) + P.byEmp[k][e]));
   const cTot = days.reduce((a, k) => a + P.byDay[k], 0);
   lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b> · " + P.nEmp + " nhân sự · BQ " + fmt(cTot / (days.length || 1)) + " đơn/ngày");
-  const gTop = Object.keys(cum).sort((a, b) => cum[b] - cum[a]);
-  gTop.forEach(g => lines.push(" • " + g + ": " + fmt(cum[g]) + (cTot ? " (" + pct(cum[g] / cTot) + ")" : "")));
   const top = Object.keys(emp).sort((a, b) => emp[b] - emp[a]);
   lines.push("", "🏅 <b>Top nhân sự tháng " + (+mm) + "</b>");
   top.slice(0, 5).forEach((e, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + e + ": " + fmt(emp[e]) + (cTot ? " (" + pct(emp[e] / cTot) + ")" : "")));
@@ -388,18 +383,7 @@ async function buildNS(q) {
       }
     }
   });
-  if (days.length) charts.push({
-    type: "bar",
-    data: {
-      labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
-      datasets: gTop.map((g, i) => ({ label: g, data: days.map(k => (P.byDayGrp[k] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
-    },
-    options: {
-      title: { display: true, text: "Đơn xử lý theo ngày × loại — tháng " + (+mm) + "/2026 · tổng " + fmt(cTot), fontSize: 16 },
-      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
-      scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
-    }
-  });
+  /* không vẽ lại biểu đồ đơn theo ngày × loại: PVH10 đã có */
   const tv = top.slice(0, 18);
   if (tv.length) charts.push({
     type: "horizontalBar",
