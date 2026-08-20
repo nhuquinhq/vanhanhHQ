@@ -318,7 +318,8 @@ function parseNS(rows) {
     });
     byDayEmpGrp[dk] = n;
   });
-  return { byDayGrp, byEmp, byDay, byDayEmpGrp, grpOrder, nEmp: Object.keys(disp).length };
+  return { byDayGrp, byEmp, byDay, byDayEmpGrp, grpOrder, nEmp: Object.keys(disp).length,
+           dbg: { dCol, HR, GR, first, cols: cols.map(x => ({ c: x.c, emp: x.emp, grp: x.grp })) } };
 }
 
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
@@ -477,7 +478,12 @@ module.exports = async (req, res) => {
         if (!html && rows.length > 3) {
           const P = parseNS(rows);
           rp.push("   doc_duoc: " + (P ? Object.keys(P.byDay).length + " ngay, " + P.nEmp + " nhan su, nhom: " + P.grpOrder.join(" | ") : "KHONG (bo doc khong nhan ra khuon)"));
-          rp.push("   6 dong dau:\n" + rows.slice(0, 6).map((x, i) => "    " + i + ": " + x.slice(0, 14).join(" | ")).join("\n"));
+          if (P && P.dbg) {
+            rp.push("   dCol=" + P.dbg.dCol + " HR(ten nv)=" + P.dbg.HR + " GR(nhom)=" + P.dbg.GR + " dong du lieu dau=" + P.dbg.first);
+            for (let r = Math.max(0, P.dbg.GR - 3); r <= P.dbg.HR + 1; r++)
+              rp.push("   [dong " + r + "] " + (rows[r] || []).map((v, i) => i + ":" + nrm(v)).filter(x => x.split(":")[1]).slice(0, 40).join("  "));
+            rp.push("   cot nhan vien -> nhom: " + P.dbg.cols.map(x => x.c + ":" + x.emp + "=" + x.grp).join("  "));
+          }
         }
       } catch (e) { rp.push("[" + f + "] loi: " + (e && e.message ? e.message : e)); }
     }
