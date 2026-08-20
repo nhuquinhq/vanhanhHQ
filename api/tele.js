@@ -263,16 +263,18 @@ function parseNS(rows) {
     if (n > best) { best = n; HR = r; }
   }
   if (HR < 0 || best < 3) return null;
-  /* hàng nhóm: hàng gần nhất phía trên có từ 2 nhãn trở lên */
+  /* hàng nhóm: hàng gần nhất phía trên có từ 2 NHÃN CHỮ trở lên (hàng tổng toàn số thì bỏ qua) */
+  const isLab = v => !!v && /[a-zA-ZÀ-ỹ]/.test(v) && !/^\d/.test(v);
   let GR = -1;
   for (let r = HR - 1; r >= Math.max(0, HR - 4); r--) {
     const row = rows[r] || []; let n = 0;
-    for (let c = dCol + 1; c < W; c++) if (nrm(row[c])) n++;
+    for (let c = dCol + 1; c < W; c++) if (isLab(nrm(row[c]))) n++;
     if (n >= 2) { GR = r; break; }
   }
+  /* ô gộp: kéo tên nhóm sang phải — CHỈ nhận ô có chữ, ô số (tổng của nhóm) không được coi là tên nhóm */
   const groups = [], emps = []; let cur = "";
   for (let c = 0; c < W; c++) {
-    const g = GR >= 0 ? nrm((rows[GR] || [])[c]) : ""; if (g) cur = g;
+    const g = GR >= 0 ? nrm((rows[GR] || [])[c]) : ""; if (isLab(g) && !isTot(g)) cur = g;
     groups[c] = cur; emps[c] = nrm((rows[HR] || [])[c]);
   }
   const cols = [];
