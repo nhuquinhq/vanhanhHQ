@@ -6,6 +6,15 @@
 //  - dry=1: chỉ trả về nội dung để xem thử, KHÔNG gửi
 //  - Env cần có: TELEGRAM_BOT_TOKEN · TELEGRAM_CHAT_ID · (tuỳ chọn) TELEGRAM_THREAD_ID, TELE_SECRET
 const FILE_SLA = "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W";
+/* các file publish khác — chỉ dùng cho lệnh soi ?diag để tìm xem tab nằm ở file nào */
+const FILES_ALL = {
+  sla: FILE_SLA,
+  def: "2PACX-1vSe-ef8TakONHHOrCz3zef2l8rbluKBwRFmOOIJKDXjU62zI91CM-9sPobr0kxyDUkNBmg3UA8Zssgn",
+  def_old: "2PACX-1vSve6XRHg5gWRzqkazHm5zvlrkTkAMLa7TJms_U-ebAFcrDAmcvCYfNJ50hrvV988tXyKC7q70LQgPc",
+  gc13: "2PACX-1vSlOzVTuSNAfW-lVKF7xjLAPwVtnebtOFxCDiJKaseD8xQ9NfRpAWRQG-ivkUSMM83Tf1Ea2xnnRX_4",
+  ton: "2PACX-1vQToyJFyIIxiDtucrAhxnTVZmjNWF2InPci5r-C75DfkHR6aQbUrmZNBcwDDadNrET82VwxtdjDhITE",
+  kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5"
+};
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 
 /* Danh sách box nhận báo cáo.
@@ -387,6 +396,29 @@ module.exports = async (req, res) => {
   const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
   if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
+  /* ?diag=<gid> — soi xem tab đó nằm ở file publish nào, đọc ra gì (chẩn đoán khi báo cáo bị bỏ qua) */
+  if (q.diag) {
+    const gid = String(q.diag).replace(/\D/g, "") || GIDS.ns;
+    const rp = [];
+    for (const f of Object.keys(FILES_ALL)) {
+      const u = "https://docs.google.com/spreadsheets/d/e/" + FILES_ALL[f] + "/pub?gid=" + gid + "&single=true&output=csv";
+      try {
+        const rr = await fetch(u, { redirect: "follow" });
+        const t = await rr.text();
+        const html = t.trimStart().slice(0, 200).toLowerCase().startsWith("<");
+        const rows = html ? [] : csvParse(t);
+        rp.push("[" + f + "] http=" + rr.status + " dai=" + t.length + (html ? " KIEU=HTML(tab chua duoc publish)" : " so_dong=" + rows.length) +
+                "\n   " + t.replace(/\s+/g, " ").slice(0, 160));
+        if (!html && rows.length > 3) {
+          const P = parseNS(rows);
+          rp.push("   doc_duoc: " + (P ? Object.keys(P.byDay).length + " ngay, " + P.nEmp + " nhan su, nhom: " + P.grpOrder.join(" | ") : "KHONG (bo doc khong nhan ra khuon)"));
+          rp.push("   6 dong dau:\n" + rows.slice(0, 6).map((x, i) => "    " + i + ": " + x.slice(0, 14).join(" | ")).join("\n"));
+        }
+      } catch (e) { rp.push("[" + f + "] loi: " + (e && e.message ? e.message : e)); }
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
+    res.status(200).send("SOI TAB gid=" + gid + "\n\n" + rp.join("\n")); return;
+  }
   /* r có thể liệt kê nhiều báo cáo: ?r=pvh10,nv — mặc định lấy env TELE_REPORTS */
   const rs = ("" + (q.r || process.env.TELE_REPORTS || "pvh10,nv")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);

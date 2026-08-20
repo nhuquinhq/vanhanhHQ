@@ -20,6 +20,10 @@ on:
         description: 'Bao cao can ban: pvh10 (don thu cong) · nv (nang suat nhan vien) · pvh10,nv = ca hai'
         required: false
         default: 'pvh10,nv'
+      them:
+        description: 'Tham so phu de chan doan, vd: diag=423402286 (soi tab) · dry=1 (xem thu, khong gui)'
+        required: false
+        default: ''
 
 jobs:
   fire:
@@ -38,6 +42,9 @@ jobs:
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.gac }}" = "auto" ]; then
             URL="$URL&slot=auto"
           fi
+          [ -n "${{ inputs.them }}" ] && URL="$URL&${{ inputs.them }}"
           code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" "$URL")
           cat /tmp/resp.json; echo
-          [ "$code" = "200" ] && grep -q '"ok":true' /tmp/resp.json
+          if [ -n "${{ inputs.them }}" ]; then [ "$code" = "200" ]; else
+            [ "$code" = "200" ] && grep -q '"ok":true' /tmp/resp.json
+          fi
