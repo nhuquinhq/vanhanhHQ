@@ -6,17 +6,18 @@
 //  - dry=1: chỉ trả về nội dung để xem thử, KHÔNG gửi
 //  - Env cần có: TELEGRAM_BOT_TOKEN · TELEGRAM_CHAT_ID · (tuỳ chọn) TELEGRAM_THREAD_ID, TELE_SECRET
 const FILE_SLA = "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W";
-const GIDS = { tc: "1496740945", gp_ngay: "511745866" };
+const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 
 /* Danh sách box nhận báo cáo.
    - TELEGRAM_CHAT_ID (+ TELEGRAM_THREAD_ID)  : box 1
    - TELEGRAM_CHAT_ID_2 (+ TELEGRAM_THREAD_ID_2), _3, _4 …: các box thêm
    - TELEGRAM_TARGETS: khai báo gọn nhiều box một dòng "chatid:topicid,chatid,…" (ưu tiên nếu có) */
+const parseBoxes = T => T.split(/[,;\s]+/).filter(Boolean).map(x => {
+  const p = x.split(":"); return { chat: p[0], thread: p[1] ? +p[1] : null };
+});
 function targets() {
   const T = (process.env.TELEGRAM_TARGETS || "").trim();
-  if (T) return T.split(/[,;\s]+/).filter(Boolean).map(x => {
-    const p = x.split(":"); return { chat: p[0], thread: p[1] ? +p[1] : null };
-  });
+  if (T) return parseBoxes(T);
   const out = [];
   const add = (c, t) => { if (c && !out.some(o => o.chat === c)) out.push({ chat: c, thread: t ? +t : null }); };
   add(process.env.TELEGRAM_CHAT_ID, process.env.TELEGRAM_THREAD_ID);
@@ -179,12 +180,13 @@ async function buildPVH10(q) {
     const avail = P.dateCols.map(c => c.dk).filter(k => P.types.some(t => t.daily[k] != null));
     if (avail.length && avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
     lines.push("🗓 Ngày " + key.slice(3) + "/" + key.slice(0, 2) + "/2026");
-    const day = P.types.map(t => ({ name: t.name, v: t.daily[key] || 0 }));
+    /* xếp theo số đơn NHIỀU → ÍT cho dễ đọc */
+    const day = P.types.map(t => ({ name: t.name, v: t.daily[key] || 0 })).sort((a, b) => b.v - a.v);
     const dTot = day.reduce((a, x) => a + x.v, 0);
     lines.push("", "🧮 <b>Đơn thủ công trong ngày: " + fmt(dTot) + "</b>");
     day.forEach(x => lines.push(" • " + x.name + ": " + fmt(x.v)));
     const mm = key.slice(0, 2);
-    const cum = P.types.map(t => ({ name: t.name, v: Object.keys(t.daily).filter(k => k.slice(0, 2) === mm && k <= key).reduce((a, k) => a + t.daily[k], 0) }));
+    const cum = P.types.map(t => ({ name: t.name, v: Object.keys(t.daily).filter(k => k.slice(0, 2) === mm && k <= key).reduce((a, k) => a + t.daily[k], 0) })).sort((a, b) => b.v - a.v);
     const cTot = cum.reduce((a, x) => a + x.v, 0);
     const nDays = P.dateCols.filter(c => c.dk.slice(0, 2) === mm && c.dk <= key && P.types.some(t => t.daily[c.dk] != null)).length;
     lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b>" + (P.kpi ? " · KPI " + P.kpi : ""));
@@ -192,7 +194,8 @@ async function buildPVH10(q) {
     if (nDays) lines.push(" • Bình quân: " + fmt(cTot / nDays) + " đơn/ngày");
     /* biểu đồ cột chồng: các ngày trong tháng tới ngày báo cáo */
     const days = P.dateCols.map(c => c.dk).filter((k, i, a) => k.slice(0, 2) === mm && k <= key && a.indexOf(k) === i).sort();
-    const used = P.types.filter(t => days.some(k => (t.daily[k] || 0) > 0));
+    const rank = {}; cum.forEach(x => rank[x.name] = x.v);
+    const used = P.types.filter(t => days.some(k => (t.daily[k] || 0) > 0)).sort((a, b) => (rank[b.name] || 0) - (rank[a.name] || 0));
     if (days.length && used.length) chartCfg = {
       type: "bar",
       data: {
@@ -221,7 +224,130 @@ async function buildPVH10(q) {
   return { text: lines.join("\n"), chart: chartCfg };
 }
 
-const REPORTS = { pvh10: buildPVH10 };
+
+/* ---- tab "Năng suất Nhân viên": hàng = NGÀY, cột = (loại xử lý × nhân viên) ----
+   Khuôn: hàng nhóm (MUA GIFTCARD · MUA ROBUX · XLĐ ROBUX · XLĐ GAMOTA · XLĐ POKEMON…) nằm ngay
+   trên hàng tên nhân viên; ô gộp để trống nên điền xuôi sang phải. */
+function parseNS(rows) {
+  const W = Math.max.apply(null, rows.slice(0, 80).map(r => (r || []).length).concat([0]));
+  const isD = v => /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(nrm(v));
+  const isTot = v => /^(t[ổo]ng|total|sum|c[ộo]ng|t[ổo]ng\s*c[ộo]ng)/i.test(nrm(v)); /* bỏ cột/hàng TỔNG kẻo đếm 2 lần */
+  let dCol = -1, dHits = 0;
+  for (let c = 0; c < Math.min(W, 8); c++) {
+    let h = 0; for (let r = 0; r < rows.length; r++) if (isD((rows[r] || [])[c])) h++;
+    if (h > dHits) { dHits = h; dCol = c; }
+  }
+  if (dCol < 0 || dHits < 5) return null;
+  const first = rows.findIndex(r => isD((r || [])[dCol]));
+  /* hàng tên nhân viên = hàng nhiều ô CHỮ nhất trong 8 hàng ngay trên vùng dữ liệu */
+  let HR = -1, best = 0;
+  for (let r = Math.max(0, first - 8); r < first; r++) {
+    const row = rows[r] || []; let n = 0;
+    for (let c = dCol + 1; c < W; c++) { const v = nrm(row[c]); if (v && /[a-zA-ZÀ-ỹ]/.test(v) && !/^\d/.test(v)) n++; }
+    if (n > best) { best = n; HR = r; }
+  }
+  if (HR < 0 || best < 3) return null;
+  /* hàng nhóm: hàng gần nhất phía trên có từ 2 nhãn trở lên */
+  let GR = -1;
+  for (let r = HR - 1; r >= Math.max(0, HR - 4); r--) {
+    const row = rows[r] || []; let n = 0;
+    for (let c = dCol + 1; c < W; c++) if (nrm(row[c])) n++;
+    if (n >= 2) { GR = r; break; }
+  }
+  const groups = [], emps = []; let cur = "";
+  for (let c = 0; c < W; c++) {
+    const g = GR >= 0 ? nrm((rows[GR] || [])[c]) : ""; if (g) cur = g;
+    groups[c] = cur; emps[c] = nrm((rows[HR] || [])[c]);
+  }
+  const cols = [];
+  for (let c = dCol + 1; c < W; c++) if (emps[c] && /[a-zA-ZÀ-ỹ]/.test(emps[c]) && !/^\d/.test(emps[c]) && !isTot(emps[c]) && !isTot(groups[c]))
+    cols.push({ c, emp: emps[c], grp: groups[c] || "Khác" });
+  if (!cols.length) return null;
+  const byDayGrp = {}, byEmp = {}, byDay = {}, grpOrder = [];
+  for (let r = first; r < rows.length; r++) {
+    const row = rows[r] || []; const d = nrm(row[dCol]); if (!isD(d)) continue;
+    const p = d.split("/"); const dk = p[1].padStart(2, "0") + "-" + p[0].padStart(2, "0");
+    cols.forEach(x => {
+      const v = vnum(row[x.c]); if (!(v > 0)) return;
+      (byDayGrp[dk] = byDayGrp[dk] || {})[x.grp] = (byDayGrp[dk][x.grp] || 0) + v;
+      (byEmp[dk] = byEmp[dk] || {})[x.emp] = (byEmp[dk][x.emp] || 0) + v;
+      byDay[dk] = (byDay[dk] || 0) + v;
+      if (grpOrder.indexOf(x.grp) < 0) grpOrder.push(x.grp);
+    });
+  }
+  return Object.keys(byDay).length ? { byDayGrp, byEmp, byDay, grpOrder, nEmp: new Set(cols.map(x => x.emp)).size } : null;
+}
+
+/* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
+async function buildNS(q) {
+  const rows = await readTab(GIDS.ns);
+  const now = new Date(Date.now() + 7 * 3600 * 1000);
+  let dd = now.getUTCDate(), mo = now.getUTCMonth() + 1;
+  const md = q.d && ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})$/); if (md) { dd = +md[1]; mo = +md[2]; }
+  let key = String(mo).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+  const lines = ["👥 <b>Năng suất nhân viên — Phòng vận hành</b>"];
+  const P = rows ? parseNS(rows) : null;
+  /* không đọc được thì IM LẶNG (trả lý do trong log) — tránh bắn tin lỗi vào box */
+  if (!P) return { skip: 'khong_doc_duoc_tab_nang_suat_nhan_vien_kiem_tra_publish_to_web' };
+  const avail = Object.keys(P.byDay).filter(k => P.byDay[k] > 0).sort();
+  if (avail.length && avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+  const mm = key.slice(0, 2);
+  const days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
+  lines.push("🗓 Ngày " + key.slice(3) + "/" + mm + "/2026");
+  const dG = P.byDayGrp[key] || {};
+  lines.push("", "🧮 <b>Đơn xử lý trong ngày: " + fmt(P.byDay[key] || 0) + "</b>");
+  P.grpOrder.filter(g => dG[g]).sort((a, b) => dG[b] - dG[a]).forEach(g => lines.push(" • " + g + ": " + fmt(dG[g])));
+  const cum = {}, emp = {};
+  days.forEach(k => {
+    Object.keys(P.byDayGrp[k] || {}).forEach(g => cum[g] = (cum[g] || 0) + P.byDayGrp[k][g]);
+    Object.keys(P.byEmp[k] || {}).forEach(e => emp[e] = (emp[e] || 0) + P.byEmp[k][e]);
+  });
+  const cTot = days.reduce((a, k) => a + P.byDay[k], 0);
+  lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b> · " + P.nEmp + " nhân sự · BQ " + fmt(cTot / (days.length || 1)) + " đơn/ngày");
+  const gTop = Object.keys(cum).sort((a, b) => cum[b] - cum[a]);
+  gTop.forEach(g => lines.push(" • " + g + ": " + fmt(cum[g]) + (cTot ? " (" + pct(cum[g] / cTot) + ")" : "")));
+  const top = Object.keys(emp).sort((a, b) => emp[b] - emp[a]);
+  lines.push("", "🏅 <b>Top nhân sự tháng " + (+mm) + "</b>");
+  top.slice(0, 5).forEach((e, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + e + ": " + fmt(emp[e]) + (cTot ? " (" + pct(emp[e] / cTot) + ")" : "")));
+  const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
+  if (dom) lines.push("", "🔗 Chi tiết: " + dom);
+  const charts = [];
+  if (days.length) charts.push({
+    type: "bar",
+    data: {
+      labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
+      datasets: gTop.map((g, i) => ({ label: g, data: days.map(k => (P.byDayGrp[k] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+    },
+    options: {
+      title: { display: true, text: "Đơn xử lý theo ngày × loại — tháng " + (+mm) + "/2026 · tổng " + fmt(cTot), fontSize: 16 },
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
+    }
+  });
+  const tv = top.slice(0, 18);
+  if (tv.length) charts.push({
+    type: "horizontalBar",
+    data: { labels: tv, datasets: [{ label: "Đơn tháng " + (+mm), data: tv.map(e => emp[e]), backgroundColor: "#1e5fd0" }] },
+    options: {
+      title: { display: true, text: "Tổng đơn xử lý tháng " + (+mm) + "/2026 — so sánh giữa nhân viên", fontSize: 16 },
+      legend: { display: false },
+      scales: { xAxes: [{ ticks: { beginAtZero: true } }], yAxes: [{ ticks: { fontSize: 11 } }] }
+    }
+  });
+  return { text: lines.join("\n"), charts };
+}
+
+const REPORTS = { pvh10: buildPVH10, nv: buildNS };
+/* Báo cáo nào gửi vào box nào:
+   - mặc định: gửi mọi box đã khai (PVH10 đang gửi cả box PVH lẫn box PCU)
+   - báo cáo nội bộ (năng suất nhân viên) chỉ gửi BOX 1 cho tới khi khai rõ TELE_BOXES_NV="chatid:topicid,…" */
+const R_BOX1 = { nv: 1 };
+function boxesFor(r) {
+  const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
+  if (E) return parseBoxes(E);
+  const all = targets();
+  return R_BOX1[r] ? all.slice(0, R_BOX1[r]) : all;
+}
 
 module.exports = async (req, res) => {
   const q = req.query || {};
@@ -261,10 +387,12 @@ module.exports = async (req, res) => {
   const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
   if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
-  const r = ("" + (q.r || "pvh10")).toLowerCase();
-  if (!REPORTS[r]) { res.status(400).json({ error: "unknown_report", reports: Object.keys(REPORTS) }); return; }
+  /* r có thể liệt kê nhiều báo cáo: ?r=pvh10,nv — mặc định lấy env TELE_REPORTS */
+  const rs = ("" + (q.r || process.env.TELE_REPORTS || "pvh10,nv")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
+  const unknown = rs.filter(x => !REPORTS[x]);
+  if (!rs.length || unknown.length) { res.status(400).json({ error: "unknown_report", unknown, reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
-  let markKey = null;
+  let slotN = null, slotBase = null;
   if (q.slot === "auto") {
     const SLOTS = { 12: 180, 18: 240, 23: 180 }; /* khung 18h nới 4 tiếng — GitHub hay nhả job trễ quanh 21h */
     const pad = x => String(x).padStart(2, "0");
@@ -275,46 +403,66 @@ module.exports = async (req, res) => {
     if (slot == null && mins < 120) { slot = 23; base = new Date(vn.getTime() - 86400000); } /* 23h kéo sang 0h–2h hôm sau */
     const gioVN = pad(vn.getUTCHours()) + ":" + pad(vn.getUTCMinutes());
     if (slot == null) { res.status(200).json({ ok: true, skip: "ngoai_khung_gio", gio_vn: gioVN }); return; }
-    markKey = "pvh:tele:" + base.getUTCFullYear() + "-" + pad(base.getUTCMonth() + 1) + "-" + pad(base.getUTCDate()) + ":" + slot + "h:" + r;
-    if (KV_URL && KV_TOKEN) {
-      const got = await kv(["SET", markKey, "1", "NX", "EX", 172800]); /* NX: chỉ lần gõ cửa đầu tiên của khung được gửi */
-      if (got !== "OK") { res.status(200).json({ ok: true, skip: "khung_" + slot + "h_da_gui", gio_vn: gioVN }); return; }
-    } else if (mins >= slot * 60 + 60 && !(slot === 23 && mins < 120)) {
+    if (!KV_URL || !KV_TOKEN) {
       /* không có KV thì không chống trùng được — chỉ nhận lần gõ trong giờ đầu của khung */
-      res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return;
+      if (mins >= slot * 60 + 60 && !(slot === 23 && mins < 120)) { res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return; }
     }
+    slotN = slot; slotBase = base;
   }
-  const out = await REPORTS[r](q);
-  const text = typeof out === "string" ? out : out.text;
-  const chart = (typeof out === "object" && out.chart) || null;
-  if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(text + (chart ? "\n\n[có kèm biểu đồ " + chart.data.labels.length + " ngày × " + chart.data.datasets.length + " loại đơn]" : "")); return; }
-  const token = process.env.TELEGRAM_BOT_TOKEN, boxes = targets();
-  if (!token || !boxes.length) { res.status(200).json({ error: "telegram_not_configured", need: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] }); return; }
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!q.dry && (!token || !targets().length)) { res.status(200).json({ error: "telegram_not_configured", need: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] }); return; }
   const api = (m, b, thread) => fetch("https://api.telegram.org/bot" + token + "/" + m, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(thread ? Object.assign({ message_thread_id: thread }, b) : b)
   }).then(x => x.json());
-  try {
-    const img = (chart && q.noimg !== "1") ? await chartURL(chart) : null; /* render 1 lần, dùng chung mọi box */
-    const sent = [];
-    for (const b of boxes) {
-      let j = null, photo = false;
-      if (img) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
-        if (text.length <= 1000) j = await api("sendPhoto", { chat_id: b.chat, photo: img, caption: text, parse_mode: "HTML" }, b.thread);
-        else {
-          j = await api("sendPhoto", { chat_id: b.chat, photo: img, caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" }, b.thread);
-          if (j && j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
-        }
-        photo = !!(j && j.ok);
-      }
-      if (!j || !j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
-      sent.push({ chat: b.chat, ok: !!(j && j.ok), photo, error: j && j.ok ? undefined : (j && j.description) });
+  const pad2 = x => String(x).padStart(2, "0");
+  const done = [], preview = [];
+  for (const r of rs) {
+    /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
+    let markKey = null;
+    if (slotN != null && KV_URL && KV_TOKEN) {
+      markKey = "pvh:tele:" + slotBase.getUTCFullYear() + "-" + pad2(slotBase.getUTCMonth() + 1) + "-" + pad2(slotBase.getUTCDate()) + ":" + slotN + "h:" + r;
+      const got = await kv(["SET", markKey, "1", "NX", "EX", 172800]); /* NX: chỉ lần gõ cửa đầu tiên của khung được gửi */
+      if (got !== "OK") { done.push({ report: r, skip: "khung_" + slotN + "h_da_gui" }); continue; }
     }
-    const anyOk = sent.some(x => x.ok);
-    if (!anyOk && markKey) await kv(["DEL", markKey]); /* không box nào nhận được thì nhả khung để lần gõ cửa sau thử lại */
-    res.status(200).json(anyOk ? { ok: true, report: r, boxes: sent } : { ok: false, boxes: sent });
-  } catch (e) {
-    if (markKey) await kv(["DEL", markKey]);
-    res.status(502).json({ ok: false, error: "" + (e && e.message ? e.message : e) });
+    let out;
+    try { out = await REPORTS[r](q); }
+    catch (e) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, ok: false, error: "" + (e && e.message ? e.message : e) }); continue; }
+    if (out && out.skip) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, skip: out.skip }); if (q.dry) preview.push("=== " + r + " === (bỏ qua: " + out.skip + ")"); continue; }
+    const text = typeof out === "string" ? out : out.text;
+    const cfgs = (typeof out === "object" && (out.charts || (out.chart ? [out.chart] : []))) || [];
+    if (q.dry) { preview.push("=== " + r + " ===\n" + text + (cfgs.length ? "\n\n[kèm " + cfgs.length + " biểu đồ: " + cfgs.map(c => c.data.labels.length + "×" + c.data.datasets.length).join(", ") + "]" : "")); continue; }
+    try {
+      /* render ảnh 1 lần, dùng chung cho mọi box */
+      const imgs = (q.noimg === "1" ? [] : await Promise.all(cfgs.map(chartURL))).filter(Boolean);
+      const sent = [], boxes = boxesFor(r);
+      for (const b of boxes) {
+        let j = null, photo = false;
+        if (imgs.length >= 2) { /* nhiều ảnh → gửi thành 1 album */
+          const media = imgs.map((u, i) => Object.assign({ type: "photo", media: u },
+            i === 0 && text.length <= 1000 ? { caption: text, parse_mode: "HTML" } : {}));
+          j = await api("sendMediaGroup", { chat_id: b.chat, media }, b.thread);
+          photo = !!(j && j.ok);
+          if (photo && text.length > 1000) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+        } else if (imgs.length === 1) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
+          if (text.length <= 1000) j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text, parse_mode: "HTML" }, b.thread);
+          else {
+            j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" }, b.thread);
+            if (j && j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+          }
+          photo = !!(j && j.ok);
+        }
+        if (!j || !j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+        sent.push({ chat: b.chat, ok: !!(j && j.ok), photo, error: j && j.ok ? undefined : (j && j.description) });
+      }
+      const anyOk = sent.some(x => x.ok);
+      if (!anyOk && markKey) await kv(["DEL", markKey]); /* không box nào nhận được thì nhả khung để lần gõ cửa sau thử lại */
+      done.push({ report: r, ok: anyOk, anh: imgs.length, boxes: sent });
+    } catch (e) {
+      if (markKey) await kv(["DEL", markKey]);
+      done.push({ report: r, ok: false, error: "" + (e && e.message ? e.message : e) });
+    }
   }
+  if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(preview.join("\n\n")); return; }
+  res.status(200).json({ ok: done.some(x => x.ok), ket_qua: done });
 };

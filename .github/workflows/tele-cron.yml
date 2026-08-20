@@ -16,6 +16,10 @@ on:
         description: 'auto = qua gac gio VN (dung khung 12h/18h/23h moi gui, chong trung) · de trong = gui ngay'
         required: false
         default: ''
+      bao_cao:
+        description: 'Bao cao can ban: pvh10 (don thu cong) · nv (nang suat nhan vien) · pvh10,nv = ca hai'
+        required: false
+        default: 'pvh10,nv'
 
 jobs:
   fire:
@@ -27,9 +31,12 @@ jobs:
             echo "Chua khai bao secret TELE_FIRE_URL (Settings -> Secrets and variables -> Actions)"; exit 1
           fi
           URL="${{ secrets.TELE_FIRE_URL }}"
+          # r= liet ke bao cao can ban (server tu bo trung); moi bao cao co dau rieng nen khong chan nhau
+          R="${{ inputs.bao_cao }}"; [ -z "$R" ] && R="pvh10,nv"
+          case "$URL" in *\?*) URL="$URL&r=$R";; *) URL="$URL?r=$R";; esac
           # chay theo lich -> them slot=auto de server gac gio VN; ban tay tu tab Actions -> gui ngay
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.gac }}" = "auto" ]; then
-            case "$URL" in *\?*) URL="$URL&slot=auto";; *) URL="$URL?slot=auto";; esac
+            URL="$URL&slot=auto"
           fi
           code=$(curl -sS -o /tmp/resp.json -w "%{http_code}" "$URL")
           cat /tmp/resp.json; echo
