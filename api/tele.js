@@ -45,6 +45,18 @@ function vnum(x) {
   const n = parseFloat(x); return isNaN(n) ? 0 : n;
 }
 const fmt = n => Math.round(n).toLocaleString("vi-VN");
+const PAL = ["#1e5fd0", "#fb923c", "#0e7c86", "#7c3aed", "#be185d", "#15803d", "#eab308", "#22d3ee", "#94a3b8", "#f43f5e"];
+/* dựng ảnh biểu đồ qua QuickChart: POST lấy link ngắn rồi để Telegram tự tải ảnh về */
+async function chartURL(cfg) {
+  try {
+    const r = await fetch("https://quickchart.io/chart/create", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chart: cfg, width: 900, height: 480, backgroundColor: "white", devicePixelRatio: 2 })
+    });
+    const j = await r.json();
+    return j && j.success && j.url ? j.url : null;
+  } catch (e) { return null; }
+}
 const pct = x => (x * 100).toFixed(1).replace(".", ",") + "%";
 async function readTab(gid) {
   const url = "https://docs.google.com/spreadsheets/d/e/" + FILE_SLA + "/pub?gid=" + gid + "&single=true&output=csv";
@@ -145,6 +157,7 @@ async function buildPVH10(q) {
   const md = q.d && ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})$/); if (md) { dd = +md[1]; mo = +md[2]; }
   let key = String(mo).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
   const lines = ["📊 <b>PVH10 · Năng suất xử lý đơn thủ công</b>"];
+  let chartCfg = null;
   const P = tcRows ? parseTC(tcRows) : null;
   if (P) {
     const avail = P.dateCols.map(c => c.dk).filter(k => P.types.some(t => t.daily[k] != null));
@@ -161,6 +174,21 @@ async function buildPVH10(q) {
     lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b>" + (P.kpi ? " · KPI " + P.kpi : ""));
     cum.forEach(x => lines.push(" • " + x.name + ": " + fmt(x.v) + (cTot ? " (" + pct(x.v / cTot) + ")" : "")));
     if (nDays) lines.push(" • Bình quân: " + fmt(cTot / nDays) + " đơn/ngày");
+    /* biểu đồ cột chồng: các ngày trong tháng tới ngày báo cáo */
+    const days = P.dateCols.map(c => c.dk).filter((k, i, a) => k.slice(0, 2) === mm && k <= key && a.indexOf(k) === i).sort();
+    const used = P.types.filter(t => days.some(k => (t.daily[k] || 0) > 0));
+    if (days.length && used.length) chartCfg = {
+      type: "bar",
+      data: {
+        labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
+        datasets: used.map((t, i) => ({ label: t.name, data: days.map(k => t.daily[k] || 0), backgroundColor: PAL[i % PAL.length] }))
+      },
+      options: {
+        title: { display: true, text: "Đơn thủ công theo ngày — tháng " + (+mm) + "/2026 · tổng " + fmt(cTot) + " đơn", fontSize: 16 },
+        legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+        scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
+      }
+    };
   } else lines.push("", '⚠️ Không đọc được tab "Tổng đơn xử lý thủ công" — kiểm tra Publish to web.');
   const G = gpRows ? parseThangTong(gpRows) : null;
   if (G && G[key]) {
@@ -174,7 +202,7 @@ async function buildPVH10(q) {
   }
   const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
   if (dom) lines.push("", "🔗 Chi tiết: " + dom);
-  return lines.join("\n");
+  return { text: lines.join("\n"), chart: chartCfg };
 }
 
 const REPORTS = { pvh10: buildPVH10 };
@@ -208,19 +236,31 @@ module.exports = async (req, res) => {
       res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return;
     }
   }
-  const text = await REPORTS[r](q);
-  if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(text); return; }
+  const out = await REPORTS[r](q);
+  const text = typeof out === "string" ? out : out.text;
+  const chart = (typeof out === "object" && out.chart) || null;
+  if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(text + (chart ? "\n\n[có kèm biểu đồ " + chart.data.labels.length + " ngày × " + chart.data.datasets.length + " loại đơn]" : "")); return; }
   const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
   if (!token || !chat) { res.status(200).json({ error: "telegram_not_configured", need: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] }); return; }
-  const body = { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true };
-  if (process.env.TELEGRAM_THREAD_ID) body.message_thread_id = +process.env.TELEGRAM_THREAD_ID;
+  const thread = process.env.TELEGRAM_THREAD_ID ? +process.env.TELEGRAM_THREAD_ID : null;
+  const api = (m, b) => fetch("https://api.telegram.org/bot" + token + "/" + m, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(thread ? Object.assign({ message_thread_id: thread }, b) : b)
+  }).then(x => x.json());
   try {
-    const tg = await fetch("https://api.telegram.org/bot" + token + "/sendMessage", {
-      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-    });
-    const j = await tg.json();
+    let j = null, photo = false;
+    const img = (chart && q.noimg !== "1") ? await chartURL(chart) : null;
+    if (img) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
+      if (text.length <= 1000) j = await api("sendPhoto", { chat_id: chat, photo: img, caption: text, parse_mode: "HTML" });
+      else {
+        j = await api("sendPhoto", { chat_id: chat, photo: img, caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" });
+        if (j && j.ok) j = await api("sendMessage", { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true });
+      }
+      photo = !!(j && j.ok);
+    }
+    if (!j || !j.ok) j = await api("sendMessage", { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true });
     if (!j.ok && markKey) await kv(["DEL", markKey]); /* gửi hỏng thì nhả khung để lần gõ cửa sau thử lại */
-    res.status(200).json(j.ok ? { ok: true, report: r } : { ok: false, telegram: j });
+    res.status(200).json(j.ok ? { ok: true, report: r, photo } : { ok: false, telegram: j });
   } catch (e) {
     if (markKey) await kv(["DEL", markKey]);
     res.status(502).json({ ok: false, error: "" + (e && e.message ? e.message : e) });
