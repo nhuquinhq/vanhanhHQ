@@ -8,6 +8,22 @@
 const FILE_SLA = "2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W";
 const GIDS = { tc: "1496740945", gp_ngay: "511745866" };
 
+/* Danh sách box nhận báo cáo.
+   - TELEGRAM_CHAT_ID (+ TELEGRAM_THREAD_ID)  : box 1
+   - TELEGRAM_CHAT_ID_2 (+ TELEGRAM_THREAD_ID_2), _3, _4 …: các box thêm
+   - TELEGRAM_TARGETS: khai báo gọn nhiều box một dòng "chatid:topicid,chatid,…" (ưu tiên nếu có) */
+function targets() {
+  const T = (process.env.TELEGRAM_TARGETS || "").trim();
+  if (T) return T.split(/[,;\s]+/).filter(Boolean).map(x => {
+    const p = x.split(":"); return { chat: p[0], thread: p[1] ? +p[1] : null };
+  });
+  const out = [];
+  const add = (c, t) => { if (c && !out.some(o => o.chat === c)) out.push({ chat: c, thread: t ? +t : null }); };
+  add(process.env.TELEGRAM_CHAT_ID, process.env.TELEGRAM_THREAD_ID);
+  for (let i = 2; i <= 6; i++) add(process.env["TELEGRAM_CHAT_ID_" + i], process.env["TELEGRAM_THREAD_ID_" + i]);
+  return out;
+}
+
 const KV_URL = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL || "";
 const KV_TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN || "";
 async function kv(cmd) {
@@ -240,27 +256,31 @@ module.exports = async (req, res) => {
   const text = typeof out === "string" ? out : out.text;
   const chart = (typeof out === "object" && out.chart) || null;
   if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(text + (chart ? "\n\n[có kèm biểu đồ " + chart.data.labels.length + " ngày × " + chart.data.datasets.length + " loại đơn]" : "")); return; }
-  const token = process.env.TELEGRAM_BOT_TOKEN, chat = process.env.TELEGRAM_CHAT_ID;
-  if (!token || !chat) { res.status(200).json({ error: "telegram_not_configured", need: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] }); return; }
-  const thread = process.env.TELEGRAM_THREAD_ID ? +process.env.TELEGRAM_THREAD_ID : null;
-  const api = (m, b) => fetch("https://api.telegram.org/bot" + token + "/" + m, {
+  const token = process.env.TELEGRAM_BOT_TOKEN, boxes = targets();
+  if (!token || !boxes.length) { res.status(200).json({ error: "telegram_not_configured", need: ["TELEGRAM_BOT_TOKEN", "TELEGRAM_CHAT_ID"] }); return; }
+  const api = (m, b, thread) => fetch("https://api.telegram.org/bot" + token + "/" + m, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(thread ? Object.assign({ message_thread_id: thread }, b) : b)
   }).then(x => x.json());
   try {
-    let j = null, photo = false;
-    const img = (chart && q.noimg !== "1") ? await chartURL(chart) : null;
-    if (img) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
-      if (text.length <= 1000) j = await api("sendPhoto", { chat_id: chat, photo: img, caption: text, parse_mode: "HTML" });
-      else {
-        j = await api("sendPhoto", { chat_id: chat, photo: img, caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" });
-        if (j && j.ok) j = await api("sendMessage", { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true });
+    const img = (chart && q.noimg !== "1") ? await chartURL(chart) : null; /* render 1 lần, dùng chung mọi box */
+    const sent = [];
+    for (const b of boxes) {
+      let j = null, photo = false;
+      if (img) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
+        if (text.length <= 1000) j = await api("sendPhoto", { chat_id: b.chat, photo: img, caption: text, parse_mode: "HTML" }, b.thread);
+        else {
+          j = await api("sendPhoto", { chat_id: b.chat, photo: img, caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" }, b.thread);
+          if (j && j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+        }
+        photo = !!(j && j.ok);
       }
-      photo = !!(j && j.ok);
+      if (!j || !j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+      sent.push({ chat: b.chat, ok: !!(j && j.ok), photo, error: j && j.ok ? undefined : (j && j.description) });
     }
-    if (!j || !j.ok) j = await api("sendMessage", { chat_id: chat, text, parse_mode: "HTML", disable_web_page_preview: true });
-    if (!j.ok && markKey) await kv(["DEL", markKey]); /* gửi hỏng thì nhả khung để lần gõ cửa sau thử lại */
-    res.status(200).json(j.ok ? { ok: true, report: r, photo } : { ok: false, telegram: j });
+    const anyOk = sent.some(x => x.ok);
+    if (!anyOk && markKey) await kv(["DEL", markKey]); /* không box nào nhận được thì nhả khung để lần gõ cửa sau thử lại */
+    res.status(200).json(anyOk ? { ok: true, report: r, boxes: sent } : { ok: false, boxes: sent });
   } catch (e) {
     if (markKey) await kv(["DEL", markKey]);
     res.status(502).json({ ok: false, error: "" + (e && e.message ? e.message : e) });
