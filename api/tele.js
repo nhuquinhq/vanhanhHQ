@@ -272,7 +272,7 @@ function parseNS(rows) {
   for (let c = dCol + 1; c < W; c++) if (emps[c] && /[a-zA-ZÀ-ỹ]/.test(emps[c]) && !/^\d/.test(emps[c]) && !isTot(emps[c]) && !isTot(groups[c]))
     cols.push({ c, emp: emps[c], grp: groups[c] || "Khác" });
   if (!cols.length) return null;
-  const byDayGrp = {}, byEmp = {}, byDay = {}, grpOrder = [];
+  const byDayGrp = {}, byEmp = {}, byDay = {}, byDayEmpGrp = {}, grpOrder = [];
   for (let r = first; r < rows.length; r++) {
     const row = rows[r] || []; const d = nrm(row[dCol]); if (!isD(d)) continue;
     const p = d.split("/"); const dk = p[1].padStart(2, "0") + "-" + p[0].padStart(2, "0");
@@ -280,11 +280,14 @@ function parseNS(rows) {
       const v = vnum(row[x.c]); if (!(v > 0)) return;
       (byDayGrp[dk] = byDayGrp[dk] || {})[x.grp] = (byDayGrp[dk][x.grp] || 0) + v;
       (byEmp[dk] = byEmp[dk] || {})[x.emp] = (byEmp[dk][x.emp] || 0) + v;
+      /* chi tiết từng người làm gì trong ngày: byDayEmpGrp[ngày][tên][loại] */
+      const de = (byDayEmpGrp[dk] = byDayEmpGrp[dk] || {});
+      (de[x.emp] = de[x.emp] || {})[x.grp] = (de[x.emp][x.grp] || 0) + v;
       byDay[dk] = (byDay[dk] || 0) + v;
       if (grpOrder.indexOf(x.grp) < 0) grpOrder.push(x.grp);
     });
   }
-  return Object.keys(byDay).length ? { byDayGrp, byEmp, byDay, grpOrder, nEmp: new Set(cols.map(x => x.emp)).size } : null;
+  return Object.keys(byDay).length ? { byDayGrp, byEmp, byDay, byDayEmpGrp, grpOrder, nEmp: new Set(cols.map(x => x.emp)).size } : null;
 }
 
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
@@ -306,6 +309,19 @@ async function buildNS(q) {
   const dG = P.byDayGrp[key] || {};
   lines.push("", "🧮 <b>Đơn xử lý trong ngày: " + fmt(P.byDay[key] || 0) + "</b>");
   P.grpOrder.filter(g => dG[g]).sort((a, b) => dG[b] - dG[a]).forEach(g => lines.push(" • " + g + ": " + fmt(dG[g])));
+  /* ai làm gì trong ngày — trả lời thẳng "Thuỳ mua bao nhiêu giftcard, bao nhiêu robux…" */
+  const dEmp = P.byDayEmpGrp[key] || {};
+  const sumOf = o => Object.keys(o).reduce((t, g) => t + o[g], 0);
+  const dList = Object.keys(dEmp).sort((a, b) => sumOf(dEmp[b]) - sumOf(dEmp[a]));
+  const gShort = g => g.replace(/^XL[ĐD]\s*/i, "").replace(/^MUA\s+/i, "Mua ");
+  if (dList.length) {
+    lines.push("", "👤 <b>Trong ngày theo nhân viên</b>");
+    dList.slice(0, 12).forEach(e => {
+      const o = dEmp[e], gs = Object.keys(o).sort((a, b) => o[b] - o[a]);
+      lines.push(" • " + e + ": <b>" + fmt(sumOf(o)) + "</b> (" + gs.map(g => gShort(g) + " " + fmt(o[g])).join(" · ") + ")");
+    });
+    if (dList.length > 12) lines.push(" … và " + (dList.length - 12) + " nhân sự khác (xem biểu đồ)");
+  }
   const cum = {}, emp = {};
   days.forEach(k => {
     Object.keys(P.byDayGrp[k] || {}).forEach(g => cum[g] = (cum[g] || 0) + P.byDayGrp[k][g]);
@@ -321,6 +337,29 @@ async function buildNS(q) {
   const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
   if (dom) lines.push("", "🔗 Chi tiết: " + dom);
   const charts = [];
+  /* biểu đồ 1 — TRONG NGÀY: mỗi nhân viên một cột, chồng theo loại xử lý (ai mua giftcard bao nhiêu,
+     robux bao nhiêu, xử lý đơn loại nào…) — xếp người nhiều đơn nhất trước */
+  const dE = P.byDayEmpGrp[key] || {};
+  const dEmps = Object.keys(dE).sort((a, b) => {
+    const s = o => Object.keys(o).reduce((t, g) => t + o[g], 0);
+    return s(dE[b]) - s(dE[a]);
+  });
+  const dGrps = P.grpOrder.filter(g => dG[g]).sort((a, b) => dG[b] - dG[a]);
+  if (dEmps.length) charts.push({
+    type: "bar",
+    data: {
+      labels: dEmps,
+      datasets: dGrps.map((g, i) => ({ label: g, data: dEmps.map(e => (dE[e] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+    },
+    options: {
+      title: { display: true, text: "Ngày " + key.slice(3) + "/" + mm + " — từng nhân viên làm gì · tổng " + fmt(P.byDay[key] || 0) + " đơn", fontSize: 16 },
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: {
+        xAxes: [{ stacked: true, ticks: { fontSize: 10, minRotation: 45, maxRotation: 60 } }],
+        yAxes: [{ stacked: true, ticks: { beginAtZero: true } }]
+      }
+    }
+  });
   if (days.length) charts.push({
     type: "bar",
     data: {
