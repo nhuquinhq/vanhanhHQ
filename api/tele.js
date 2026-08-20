@@ -229,6 +229,33 @@ module.exports = async (req, res) => {
   const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
   if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
   if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
+  /* ?peek=1 — trang tra cứu chat id / topic id: gõ tin trong đúng topic rồi mở link này.
+     Chỉ trả về id + tên box, KHÔNG hiện nội dung tin nhắn. */
+  if (q.peek) {
+    const token0 = process.env.TELEGRAM_BOT_TOKEN;
+    if (!token0) { res.status(200).send("Chua khai bao TELEGRAM_BOT_TOKEN"); return; }
+    let out = "";
+    try {
+      const rr = await fetch("https://api.telegram.org/bot" + token0 + "/getUpdates?limit=50");
+      const jj = await rr.json();
+      const seen = {}, rows = [];
+      (jj.result || []).forEach(u => {
+        const m = u.message || u.channel_post || u.edited_message; if (!m || !m.chat) return;
+        const th = m.message_thread_id || (m.is_topic_message ? 1 : null);
+        const k = m.chat.id + "/" + (th || "-");
+        if (seen[k]) return; seen[k] = 1;
+        rows.push({ chat_id: m.chat.id, ten_box: m.chat.title || m.chat.username || "(chat riêng)", topic_id: th || null,
+                    topic: m.reply_to_message && m.reply_to_message.forum_topic_created ? m.reply_to_message.forum_topic_created.name : undefined,
+                    luc: new Date((m.date + 7 * 3600) * 1000).toISOString().replace("T", " ").slice(5, 16) + " (giờ VN)" });
+      });
+      out = rows.length
+        ? "CAC BOX BOT VUA NHAN DUOC TIN:\n\n" + rows.map(x => JSON.stringify(x)).join("\n") +
+          "\n\nCach dung: TELEGRAM_CHAT_ID_2 = chat_id · TELEGRAM_THREAD_ID_2 = topic_id (bo qua neu topic_id = null)."
+        : "Chua thay tin nao. Hay go '@bcpvh_bot test' NGAY TRONG topic muon nhan bao cao roi tai lai trang nay.\n" +
+          "(Bot chi 'thay' tin trong nhom khi tin do nhac ten bot hoac la lenh /...)";
+    } catch (e) { out = "Loi goi Telegram: " + (e && e.message ? e.message : e); }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(out); return;
+  }
   const r = ("" + (q.r || "pvh10")).toLowerCase();
   if (!REPORTS[r]) { res.status(400).json({ error: "unknown_report", reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
