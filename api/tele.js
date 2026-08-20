@@ -235,7 +235,7 @@ module.exports = async (req, res) => {
       const rr = await fetch("https://api.telegram.org/bot" + token0 + "/getUpdates?limit=50");
       const jj = await rr.json();
       const seen = {}, rows = [];
-      (jj.result || []).forEach(u => {
+      (jj.result || []).slice().reverse().forEach(u => { /* mới nhất lên đầu */
         const m = u.message || u.channel_post || u.edited_message; if (!m || !m.chat) return;
         const th = m.message_thread_id || (m.is_topic_message ? 1 : null);
         const k = m.chat.id + "/" + (th || "-");
