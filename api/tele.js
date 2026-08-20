@@ -74,7 +74,7 @@ const labOf = (rows, r) => { const row = rows[r] || []; for (let c = 0; c < Math
 /* ---- tab "Tổng đơn xử lý thủ công": các dòng "Số đơn <loại>" ----
    Tab xếp NHIỀU KHỐI THÁNG chồng nhau (Tháng 7, Tháng 8…) — dò MỌI hàng tiêu đề "Ngày";
    hàng "Số đơn…" thuộc khối gần nhất phía trên, cùng tên loại thì gộp qua các tháng. */
-const SLA_SKIP = /^(t[ỷy]\s*l[ệe]|kpi|t[ổo]ng|s[ốo]\s*l[ưu][ợo]ng|avg|b[ìi]nh\s*qu[âa]n|ng[àa]y|th[ứu]|tu[ầa]n|th[áa]ng|n[ăa]m|ghi\s*ch[úu]|stt)/i;
+const SLA_SKIP = /^(t[ỷy]\s*l[ệe]|kpi|t[ổo]ng|s[ốo]\s*l[ưu][ợo]ng|avg|b[ìi]nh\s*qu[âa]n|ng[àa]y|th[ứu]|tu[ầa]n|th[áa]ng|n[ăa]m|ghi\s*ch[úu]|stt|b[áa]o\s*c[áa]o)/i;
 function parseTC(rows) {
   const heads = [];
   for (let r = 0; r < rows.length; r++) {
@@ -95,13 +95,15 @@ function parseTC(rows) {
     const end = hi + 1 < heads.length ? heads[hi + 1].HR : rows.length;
     for (let r = H.HR + 1; r < end; r++) {
       const l = labOf(rows, r); if (!l) continue;
-      if (/số\s*lượng\s*thủ\s*công/i.test(l)) { if (!kpiTxt) kpiTxt = (rows[r] || []).map(nrm).filter(x => x && !/số\s*lượng|^kpi$/i.test(x)).join(" "); continue; }
+      // dòng tổng theo ngày; chỉ nhặt ô CHỮ (vd "35 đơn/ca") làm KPI, bỏ các ô số
+      if (/số\s*lượng\s*thủ\s*công/i.test(l)) { if (!kpiTxt) kpiTxt = (rows[r] || []).map(nrm).filter(x => x && !/số\s*lượng|^kpi$/i.test(x) && /[a-zA-ZÀ-ỹ]/.test(x)).join(" "); continue; }
       // loại đơn mới đặt tên trần (không có tiền tố "Số đơn") vẫn được nhận — chỉ bỏ dòng tiêu đề/tỷ lệ/tổng
       if (SLA_SKIP.test(l)) continue;
       const row = rows[r] || []; const daily = {}; let any = false;
       H.dateCols.forEach(dc => { const v = nrm(row[dc.ci]); if (v !== "") { daily[dc.dk] = vnum(v); any = true; } });
       const tot = (iTot > -1 ? (vnum(row[iTot]) || vnum(row[iTot + 1])) : 0) || Object.keys(daily).reduce((a, k) => a + daily[k], 0);
       if (!any && !tot) continue;
+      if (!Object.keys(daily).some(k => daily[k] > 0) && !(tot > 0)) continue; // dòng tiêu đề lọt vào
       const name = l.replace(/^(số\s*đơn|sl\s*đơn|đơn)\s+/i, "").trim(); const key = (name || l).toLowerCase();
       if (!tmap[key]) { tmap[key] = { name: name ? name.charAt(0).toUpperCase() + name.slice(1) : l, tot: 0, daily: {} }; order.push(key); }
       tmap[key].tot += tot; Object.assign(tmap[key].daily, daily);

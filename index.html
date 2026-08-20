@@ -912,14 +912,14 @@ const PAGES={
        scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
    });
  }},
- PVH10:{title:"PVH10 · Năng suất xử lý đơn thủ công (SLA/Accuracy)",meta:"Đơn thủ công = Gamepass + nạp game Pokémon · Nguồn: Báo cáo Năng xuất Xử lý đơn 2026",render(host){
+ PVH10:{title:"PVH10 · Năng suất xử lý đơn thủ công (SLA/Accuracy)",meta:"Gồm mọi loại đơn khai báo trên tab Tổng đơn xử lý thủ công (Gamepass · Pokémon · Genshin · Gamota · Steam…) · Nguồn: Báo cáo Năng xuất Xử lý đơn 2026",render(host){
    host.innerHTML=spinner("Đang đọc Báo cáo Năng suất Xử lý đơn (tổng + Gamepass + Pokémon)…");
    Promise.all([slaRows('ngay'),slaRows('nam'),slaRows('tc'),slaRows('pk')]).then(([Rn,Ry,Rt,Rp])=>{
      let h='',insEnd='';const charts=[];
      const SEC=t=>`<div style="margin:18px 4px 10px;font-size:12px;font-weight:800;letter-spacing:.6px;color:#5b6b7b;text-transform:uppercase">${t}</div>`;
      /* ---- 1) TỔNG ĐƠN XỬ LÝ THỦ CÔNG (gộp cả 2 loại) ---- */
      const gTC=slaTongTCSection(Rt);
-     h+=SEC('📌 Tổng đơn xử lý thủ công — Gamepass + Pokémon')+gTC.html;charts.push.apply(charts,gTC.charts);
+     h+=SEC('📌 Tổng đơn xử lý thủ công — tất cả loại đơn trên tab')+gTC.html;charts.push.apply(charts,gTC.charts);
      /* ---- 2) CHI TIẾT ĐƠN GAMEPASS (báo cáo cũ giữ nguyên) ---- */
      h+=SEC('🎮 Chi tiết — đơn Gamepass');
      const T=parseSlaThang(Rn);
@@ -2227,7 +2227,7 @@ function slaGenericSection(rows,gid,key,pfx,label){
  }
  return {html,charts};}
 /* --- tab "Tổng đơn xử lý thủ công": hàng Ngày (01/07…) + cột Total, các dòng "Số đơn <loại>" (gamepass, pokemon, …) --- */
-const SLA_SKIP=/^(t[ỷy]\s*l[ệe]|kpi|t[ổo]ng|s[ốo]\s*l[ưu][ợo]ng|avg|b[ìi]nh\s*qu[âa]n|ng[àa]y|th[ứu]|tu[ầa]n|th[áa]ng|n[ăa]m|ghi\s*ch[úu]|stt)/i;
+const SLA_SKIP=/^(t[ỷy]\s*l[ệe]|kpi|t[ổo]ng|s[ốo]\s*l[ưu][ợo]ng|avg|b[ìi]nh\s*qu[âa]n|ng[àa]y|th[ứu]|tu[ầa]n|th[áa]ng|n[ăa]m|ghi\s*ch[úu]|stt|b[áa]o\s*c[áa]o)/i;
 function parseSlaTongTC(rows){
  if(!rows||rows.length<3)return null;
  /* tab xếp NHIỀU KHỐI THÁNG chồng nhau (Tháng 7, Tháng 8…) — dò MỌI hàng tiêu đề "Ngày";
@@ -2245,7 +2245,8 @@ function parseSlaTongTC(rows){
  let kpiTxt='';const tmap={},order=[];
  heads.forEach((H,hi)=>{const end=hi+1<heads.length?heads[hi+1].HR:rows.length;
   for(let r=H.HR+1;r<end;r++){const l=lab(r);if(!l)continue;
-   if(/số\s*lượng\s*thủ\s*công/i.test(l)){if(!kpiTxt)kpiTxt=(rows[r]||[]).map(slaN).filter(x=>x&&!/số\s*lượng|^kpi$/i.test(x)).join(' ');continue;}
+   if(/số\s*lượng\s*thủ\s*công/i.test(l)){ /* dòng tổng theo ngày; chỉ nhặt ô CHỮ (vd "35 đơn/ca") làm KPI, bỏ các ô số */
+    if(!kpiTxt)kpiTxt=(rows[r]||[]).map(slaN).filter(x=>x&&!/số\s*lượng|^kpi$/i.test(x)&&/[a-zA-ZÀ-ỹ]/.test(x)).join(' ');continue;}
    /* loại đơn: ưu tiên dòng "Số đơn <loại>"; loại mới đặt tên trần (vd "Genshin", "Nạp Steam")
       vẫn nhận, chỉ bỏ các dòng tiêu đề/tỷ lệ/tổng — nhờ vậy thêm loại trên sheet là tự lên báo cáo */
    if(SLA_SKIP.test(l))continue;
@@ -2254,8 +2255,9 @@ function parseSlaTongTC(rows){
    /* Total: đúng cột — không có thì thử cột kế (ô gộp) — vẫn không có thì tự cộng ngày */
    const tot=(iTot>-1?(num(row[iTot])||num(row[iTot+1])):0)||Object.keys(daily).reduce((a,k)=>a+daily[k],0);
    if(!any&&!tot)continue;
+   if(!Object.keys(daily).some(k=>daily[k]>0)&&!(tot>0))continue; /* dòng tiêu đề lọt vào: không có số nào > 0 */
    const name=l.replace(/^(số\s*đơn|sl\s*đơn|đơn)\s+/i,'').trim();const key=(name||l).toLowerCase();
-   if(!tmap[key]){tmap[key]={name:name?name.charAt(0).toUpperCase()+name.slice(1):l,tot:0,daily:{}};order.push(key);}
+   if(!tmap[key]){tmap[key]={name:name?name.charAt(0).toUpperCase()+name.slice(1):l,label:l,tot:0,daily:{}};order.push(key);}
    tmap[key].tot+=tot;Object.assign(tmap[key].daily,daily);}});
  const types=order.map(k=>tmap[k]);
  return types.length?{dateCols:heads.reduce((a,h)=>a.concat(h.dateCols),[]),types,kpi:kpiTxt}:null;}
@@ -2267,21 +2269,21 @@ function slaTongTCSection(rows){
  const fk=iso(FROM),tk=iso(TO);
  const days=P.dateCols.filter(dc=>dc.dk>=fk&&dc.dk<=tk);
  if(!days.length)return {html:`<div class="note">Tab đang chứa ${P.dateCols.length} ngày (${P.dateCols[0].dk.slice(5)} → ${P.dateCols[P.dateCols.length-1].dk.slice(5)}) — ngoài phạm vi ${scopeLabel()}. Chỉnh Từ–Đến trùm tháng đang báo cáo.</div>`,charts};
- const tys=P.types.map(t=>({name:t.name,vv:days.reduce((a,dc)=>a+(t.daily[dc.dk]||0),0),tot:t.tot}));
+ const tys=P.types.map(t=>({name:t.name,label:t.label||('Số đơn '+t.name),vv:days.reduce((a,dc)=>a+(t.daily[dc.dk]||0),0),tot:t.tot}));
  const tong=tys.reduce((a,t)=>a+t.vv,0);
  const html=`<div class="kpis" style="grid-template-columns:repeat(${Math.min(5,2+tys.length)},1fr)">
   ${kpi("Tổng đơn thủ công",fmt(tong),days.length+" ngày · "+scopeLabel())}
-  ${tys.map(t=>kpi("Đơn "+t.name,fmt(t.vv),pct(t.vv/(tong||1))+" tổng đơn")).join('')}
-  ${kpi("Bình quân",fmt(Math.round(tong/(days.length||1)))+" đơn/ngày",P.kpi?"KPI "+P.kpi:"")}
+  ${tys.map(t=>kpi(t.label,fmt(t.vv),pct(t.vv/(tong||1))+" tổng đơn")).join('')}
+  ${kpi("Bình quân",fmt(Math.round(tong/(days.length||1)))+" đơn/ngày",P.kpi?"KPI "+P.kpi:days.length+" ngày trong phạm vi")}
  </div>
  <div class="grid2" style="grid-template-columns:1.5fr 1fr">${cc("Đơn thủ công theo ngày — chồng theo loại","p10ta")}${cc("Cơ cấu loại đơn — trong phạm vi","p10tb")}</div>
  <div class="card"><h3>Tổng đơn xử lý thủ công theo loại — ${days.length} ngày</h3><div class="scroll"><table class="tbl"><thead><tr><th>Loại đơn</th><th class="n">Trong phạm vi</th><th class="n">% tổng</th><th class="n">BQ/ngày</th><th class="n">Total trên file</th></tr></thead><tbody>
- ${tys.map(t=>`<tr><td>Số đơn ${t.name}</td><td class="n">${fmtn(t.vv)}</td><td class="n">${pct(t.vv/(tong||1))}</td><td class="n">${fmtn(Math.round(t.vv/(days.length||1)))}</td><td class="n">${fmtn(t.tot)}</td></tr>`).join('')}
+ ${tys.map(t=>`<tr><td>${t.label}</td><td class="n">${fmtn(t.vv)}</td><td class="n">${pct(t.vv/(tong||1))}</td><td class="n">${fmtn(Math.round(t.vv/(days.length||1)))}</td><td class="n">${fmtn(t.tot)}</td></tr>`).join('')}
  <tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(tong)}</td><td class="n">100%</td><td class="n">${fmtn(Math.round(tong/(days.length||1)))}</td><td class="n">${fmtn(tys.reduce((a,t)=>a+t.tot,0))}</td></tr>
  </tbody></table></div>
- <div class="small" style="margin-top:6px">Nguồn: tab "Tổng đơn xử lý thủ công" (báo cáo ngày — đơn sàn)${P.kpi?' · KPI trên file: '+P.kpi:''}. Thêm dòng "Số đơn &lt;loại mới&gt;" vào tab là dashboard tự hiện thêm loại đó.</div></div>`;
+ <div class="small" style="margin-top:6px">Nguồn: tab "Tổng đơn xử lý thủ công" (báo cáo ngày — đơn sàn)${P.kpi?' · KPI trên file: '+P.kpi:''}. Thêm loại đơn mới vào tab là dashboard tự nhận (không cần đặt tiền tố "Số đơn"). Cột "Total trên file" là tổng của TẤT CẢ các tháng có trên tab.</div></div>`;
  charts.push({id:'p10ta',labels:days.map(dc=>dc.dk.slice(8,10)+'/'+dc.dk.slice(5,7)),
-  stack:P.types.map((t,i)=>({label:'Đơn '+t.name,data:days.map(dc=>t.daily[dc.dk]||0),backgroundColor:TC_PAL[i%TC_PAL.length],stack:'s'}))});
+  stack:P.types.map((t,i)=>({label:t.label||t.name,data:days.map(dc=>t.daily[dc.dk]||0),backgroundColor:TC_PAL[i%TC_PAL.length],stack:'s'}))});
  charts.push({id:'p10tb',dlabels:tys.map(t=>'Đơn '+t.name),ddata:tys.map(t=>t.vv)});
  return {html,charts};}
 
