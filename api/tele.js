@@ -232,8 +232,11 @@ module.exports = async (req, res) => {
     if (!token0) { res.status(200).send("Chua khai bao TELEGRAM_BOT_TOKEN"); return; }
     let out = "";
     try {
-      const rr = await fetch("https://api.telegram.org/bot" + token0 + "/getUpdates?limit=50");
+      const rr = await fetch("https://api.telegram.org/bot" + token0 + "/getUpdates?limit=100&t=" + Date.now());
       const jj = await rr.json();
+      if (!jj.ok) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
+        res.status(200).send("Telegram tra ve loi: " + (jj.description || JSON.stringify(jj)) +
+          "\n(Neu bao 'terminated by other getUpdates request' thi doi 5 giay roi tai lai; neu bao webhook thi bot dang dung webhook.)"); return; }
       const seen = {}, rows = [];
       (jj.result || []).slice().reverse().forEach(u => { /* mới nhất lên đầu */
         const m = u.message || u.channel_post || u.edited_message; if (!m || !m.chat) return;
@@ -245,12 +248,14 @@ module.exports = async (req, res) => {
                     luc: new Date((m.date + 7 * 3600) * 1000).toISOString().replace("T", " ").slice(5, 16) + " (giờ VN)" });
       });
       out = rows.length
-        ? "CAC BOX BOT VUA NHAN DUOC TIN:\n\n" + rows.map(x => JSON.stringify(x)).join("\n") +
+        ? "CAC BOX BOT VUA NHAN DUOC TIN (" + (jj.result || []).length + " tin dang cho, moi nhat len dau):\n\n" + rows.map(x => JSON.stringify(x)).join("\n") +
           "\n\nCach dung: TELEGRAM_CHAT_ID_2 = chat_id · TELEGRAM_THREAD_ID_2 = topic_id (bo qua neu topic_id = null)."
         : "Chua thay tin nao. Hay go '@bcpvh_bot test' NGAY TRONG topic muon nhan bao cao roi tai lai trang nay.\n" +
           "(Bot chi 'thay' tin trong nhom khi tin do nhac ten bot hoac la lenh /...)";
     } catch (e) { out = "Loi goi Telegram: " + (e && e.message ? e.message : e); }
-    res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(out); return;
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Cache-Control", "no-store, max-age=0"); /* tranh trinh duyet giu ban cu */
+    res.status(200).send(out + "\n\nXem luc: " + new Date(Date.now() + 7 * 3600 * 1000).toISOString().replace("T", " ").slice(5, 16) + " (gio VN)"); return;
   }
   const SECRET = process.env.TELE_SECRET || "";
   const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
