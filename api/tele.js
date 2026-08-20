@@ -422,15 +422,12 @@ async function buildNS(q) {
 }
 
 const REPORTS = { pvh10: buildPVH10, nv: buildNS };
-/* Báo cáo nào gửi vào box nào:
-   - mặc định: gửi mọi box đã khai (PVH10 đang gửi cả box PVH lẫn box PCU)
-   - báo cáo nội bộ (năng suất nhân viên) chỉ gửi BOX 1 cho tới khi khai rõ TELE_BOXES_NV="chatid:topicid,…" */
-const R_BOX1 = { nv: 1 };
+/* Báo cáo nào gửi vào box nào: mặc định gửi MỌI box đã khai (PVH và PCU).
+   Muốn giới hạn riêng một báo cáo thì khai TELE_BOXES_<TÊN>="chatid:topicid,…"
+   (ví dụ TELE_BOXES_NV để báo cáo năng suất nhân viên chỉ vào một box). */
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
-  if (E) return parseBoxes(E);
-  const all = targets();
-  return R_BOX1[r] ? all.slice(0, R_BOX1[r]) : all;
+  return E ? parseBoxes(E) : targets();
 }
 
 module.exports = async (req, res) => {
