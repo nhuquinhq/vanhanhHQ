@@ -225,10 +225,6 @@ const REPORTS = { pvh10: buildPVH10 };
 
 module.exports = async (req, res) => {
   const q = req.query || {};
-  const SECRET = process.env.TELE_SECRET || "";
-  const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
-  if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
-  if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
   /* ?peek=1 — trang tra cứu chat id / topic id: gõ tin trong đúng topic rồi mở link này.
      Chỉ trả về id + tên box, KHÔNG hiện nội dung tin nhắn. */
   if (q.peek) {
@@ -256,6 +252,10 @@ module.exports = async (req, res) => {
     } catch (e) { out = "Loi goi Telegram: " + (e && e.message ? e.message : e); }
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(out); return;
   }
+  const SECRET = process.env.TELE_SECRET || "";
+  const isCron = !!req.headers["x-vercel-cron"] || /vercel-cron/i.test(req.headers["user-agent"] || "");
+  if (SECRET && !isCron && q.key !== SECRET) { res.status(401).json({ error: "unauthorized" }); return; }
+  if (isCron && !q.slot && !q.dry) q.slot = "auto"; /* Vercel Cron gọi trần /api/tele → tự đi qua gác giờ VN */
   const r = ("" + (q.r || "pvh10")).toLowerCase();
   if (!REPORTS[r]) { res.status(400).json({ error: "unknown_report", reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
