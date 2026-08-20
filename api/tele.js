@@ -237,6 +237,12 @@ async function buildPVH10(q) {
 /* ---- tab "Năng suất Nhân viên": hàng = NGÀY, cột = (loại xử lý × nhân viên) ----
    Khuôn: hàng nhóm (MUA GIFTCARD · MUA ROBUX · XLĐ ROBUX · XLĐ GAMOTA · XLĐ POKEMON…) nằm ngay
    trên hàng tên nhân viên; ô gộp để trống nên điền xuôi sang phải. */
+/* Một người có thể có nhiều tài khoản trên sheet: QTVTienHT1 / qtvtienht2, qtvdiunt / QTVDiuNTPCU,
+   qtvlinhptt / QTVLinhPTTPCU… → quy về một mối: bỏ tiền tố QTV/CTV, đuôi PCU và số thứ tự cuối tên. */
+function canonEmp(s) {
+  const k = nrm(s).toLowerCase().replace(/\s+/g, "").replace(/^(qtv|ctv)/, "").replace(/pcu$/, "").replace(/\d+$/, "");
+  return k || nrm(s).toLowerCase();
+}
 function parseNS(rows) {
   const W = Math.max.apply(null, rows.slice(0, 80).map(r => (r || []).length).concat([0]));
   const isD = v => /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(nrm(v));
@@ -270,24 +276,46 @@ function parseNS(rows) {
   }
   const cols = [];
   for (let c = dCol + 1; c < W; c++) if (emps[c] && /[a-zA-ZÀ-ỹ]/.test(emps[c]) && !/^\d/.test(emps[c]) && !isTot(emps[c]) && !isTot(groups[c]))
-    cols.push({ c, emp: emps[c], grp: groups[c] || "Khác" });
+    cols.push({ c, emp: emps[c], key: canonEmp(emps[c]), grp: groups[c] || "Khác" });
   if (!cols.length) return null;
-  const byDayGrp = {}, byEmp = {}, byDay = {}, byDayEmpGrp = {}, grpOrder = [];
+  const byDayGrp = {}, byEmp = {}, byDay = {}, byDayEmpGrp = {}, grpOrder = [], rawTot = {};
   for (let r = first; r < rows.length; r++) {
     const row = rows[r] || []; const d = nrm(row[dCol]); if (!isD(d)) continue;
     const p = d.split("/"); const dk = p[1].padStart(2, "0") + "-" + p[0].padStart(2, "0");
     cols.forEach(x => {
       const v = vnum(row[x.c]); if (!(v > 0)) return;
       (byDayGrp[dk] = byDayGrp[dk] || {})[x.grp] = (byDayGrp[dk][x.grp] || 0) + v;
-      (byEmp[dk] = byEmp[dk] || {})[x.emp] = (byEmp[dk][x.emp] || 0) + v;
+      (byEmp[dk] = byEmp[dk] || {})[x.key] = (byEmp[dk][x.key] || 0) + v;
       /* chi tiết từng người làm gì trong ngày: byDayEmpGrp[ngày][tên][loại] */
       const de = (byDayEmpGrp[dk] = byDayEmpGrp[dk] || {});
-      (de[x.emp] = de[x.emp] || {})[x.grp] = (de[x.emp][x.grp] || 0) + v;
+      (de[x.key] = de[x.key] || {})[x.grp] = (de[x.key][x.grp] || 0) + v;
       byDay[dk] = (byDay[dk] || 0) + v;
+      rawTot[x.emp] = (rawTot[x.emp] || 0) + v;
       if (grpOrder.indexOf(x.grp) < 0) grpOrder.push(x.grp);
     });
   }
-  return Object.keys(byDay).length ? { byDayGrp, byEmp, byDay, byDayEmpGrp, grpOrder, nEmp: new Set(cols.map(x => x.emp)).size } : null;
+  if (!Object.keys(byDay).length) return null;
+  /* tên hiển thị của mỗi người = tài khoản có nhiều đơn nhất (hoà thì lấy tên ngắn hơn) */
+  const disp = {};
+  Object.keys(rawTot).forEach(raw => {
+    const k = canonEmp(raw), cur = disp[k];
+    if (!cur || rawTot[raw] > rawTot[cur] || (rawTot[raw] === rawTot[cur] && raw.length < cur.length)) disp[k] = raw;
+  });
+  const renName = k => disp[k] || k;
+  Object.keys(byEmp).forEach(dk => {
+    const o = byEmp[dk], n = {};
+    Object.keys(o).forEach(k => { const t = renName(k); n[t] = (n[t] || 0) + o[k]; });
+    byEmp[dk] = n;
+  });
+  Object.keys(byDayEmpGrp).forEach(dk => {
+    const o = byDayEmpGrp[dk], n = {};
+    Object.keys(o).forEach(k => {
+      const t = renName(k), s = (n[t] = n[t] || {});
+      Object.keys(o[k]).forEach(g => s[g] = (s[g] || 0) + o[k][g]);
+    });
+    byDayEmpGrp[dk] = n;
+  });
+  return { byDayGrp, byEmp, byDay, byDayEmpGrp, grpOrder, nEmp: Object.keys(disp).length };
 }
 
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
@@ -352,7 +380,7 @@ async function buildNS(q) {
       datasets: dGrps.map((g, i) => ({ label: g, data: dEmps.map(e => (dE[e] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
     },
     options: {
-      title: { display: true, text: "Ngày " + key.slice(3) + "/" + mm + " — từng nhân viên làm gì · tổng " + fmt(P.byDay[key] || 0) + " đơn", fontSize: 16 },
+      title: { display: true, text: "Năng suất xử lý đơn theo nhân viên — ngày " + key.slice(3) + "/" + mm + " · tổng " + fmt(P.byDay[key] || 0) + " đơn", fontSize: 16 },
       legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
       scales: {
         xAxes: [{ stacked: true, ticks: { fontSize: 10, minRotation: 45, maxRotation: 60 } }],
