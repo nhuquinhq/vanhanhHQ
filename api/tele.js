@@ -350,8 +350,15 @@ async function buildNS(q) {
     });
     if (dList.length > 12) lines.push(" … và " + (dList.length - 12) + " nhân sự khác (xem biểu đồ)");
   }
-  const emp = {};
-  days.forEach(k => Object.keys(P.byEmp[k] || {}).forEach(e => emp[e] = (emp[e] || 0) + P.byEmp[k][e]));
+  const emp = {}, empGrp = {}, mGrp = {};
+  days.forEach(k => {
+    Object.keys(P.byEmp[k] || {}).forEach(e => emp[e] = (emp[e] || 0) + P.byEmp[k][e]);
+    const d = P.byDayEmpGrp[k] || {};
+    Object.keys(d).forEach(e => {
+      const s = (empGrp[e] = empGrp[e] || {});
+      Object.keys(d[e]).forEach(g => { s[g] = (s[g] || 0) + d[e][g]; mGrp[g] = (mGrp[g] || 0) + d[e][g]; });
+    });
+  });
   const cTot = days.reduce((a, k) => a + P.byDay[k], 0);
   lines.push("", "📈 Lũy kế tháng " + (+mm) + ": <b>" + fmt(cTot) + " đơn</b> · " + P.nEmp + " nhân sự · BQ " + fmt(cTot / (days.length || 1)) + " đơn/ngày");
   const top = Object.keys(emp).sort((a, b) => emp[b] - emp[a]);
@@ -385,13 +392,17 @@ async function buildNS(q) {
   });
   /* không vẽ lại biểu đồ đơn theo ngày × loại: PVH10 đã có */
   const tv = top.slice(0, 18);
+  const mGrps = Object.keys(mGrp).sort((a, b) => mGrp[b] - mGrp[a]);
   if (tv.length) charts.push({
     type: "horizontalBar",
-    data: { labels: tv, datasets: [{ label: "Đơn tháng " + (+mm), data: tv.map(e => emp[e]), backgroundColor: "#1e5fd0" }] },
+    data: {
+      labels: tv,
+      datasets: mGrps.map((g, i) => ({ label: g, data: tv.map(e => (empGrp[e] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+    },
     options: {
       title: { display: true, text: "Tổng đơn xử lý tháng " + (+mm) + "/2026 — so sánh giữa nhân viên", fontSize: 16 },
-      legend: { display: false },
-      scales: { xAxes: [{ ticks: { beginAtZero: true } }], yAxes: [{ ticks: { fontSize: 11 } }] }
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: { xAxes: [{ stacked: true, ticks: { beginAtZero: true } }], yAxes: [{ stacked: true, ticks: { fontSize: 11 } }] }
     }
   });
   return { text: lines.join("\n"), charts };
