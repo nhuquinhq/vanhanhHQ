@@ -35,8 +35,10 @@ jobs:
             echo "Chua khai bao secret TELE_FIRE_URL (Settings -> Secrets and variables -> Actions)"; exit 1
           fi
           URL="${{ secrets.TELE_FIRE_URL }}"
-          # r= liet ke bao cao can ban (server tu bo trung); moi bao cao co dau rieng nen khong chan nhau
+          # r= liet ke bao cao can ban; xoa r= co san trong secret truoc roi moi gan, keo chon 1 bao cao
+          # ma van dinh kem bao cao cu (URL co 2 tham so r -> server gop ca hai)
           R="${{ inputs.bao_cao }}"; [ -z "$R" ] && R="pvh10,nv"
+          URL=$(printf '%s' "$URL" | sed -E 's/([?&])r=[^&]*/\1/g; s/\?&+/?/; s/&&+/\&/g; s/[?&]+$//')
           case "$URL" in *\?*) URL="$URL&r=$R";; *) URL="$URL?r=$R";; esac
           # chay theo lich -> them slot=auto de server gac gio VN; ban tay tu tab Actions -> gui ngay
           if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.gac }}" = "auto" ]; then
