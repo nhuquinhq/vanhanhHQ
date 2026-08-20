@@ -570,9 +570,9 @@ async function loadLive(){
 
 
 /* palette xanh dương + tín hiệu */
-const BLUE=['#0b3a8f','#1e5fd0','#2e86e6','#4aa8f0','#7cc4f7','#22d3ee','#94a3b8'];
-const SPCOL={"Gift Card":'#0b3a8f',"Robux":'#2e86e6',"Razer Gold":'#1e5fd0',"Nick Random Roblox":'#4aa8f0',"Token":'#7cc4f7',"RBX Daily":'#22d3ee',"RBX HQS":'#0e9fbe',"Topup OG":'#94a3b8',"Topup Galaxylink":'#eab308',"Supercell":'#5f7ae8'};
-const RED='#f43f5e',GREEN='#34d399';
+const BLUE=['#24594F','#357D71','#5F936A','#9BBA74','#C2CB81','#E1B083','#94a3b8'];
+const SPCOL={"Gift Card":'#357D71',"Robux":'#FA8A89',"Razer Gold":'#638A55',"Nick Random Roblox":'#C48D60',"Token":'#C2CB81',"RBX Daily":'#9BBA74',"RBX HQS":'#2F6E77',"Topup OG":'#94a3b8',"Topup Galaxylink":'#D9B25A',"Supercell":'#FDACBB'};
+const RED='#FA8A89',GREEN='#638A55';
 Chart.defaults.font.family="'Be Vietnam Pro',Arial,sans-serif";Chart.defaults.font.size=11;Chart.defaults.color='#5b6b7b';
 let charts=[],curr="TQ";
 function today(){const t=new Date();return{y:t.getFullYear(),mo:t.getMonth(),d:t.getDate()};}
@@ -742,7 +742,7 @@ function renderGroupReport(host,cfg){
      ${sheetT!=null?`<tr style="font-weight:bold;color:#0b3a8f;background:#eef4ff"><td>Hàng tổng trên sheet</td>${tmn.map(mi=>`<td class="n">${fmtn(tots[sp][mi])}</td>`).join('')}<td class="n">${fmtn(sheetT)}</td><td class="n">—</td></tr>`:''}
      </tbody></table></div></div>`;});
  h+='</div>';h+=insightCard(gIns);host.innerHTML=h;
- sps.forEach((sp,idx)=>{const list=agg[sp].list.slice(0,10);mk(cfg.pfx+"_"+idx,{type:'bar',data:{labels:list.map(x=>x[0]),datasets:[{data:list.map(x=>x[1]),backgroundColor:list.map((_,i)=>i===0?'#0b3a8f':(i<4?'#1e5fd0':'#4aa8f0'))}]},options:hbarOpt()});});
+ sps.forEach((sp,idx)=>{const list=agg[sp].list.slice(0,10);mk(cfg.pfx+"_"+idx,{type:'bar',data:{labels:list.map(x=>x[0]),datasets:[{data:list.map(x=>x[1]),backgroundColor:list.map((_,i)=>i===0?'#24594F':(i<4?'#357D71':'#9BBA74'))}]},options:hbarOpt()});});
 }
 
 /* ===== DIỄN GIẢI & PHÂN TÍCH TỰ ĐỘNG (sinh từ số liệu trong phạm vi lọc) ===== */
@@ -844,7 +844,7 @@ const PAGES={
     ${insightCard(p2Ins)}`;
    mk("p1a",{type:'bar',data:{labels:SPDV.map(shortSP),datasets:[{data:SPDV.map(s=>sc.die[s]),backgroundColor:RED}]},options:hbarOpt()});
    const trDie=trend(m=>Object.keys(DIE).reduce((a,s)=>a+DIE[s][m],0),7);
-   mk("p1b",{type:'line',data:{labels:trDie.labels,datasets:[{data:trDie.values,fill:true,backgroundColor:'rgba(244,63,94,.16)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:3}]},options:barOpt(false)});
+   mk("p1b",{type:'line',data:{labels:trDie.labels,datasets:[{data:trDie.values,fill:true,backgroundColor:'rgba(250,138,137,.18)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:3}]},options:barOpt(false)});
    const trDon=trend(m=>DON.Robux[m],999);
    mk("p1c",{type:'bar',data:{labels:trDon.labels,datasets:[{data:trDon.values,backgroundColor:GREEN,borderRadius:2}]},options:barOpt(false)});
  }},
@@ -867,7 +867,7 @@ const PAGES={
     ${insightCard(p8Ins)}`;
    const trN=trend(monthNhap,7),trD=trend(m=>Object.keys(DIE).reduce((a,s)=>a+DIE[s][m],0),7);
    const glv=trN.values.map((v,i)=>v?+(trD.values[i]/v*100).toFixed(3):0);
-   mk("p8a",{type:'line',data:{labels:trN.labels,datasets:[{data:glv,fill:true,backgroundColor:'rgba(244,63,94,.16)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:trN.labels.length>12?2:3,pointBackgroundColor:trN.labels.map((_,i)=>i===trN.hl?'#0b3a8f':RED)}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'%'}}},scales:{x:noX,y:{...yG,beginAtZero:true,ticks:{callback:v=>v+'%'}}}}});
+   mk("p8a",{type:'line',data:{labels:trN.labels,datasets:[{data:glv,fill:true,backgroundColor:'rgba(250,138,137,.18)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:trN.labels.length>12?2:3,pointBackgroundColor:trN.labels.map((_,i)=>i===trN.hl?'#24594F':RED)}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'%'}}},scales:{x:noX,y:{...yG,beginAtZero:true,ticks:{callback:v=>v+'%'}}}}});
    mk("p8b",{type:'bar',data:{labels:Object.keys(DIE),datasets:[{data:Object.keys(DIE).map(s=>sc.die[s]),backgroundColor:RED}]},options:hbarOpt()});
  }},
  PVH3:{title:"PVH3 · NXT theo Nhân viên (mỗi SPDV 1 dashboard)",meta:"Nguồn: Data Nhập Theo Nhân viên (theo tháng)",render(host){
@@ -907,7 +907,7 @@ const PAGES={
      mk("p9b",{type:'bar',data:{labels:withData.map(i=>'T'+pad2(i+1)),datasets:[
        {label:'Thủ công',data:withData.map(i=>A.man.m[i]),backgroundColor:RED,stack:'s',order:2},
        {label:'Tự động',data:withData.map(i=>A.auto.m[i]),backgroundColor:GREEN,stack:'s',order:2},
-       {label:'% tự động',data:withData.map(i=>+(rate(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#1e5fd0',backgroundColor:'#1e5fd0',tension:.3,order:1}]},
+       {label:'% tự động',data:withData.map(i=>+(rate(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#357D71',backgroundColor:'#357D71',tension:.3,order:1}]},
       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
        scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
    });
@@ -989,9 +989,9 @@ const PAGES={
      h+=SEC('🐾 Chi tiết — đơn nạp game Pokémon')+gPK.html;charts.push.apply(charts,gPK.charts);
      host.innerHTML=h;
      charts.forEach(ch=>{
-       if(ch.s1)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{label:'Phát sinh',data:ch.s1,backgroundColor:'#7cc4f7'},{label:'Hoàn tất',data:ch.s2,backgroundColor:'#1e5fd0'}]},options:barOpt(true)});
-       else if(ch.bar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.bar,backgroundColor:'#2e86e6',borderRadius:2}]},options:barOpt(false)});
-       else if(ch.hbar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.hbar,backgroundColor:'#1e5fd0'}]},options:hbarOpt()});
+       if(ch.s1)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{label:'Phát sinh',data:ch.s1,backgroundColor:'#C2CB81'},{label:'Hoàn tất',data:ch.s2,backgroundColor:'#357D71'}]},options:barOpt(true)});
+       else if(ch.bar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.bar,backgroundColor:'#5F936A',borderRadius:2}]},options:barOpt(false)});
+       else if(ch.hbar)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:[{data:ch.hbar,backgroundColor:'#357D71'}]},options:hbarOpt()});
        else if(ch.stack)mk(ch.id,{type:'bar',data:{labels:ch.labels,datasets:ch.stack},
          options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}});
        else if(ch.dlabels)mk(ch.id,donut(ch.dlabels,ch.ddata,BLUE));});
@@ -1024,7 +1024,7 @@ const PAGES={
       <div class="note" style="margin-top:12px">Chưa gồm "loại lỗi" &amp; "chi phí hoàn" — cần chỉ cột tương ứng trong tab để bổ sung.</div>`;
      mkHoanNickCharts(HV);
      if(tot){mk("p12a",donut(list.slice(0,8).map(x=>x[0]),list.slice(0,8).map(x=>x[1]),BLUE));
-       mk("p12b",{type:'bar',data:{labels:MN,datasets:[{label:'DIE',data:dieM,backgroundColor:RED},{label:'Hoàn tiền',data:hoanM,backgroundColor:'#fbbf24'}]},options:barOpt(true)});}
+       mk("p12b",{type:'bar',data:{labels:MN,datasets:[{label:'DIE',data:dieM,backgroundColor:RED},{label:'Hoàn tiền',data:hoanM,backgroundColor:'#CDDB86'}]},options:barOpt(true)});}
    });
  }},
  PVH13:{title:"PVH13 · Nhập chi tiết theo SPDV",meta:"Đọc RAW các tab chi tiết → CO Nhập theo NGÀY trong phạm vi lọc · tab USD quy VND theo tỷ giá ngày",render(host){
@@ -1116,7 +1116,7 @@ const PAGES={
        <div class="small" style="margin-top:6px">Tuần tính từ Thứ 2 → Chủ nhật; danh sách tuần lấy theo dữ liệu CẢ NĂM của 6 nguồn, không phụ thuộc bộ lọc Từ–Đến. Quy đổi USD→VND theo tỷ giá từng ngày như bảng chi tiết.</div></div>`+diagHTML;
       mk("p13x",{type:'bar',data:{labels:SF.map(s=>s.name),datasets:[
        {label:'Tuần A · '+wkLabel(P13WA),data:rowsC.map(r=>r.a),backgroundColor:'#94a3b8'},
-       {label:'Tuần B · '+wkLabel(P13WB),data:rowsC.map(r=>r.b),backgroundColor:'#1e5fd0'}]},options:barOpt(true)});
+       {label:'Tuần B · '+wkLabel(P13WB),data:rowsC.map(r=>r.b),backgroundColor:'#357D71'}]},options:barOpt(true)});
       return;
      }
      host.innerHTML=`${toggleRow}
@@ -1172,7 +1172,7 @@ const PAGES={
       </tbody></table></div>
       <div class="small" style="margin-top:6px">Số dư tính bằng USD; quy VND theo tỷ giá NGÀY MỚI NHẤT trong Bảng tỉ giá. Galaxylink lấy tự động qua API — các NCC khác nhập tay cho tới khi có API key (BuySellVouchers: chờ duyệt Business API · RBXCrate: lấy key trong panel · Lotkeys / OGGamingX / Donquixoteshop: hỏi admin của họ). Nhập tay: gõ số USD với dấu chấm thập phân (vd <b>1250.50</b>) rồi bấm Lưu; để trống rồi bấm Lưu sẽ xoá số đã lưu.</div></div>`;
      if(has.length){
-      mk("p14a",{type:'bar',data:{labels:has.map(x=>x.name),datasets:[{label:'USD',data:has.map(x=>x.usd),backgroundColor:'#1e5fd0'}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$ '+fmU(c.parsed.y)}}},scales:{x:noX,y:yG}}});
+      mk("p14a",{type:'bar',data:{labels:has.map(x=>x.name),datasets:[{label:'USD',data:has.map(x=>x.usd),backgroundColor:'#357D71'}]},options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>'$ '+fmU(c.parsed.y)}}},scales:{x:noX,y:yG}}});
       mk("p14b",donut(has.map(x=>x.name),has.map(x=>x.usd),BLUE));
      }
    });
@@ -1193,9 +1193,9 @@ const PAGES={
        ${rows.map(r=>`<tr><td>${r.name}</td><td class="n"><b>${fm(r.a)}</b></td><td class="n">${fm(r.b)}</td><td class="n">${chg(r.b,r.a)}</td><td class="n">${fm(r.c)}</td><td class="n">${chg(r.c,r.a)}</td></tr>`).join('')}
        </tbody></table></div>${unit?`<div class="small" style="margin-top:6px">${unit}</div>`:''}</div>`;
      const grp=(id,names,rows)=>mk(id,{type:'bar',data:{labels:names,datasets:[
-        {label:'Tuần '+A.no,data:rows.map(r=>r.a),backgroundColor:'#1e5fd0'},
+        {label:'Tuần '+A.no,data:rows.map(r=>r.a),backgroundColor:'#357D71'},
         {label:'Tuần '+B.no,data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
-        {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#c7d6ec'}]},options:barOpt(true)});
+        {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#DCE7D5'}]},options:barOpt(true)});
      let h=`<div class="small" style="margin:0 4px 8px">So sánh: <b>Tuần ${A.no}</b> (${A.lab}) ↔ <b>Tuần ${B.no}</b> (${B.lab}) ↔ cùng kỳ tháng trước (${C.lab})</div>`;
      /* ---------- 1) PVH13 · Nhập chi tiết theo SPDV ---------- */
      const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
@@ -1252,7 +1252,7 @@ const PAGES={
      /* giá vốn ĐV theo từng ngày trong tuần — 3 đường để so dáng biến động */
      {const DOW=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','CN'];
       const gvDay=r=>rangeDays2(r.f,r.t).map(k=>{const t=(ROBUXDAILY||{})[k]||0,q=(ROBUXSL||{})[k]||0;return q?+(t/q).toFixed(2):null;});
-      const cols=['#1e5fd0','#94a3b8','#c7d6ec'];
+      const cols=['#357D71','#94a3b8','#DCE7D5'];
       mk("w2",{type:'line',data:{labels:DOW,datasets:[A,B,C].map((r,i)=>({
         label:i===0?'Tuần '+A.no:(i===1?'Tuần '+B.no:'Cùng kỳ T.trước ('+C.lab+')'),
         data:gvDay(r),borderColor:cols[i],backgroundColor:cols[i],borderWidth:i===0?2.6:2,
@@ -1261,7 +1261,7 @@ const PAGES={
          tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':c.parsed.y.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2})+' đ/robux')}}},
         scales:{x:noX,y:{...yG,ticks:{callback:v=>Math.round(v).toLocaleString('vi-VN')}}}}});}
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
-       mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});}
+       mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#357D71'}]},options:hbarOpt()});}
      grp("w2c",['Dồn (thu hồi)','Die (mất thật)'],[{a:D3[0].dn,b:D3[1].dn,c:D3[2].dn},{a:D3[0].de,b:D3[1].de,c:D3[2].de}]);
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
@@ -1325,9 +1325,9 @@ const PAGES={
        const momv=ch.ms.map((m,j)=>j>0?+(((m.gv-ch.ms[j-1].gv)/ch.ms[j-1].gv)*100).toFixed(2):null);
        const rnd=n=>+n.toFixed(ch.dec);
        mk("c_"+ch.id,{type:'bar',data:{labels,datasets:[
-        {type:'line',label:'GV ĐV ('+ch.gvUnit+')',data:ch.ms.map(m=>rnd(m.gv)),yAxisID:'y',borderColor:'#0e9fbe',backgroundColor:'rgba(34,211,238,.15)',borderWidth:2.5,tension:.3,pointRadius:4},
-        {type:'line',label:'BQ năm',data:ch.ms.map(()=>rnd(ch.bq)),yAxisID:'y',borderColor:'#0b3a8f',borderDash:[6,5],borderWidth:1.5,pointRadius:0},
-        {label:'%MoM',data:momv,yAxisID:'y2',backgroundColor:momv.map(v=>v==null?'#94a3b8':(v>0?'rgba(244,63,94,.65)':'rgba(52,211,153,.7)')),borderRadius:2}
+        {type:'line',label:'GV ĐV ('+ch.gvUnit+')',data:ch.ms.map(m=>rnd(m.gv)),yAxisID:'y',borderColor:'#2F6E77',backgroundColor:'rgba(53,125,113,.14)',borderWidth:2.5,tension:.3,pointRadius:4},
+        {type:'line',label:'BQ năm',data:ch.ms.map(()=>rnd(ch.bq)),yAxisID:'y',borderColor:'#24594F',borderDash:[6,5],borderWidth:1.5,pointRadius:0},
+        {label:'%MoM',data:momv,yAxisID:'y2',backgroundColor:momv.map(v=>v==null?'#94a3b8':(v>0?'rgba(250,138,137,.75)':'rgba(99,138,85,.75)')),borderRadius:2}
        ]},options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y2'?(c.parsed.y==null?'—':c.parsed.y+'%'):fmc(c.parsed.y))}}},
         scales:{x:noX,y:{...yG},y2:{position:'right',grid:{display:false},ticks:{callback:v=>v+'%'}}}}});});
    });
@@ -1429,8 +1429,8 @@ const PAGES={
       <div class="small" style="margin-top:6px">Tuổi tồn lấy từ cột "Ngày lưu kho" của file (bình quân gia quyền theo giá trị $). Tuổi tồn là ảnh chụp hiện tại của kho nên không đổi theo bộ lọc thời gian.</div></div>
       ${insightCard(p6Ins)}`+khoCTSection(K);
      const top=rowsD.slice(0,12);
-     mk("p6a",{type:'bar',data:{labels:top.map(r=>r.cat),datasets:[{data:top.map(r=>r.vnd),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});
-     const BK=['≤30 ngày','31–60','61–90','>90 ngày'],BC=['#34d399','#fbbf24','#fb923c','#f43f5e'];
+     mk("p6a",{type:'bar',data:{labels:top.map(r=>r.cat),datasets:[{data:top.map(r=>r.vnd),backgroundColor:'#357D71'}]},options:hbarOpt()});
+     const BK=['≤30 ngày','31–60','61–90','>90 ngày'],BC=['#638A55','#CDDB86','#E1B083','#FA8A89'];
      mk("p6b",{type:'bar',data:{labels:top.map(r=>r.cat),datasets:BK.map((b,bi)=>({label:b,data:top.map(r=>r.bk[bi]),backgroundColor:BC[bi],stack:'s'}))},
       options:{indexAxis:'y',plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.x)}}},scales:{x:{...yG,stacked:true,ticks:{callback:fmtAxis}},y:{...noX,stacked:true}}}});
      mkKhoCharts(K);
@@ -1462,7 +1462,7 @@ const PAGES={
     options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+'%'}}},scales:{x:{...yG,ticks:{callback:v=>v+'%'}},y:noX}}});
    const trN=trend(monthNhap,7),trD=trend(m=>Object.keys(DIE).reduce((a,s)=>a+DIE[s][m],0),7);
    const rv=trN.values.map((v,i)=>v?+(trD.values[i]/v*100).toFixed(3):0);
-   mk("p11b",{type:'line',data:{labels:trN.labels,datasets:[{data:rv,fill:true,backgroundColor:'rgba(244,63,94,.16)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:3}]},
+   mk("p11b",{type:'line',data:{labels:trN.labels,datasets:[{data:rv,fill:true,backgroundColor:'rgba(250,138,137,.18)',borderColor:RED,borderWidth:2,tension:.35,pointRadius:3}]},
     options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+'%'}}},scales:{x:noX,y:{...yG,beginAtZero:true,ticks:{callback:v=>v+'%'}}}}});
  }},
 };
@@ -1476,11 +1476,11 @@ function barOpt(stackLegend){return{plugins:{legend:{display:!!stackLegend,posit
 function stackCfg(labels,datasets){return{type:'bar',data:{labels,datasets},options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}};}
 function hbarOpt(){return{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmt(c.parsed.x)}}},scales:{x:{...yG,ticks:{callback:fmtAxis}},y:noX}};}
 function trendCfg(tr){const isDay=tr.labels.length>8;
- return{type:isDay?'bar':'line',data:{labels:tr.labels,datasets:[{data:tr.values,fill:!isDay,backgroundColor:isDay?tr.labels.map((_,i)=>i===tr.hl?'#0b3a8f':'#2e86e6'):'rgba(37,99,235,.16)',borderColor:'#1e5fd0',borderWidth:2,tension:.35,pointRadius:3,borderRadius:isDay?2:0}]},
+ return{type:isDay?'bar':'line',data:{labels:tr.labels,datasets:[{data:tr.values,fill:!isDay,backgroundColor:isDay?tr.labels.map((_,i)=>i===tr.hl?'#24594F':'#5F936A'):'rgba(53,125,113,.16)',borderColor:'#357D71',borderWidth:2,tension:.35,pointRadius:3,borderRadius:isDay?2:0}]},
  options:{plugins:{legend:{display:false},tooltip:{callbacks:{title:c=>(isDay?'Ngày ':'')+c[0].label,label:c=>fmt(c.parsed.y)}}},scales:{x:noX,y:{...yG,ticks:{callback:fmtAxis}}}}};}
 function framed(host,msg){const sc=scopeData();
  host.innerHTML=`<div class="note">${msg}</div><div class="grid2" style="margin-top:12px">${cc("CO Nhập theo SPDV — "+scopeLabel(),"pf1")}${cc("CO Nhập theo "+(window._m<0?"tháng":"ngày"),"pf2")}</div>`;
- mk("pf1",{type:'bar',data:{labels:SPDV.map(shortSP),datasets:[{data:SPDV.map(s=>sc.nhap[s]),backgroundColor:'#1e5fd0'}]},options:hbarOpt()});
+ mk("pf1",{type:'bar',data:{labels:SPDV.map(shortSP),datasets:[{data:SPDV.map(s=>sc.nhap[s]),backgroundColor:'#357D71'}]},options:hbarOpt()});
  mk("pf2",trendCfg(trend(monthNhap,7)));}
 function frameOnly(host,msg){host.innerHTML=`<div class="card"><h3>Đang dựng — cần lớp L2</h3><div class="note">${msg}</div><p class="small" style="margin-top:10px">Bộ lọc thời gian đã sẵn; số sẽ hiện khi nối L2_TONGHOP.</p></div>`;}
 
@@ -1606,13 +1606,13 @@ function ensureRaw(keys){return Promise.all(keys.map(fetchRaw));}
 function p13Series(fk,tk){
  const dsum=(key,fn)=>{const cfg=RAWCFG[key];const o={};(RAWDATA[key]||[]).forEach(r=>{if(r.dk<fk||r.dk>tk)return;if(fn&&!fn(r))return;const v=cfg.usd?r.val*fxRate(r.dk):r.val;if(v)o[r.dk]=(o[r.dk]||0)+v;});return o;};
  const S=[
-  {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#1e5fd0'},
-  {name:'Gift Card',daily:(()=>{const o={},G=GC13DAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#0e7c86'},
-  {name:'OG',daily:dsum('og'),color:'#7c3aed'},
-  {name:'Supercell',daily:dsum('sc'),color:'#fb923c'},
-  {name:'Razer Gold',daily:dsum('razer'),color:'#be185d'},
-  {name:'RBX',daily:dsum('rbx'),color:'#22d3ee'},
-  {name:'Galaxylink',daily:(()=>{const o={},G=GLXDAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#eab308'}
+  {name:'Robux',daily:(()=>{const o={},RD=ROBUXDAILY||{};for(const k in RD){if(k>=fk&&k<=tk)o[k]=RD[k];}return o;})(),color:'#357D71'},
+  {name:'Gift Card',daily:(()=>{const o={},G=GC13DAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GC13USD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#638A55'},
+  {name:'OG',daily:dsum('og'),color:'#C48D60'},
+  {name:'Supercell',daily:dsum('sc'),color:'#E1B083'},
+  {name:'Razer Gold',daily:dsum('razer'),color:'#B3564F'},
+  {name:'RBX',daily:dsum('rbx'),color:'#7FBFB2'},
+  {name:'Galaxylink',daily:(()=>{const o={},G=GLXDAILY||{};for(const k in G){if(k<fk||k>tk)continue;const v=GLXUSD?G[k]*fxRate(k):G[k];if(v)o[k]=v;}return o;})(),color:'#D9B25A'}
  ];
  S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
  return S;}
@@ -1974,10 +1974,10 @@ function hoanNickSection(V){
   <div class="small" style="margin-top:6px">Nguồn: khối "THỐNG KÊ HOÀN TIỀN THEO THÁNG - CTV" (đơn vị VND). ${V.hasMonths?'Cột "Tiền hoàn (phạm vi)" cộng các THÁNG nằm trong bộ lọc; biểu đồ theo tháng luôn hiển thị cả năm.':'Khối không có cột T1..T12 nên hiển thị theo cột TỔNG.'} "Tỷ lệ" lấy nguyên trạng từ file. Hoàn Gift Card và các loại hoàn khác sẽ nối thêm cùng khuôn khi có nguồn.</div></div>`;}
 function mkHoanNickCharts(V){if(!V)return;
  const top=V.ctvs.filter(x=>x.vv>0).slice(0,12);
- mk("p12c",{type:'bar',data:{labels:top.map(x=>x.ctv),datasets:[{data:top.map(x=>x.vv),backgroundColor:'#7c3aed'}]},options:hbarOpt()});
+ mk("p12c",{type:'bar',data:{labels:top.map(x=>x.ctv),datasets:[{data:top.map(x=>x.vv),backgroundColor:'#C48D60'}]},options:hbarOpt()});
  const dsrc=V.hasLoai?V.loais:V.ctvs.slice(0,8).map(x=>[x.ctv,x.vv]);
  mk("p12d",donut(dsrc.map(x=>x[0]),dsrc.map(x=>x[1]),BLUE));
- if(V.hasMonths)mk("p12e",{type:'bar',data:{labels:MN,datasets:[{data:V.monthly,backgroundColor:'#fb923c',borderRadius:2}]},options:barOpt(false)});}
+ if(V.hasMonths)mk("p12e",{type:'bar',data:{labels:MN,datasets:[{data:V.monthly,backgroundColor:'#E1B083',borderRadius:2}]},options:barOpt(false)});}
 /* ===== PVH4: giá vốn bình quân GIA QUYỀN theo tháng (loại dòng tiền = 0) — Robux · Razer Gold ===== */
 const COSTCFG={
  robux:{gid:'386815906',sp:'Robux',unit:'robux',don:'nick dồn',cur:'đ',dec:2,
@@ -2110,8 +2110,8 @@ function khoCTSection(K){
   <div class="small" style="margin-top:6px">Cột CO tồn/CO bán tô <b style="color:#0f7a4d">xanh</b> khi đạt ≥ tỷ lệ an toàn và <b style="color:#b91c1c">đỏ</b> khi thấp hơn (chỉ so khi file có tỷ lệ an toàn). Dòng nền nhạt là dòng tổng nhóm chưa đặt tên trên file. Số liệu lấy nguyên trạng từ file, tự làm mới cùng trang.</div></div>`;}
 function mkKhoCharts(K){if(!K)return;
  const src=K.items.filter(x=>!x.unnamed&&(x.ton>0||x.ban>0)).sort((a,b)=>b.ton-a.ton);
- mk("p6c",{type:'bar',data:{labels:src.filter(x=>x.ton>0).map(x=>x.label),datasets:[{data:src.filter(x=>x.ton>0).map(x=>x.ton),backgroundColor:'#0e7c86'}]},options:hbarOpt()});
- mk("p6d",{type:'bar',data:{labels:src.map(x=>x.label),datasets:[{label:'CO tồn',data:src.map(x=>x.ton),backgroundColor:'#1e5fd0'},{label:'CO bán 30 ngày',data:src.map(x=>x.ban),backgroundColor:'#34d399'}]},options:barOpt(true)});}
+ mk("p6c",{type:'bar',data:{labels:src.filter(x=>x.ton>0).map(x=>x.label),datasets:[{data:src.filter(x=>x.ton>0).map(x=>x.ton),backgroundColor:'#638A55'}]},options:hbarOpt()});
+ mk("p6d",{type:'bar',data:{labels:src.map(x=>x.label),datasets:[{label:'CO tồn',data:src.map(x=>x.ton),backgroundColor:'#357D71'},{label:'CO bán 30 ngày',data:src.map(x=>x.ban),backgroundColor:'#638A55'}]},options:barOpt(true)});}
 
 /* ===== PVH10: SLA/Accuracy đơn Gamepass — FILE RIÊNG "Báo cáo Năng xuất Xử lý đơn 2026" ===== */
 const BASE_SLA="https://docs.google.com/spreadsheets/d/e/2PACX-1vRHGRhq3zSjBYecJRUbTLwlgjvx-A7hIu8J0eSkUKuXZI7uMWYLjyUeIKefumrnQLC5jIbW55y0lE1W/pub";
@@ -2261,7 +2261,7 @@ function parseSlaTongTC(rows){
    tmap[key].tot+=tot;Object.assign(tmap[key].daily,daily);}});
  const types=order.map(k=>tmap[k]);
  return types.length?{dateCols:heads.reduce((a,h)=>a.concat(h.dateCols),[]),types,kpi:kpiTxt}:null;}
-const TC_PAL=['#1e5fd0','#fb923c','#0e7c86','#7c3aed','#be185d','#15803d'];
+const TC_PAL=['#357D71','#FA8A89','#638A55','#C48D60','#C2CB81','#9BBA74','#E1B083','#B3564F','#FDACBB','#7FBFB2'];
 function slaTongTCSection(rows){
  const P=parseSlaTongTC(rows);
  if(!P)return slaGenericSection(rows,SLA_GIDS.tc,'tc','p10t','Tổng đơn xử lý thủ công'); /* dự phòng: thử 2 dạng chuẩn / hiện dữ liệu thô */
@@ -2606,13 +2606,13 @@ function permPanel(){
   <div class="sechead"><span class="sq" style="background:#1e5fd0"></span>Quản lý đăng nhập &amp; phân quyền<span class="cnt">Admin cứng: ${SUPER_ADMIN}</span></div>
   <div id="permbox">${spinner("Đang tải danh sách tài khoản…")}</div></div>`;}
 /* avatar chữ cái đầu, màu ổn định theo email */
-const AVC=['#0b3a8f','#1e5fd0','#2e86e6','#0e7c86','#7c3aed','#b45309','#be185d','#15803d'];
+const AVC=['#24594F','#357D71','#5F936A','#638A55','#C48D60','#A9713F','#B3564F','#4E7A4A'];
 function avat(e){let s=0;for(let i=0;i<e.length;i++)s=(s*31+e.charCodeAt(i))>>>0;
  const ini=(e.split('@')[0].replace(/[^a-z0-9]/gi,'').slice(0,2)||'?').toUpperCase();
  return `<span class="avt" style="background:${AVC[s%AVC.length]}">${ini}</span>`;}
 function roleBadge(r){return `<span class="rolebadge" style="background:${_roleBg(r)}">${(ROLE_LABEL[r]||r).replace(/\s*\(.*\)/,'')}</span>`;}
 let _acl={users:{},pending:[]};
-const _roleBg=r=>r==='admin'?'#0b3a8f':(r==='leader'?'#1e5fd0':'#4aa8f0');
+const _roleBg=r=>r==='admin'?'#24594F':(r==='leader'?'#357D71':'#9BBA74');
 function _roleSel(id,cur){return `<select id="${id}" style="padding:5px 8px">${['admin','leader','nhanvien'].map(x=>`<option value="${x}"${x===cur?' selected':''}>${ROLE_LABEL[x]}</option>`).join('')}</select>`;}
 /* dropdown tick chọn báo cáo — cur: 'all' | mảng mã | null(mặc định vai trò) */
 function _pgSummaryText(cur){if(cur==='all')return 'Tất cả báo cáo';if(Array.isArray(cur)&&cur.length)return cur.join(', ');return 'Mặc định theo vai trò';}
@@ -2645,12 +2645,12 @@ async function loadPermAdmin(){const box=document.getElementById('permbox');if(!
  const ks=document.getElementById('k_acc_sub');if(ks)ks.innerHTML=pend.length?`<span style="color:#fbbf24">● ${pend.length} chờ cấp quyền</span>`:'không có yêu cầu chờ';
  let h='';
  if(pend.length){
-  h+=`<div class="sechead" style="margin-bottom:8px"><span class="sq" style="background:#f59e0b;box-shadow:0 0 8px rgba(245,158,11,.5)"></span>Chờ cấp quyền<span class="cnt">${pend.length} email đăng nhập lần đầu</span></div>`;
+  h+=`<div class="sechead" style="margin-bottom:8px"><span class="sq" style="background:#f59e0b;box-shadow:0 0 8px rgba(225,176,131,.6)"></span>Chờ cấp quyền<span class="cnt">${pend.length} email đăng nhập lần đầu</span></div>`;
   pend.forEach((e,i)=>{h+=`<div class="strip"><span class="stdot warn"></span><span class="usr">${avat(e)}<span><span class="em">${e}</span><br><span class="tag">đang chờ duyệt</span></span></span>
    <span style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap">${_roleSel('prole'+i,'nhanvien')}${_pgPicker('ppg'+i,null)}
    <button class="btn" onclick="aclAssign('pending',${i})">✓ Cấp quyền</button><button class="pbtn" onclick="aclDismiss('pending',${i})">Bỏ qua</button></span></div>`;});
   h+='<div style="height:8px"></div>';}
- h+=`<div class="sechead" style="margin-bottom:8px"><span class="sq" style="background:#22c55e;box-shadow:0 0 8px rgba(34,197,94,.5)"></span>Tài khoản đã cấp quyền<span class="cnt">${ue.length+1} tài khoản</span></div>`;
+ h+=`<div class="sechead" style="margin-bottom:8px"><span class="sq" style="background:#22c55e;box-shadow:0 0 8px rgba(99,138,85,.5)"></span>Tài khoản đã cấp quyền<span class="cnt">${ue.length+1} tài khoản</span></div>`;
  h+='<div class="scroll" style="max-height:340px"><table class="tbl"><thead><tr><th>Tài khoản</th><th>Vai trò</th><th>Báo cáo được xem</th><th style="width:150px"></th></tr></thead><tbody>';
  h+=`<tr><td><span class="usr">${avat(SUPER_ADMIN)}<span><span class="em">${SUPER_ADMIN}</span><br><span class="tag">admin cứng — không thể thu hồi</span></span></span></td>
   <td>${roleBadge('admin')}</td><td class="small">Tất cả báo cáo + Cấu hình</td><td></td></tr>`;

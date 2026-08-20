@@ -71,7 +71,8 @@ function vnum(x) {
   const n = parseFloat(x); return isNaN(n) ? 0 : n;
 }
 const fmt = n => Math.round(n).toLocaleString("vi-VN");
-const PAL = ["#1e5fd0", "#fb923c", "#0e7c86", "#7c3aed", "#be185d", "#15803d", "#eab308", "#22d3ee", "#94a3b8", "#f43f5e"];
+/* tone màu biểu đồ: xanh ngọc · san hô · xanh lá · kem — dùng chung cho mọi ảnh bot gửi */
+const PAL = ["#357D71", "#FA8A89", "#638A55", "#C48D60", "#C2CB81", "#9BBA74", "#E1B083", "#B3564F", "#FDACBB", "#7FBFB2"];
 /* dựng ảnh biểu đồ qua QuickChart: POST lấy link ngắn rồi để Telegram tự tải ảnh về */
 async function chartURL(cfg) {
   try {
