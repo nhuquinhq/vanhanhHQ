@@ -1252,6 +1252,27 @@ const PAGES={
             return `<tr><td>${n}</td><td class="n">${fmtn(v.m)}</td><td class="n">${fmtn(v.a)}</td><td class="n"><b>${fmtn(t)}</b></td><td class="n">${t?pct(v.a/t):'—'}</td></tr>`;}).join('')
           +`<tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td class="n">${fmtn(sm)}</td><td class="n">${fmtn(sa)}</td><td class="n">${fmtn(sm+sa)}</td><td class="n">${(sm+sa)?pct(sa/(sm+sa)):'—'}</td></tr>`;})()}
         </tbody></table></div><div class="small" style="margin-top:6px">Cột cuối cho biết mỗi nguồn đã tự động hoá được bao nhiêu phần trăm đơn — nguồn nào còn thấp là chỗ còn dư địa làm Bot.</div></div>`;
+       /* ---- bảng CẢ NĂM theo tháng: xem độ luỹ tiến tự động hoá của từng nguồn ---- */
+       h+=(function(){
+         const km={};(AU.man.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:Array(12).fill(0),a:Array(12).fill(0)};for(let i=0;i<12;i++)km[k.name].m[i]+=k.m[i]||0;});
+         (AU.auto.kids||[]).forEach(k=>{km[k.name]=km[k.name]||{m:Array(12).fill(0),a:Array(12).fill(0)};for(let i=0;i<12;i++)km[k.name].a[i]+=k.m[i]||0;});
+         const ms=[];for(let i=0;i<12;i++)if(man[i]||aut[i])ms.push(i);
+         const names=Object.keys(km).filter(n=>km[n].m.some(x=>x)||km[n].a.some(x=>x))
+           .sort((x,y)=>(km[y].m.reduce((a,b)=>a+b,0)+km[y].a.reduce((a,b)=>a+b,0))-(km[x].m.reduce((a,b)=>a+b,0)+km[x].a.reduce((a,b)=>a+b,0)));
+         if(!ms.length||!names.length)return '';
+         const p1=v=>(v*100).toFixed(1).replace('.',',')+'%';
+         /* ô càng xanh = tỉ lệ tự động càng cao, nhìn ngang một hàng là thấy nguồn đó tiến tới đâu */
+         const cell=(mv,av,hi)=>{const t=mv+av;if(!t)return `<td class="n" style="color:#b6c2d0">—</td>`;
+           const r=av/t;return `<td class="n" style="background:rgba(99,138,85,${(r*0.42).toFixed(3)})${hi?';outline:2px solid #24594F;outline-offset:-2px':''}">
+             <b>${p1(r)}</b><div class="small" style="color:#5b6b7b">${fmtn(t)} đơn</div></td>`;};
+         const rows=names.map(n=>{const v=km[n],ym=v.m.reduce((a,b)=>a+b,0),ya=v.a.reduce((a,b)=>a+b,0);
+           return `<tr><td>${n}</td>${ms.map(i=>cell(v.m[i],v.a[i],i===mi)).join('')}${cell(ym,ya,0)}</tr>`;}).join('');
+         const tRow=`<tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td>${ms.map(i=>cell(man[i],aut[i],i===mi)).join('')}
+           ${cell(man.reduce((a,b)=>a+b,0),aut.reduce((a,b)=>a+b,0),0)}</tr>`;
+         return `<div class="card"><h3>Độ luỹ tiến tự động hoá cả năm — % đơn tự động theo tháng</h3><div class="scroll">
+           <table class="tbl"><thead><tr><th>Nguồn</th>${ms.map(i=>`<th class="n">T${pad2(i+1)}</th>`).join('')}<th class="n">Cả năm</th></tr></thead>
+           <tbody>${rows}${tRow}</tbody></table></div>
+           <div class="small" style="margin-top:6px">Mỗi ô: % đơn đã tự động hoá của nguồn đó trong tháng, số nhỏ là tổng đơn của nguồn trong tháng. Ô càng xanh đậm là tự động hoá càng cao — đọc ngang một hàng sẽ thấy nguồn đó tiến tới đâu; cột viền đậm là tháng T${pad2(mi+1)} đang xem.</div></div>`;})();
      } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
      /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
      h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
