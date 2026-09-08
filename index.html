@@ -1289,14 +1289,15 @@ const PAGES={
          {label:'Thủ công',data:ms.map(i=>man[i]),backgroundColor:ms.map(i=>dim(RED,i)),stack:'s',order:2},
          {label:'Tự động',data:ms.map(i=>aut[i]),backgroundColor:ms.map(i=>dim(GREEN,i)),stack:'s',order:2},
          {label:'% tự động',data:ms.map(i=>+(rt(i)*100).toFixed(1)),type:'line',yAxisID:'y1',borderColor:'#24594F',backgroundColor:'#24594F',tension:.3,order:1}]},
-        options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
+        plugins:[DL_BAR],
+        options:{layout:{padding:{top:18}},plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.dataset.yAxisID==='y1'?c.parsed.y+'%':fmt(c.parsed.y))}}},
          scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}},y1:{position:'right',min:0,max:100,grid:{display:false},ticks:{callback:v=>v+'%'}}}}});
        /* tròn 1: tỉ lệ thủ công / tự động của tháng đang xem */
-       if(man[mi]||aut[mi])mk("w6",donut(['Thủ công','Tự động'],[man[mi],aut[mi]],[RED,GREEN]));
+       if(man[mi]||aut[mi])mk("w6",donut(['Thủ công','Tự động'],[man[mi],aut[mi]],[RED,GREEN],0,1));
        else{const el=document.getElementById("w6");if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có số.</div>';}
        /* tròn 2: đơn thủ công còn lại đến từ nguồn nào */
        {const L=(AU.man.kids||[]).map(k=>({n:k.name,v:k.m[mi]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
-        if(L.length)mk("w7",donut(L.map(x=>x.n),L.map(x=>x.v),BLUE));
+        if(L.length)mk("w7",donut(L.map(x=>x.n),L.map(x=>x.v),BLUE,0,1));
         else{const el=document.getElementById("w7");if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có đơn thủ công theo nguồn.</div>';}}}
      grp("w2c",['Dồn (thu hồi)','Die (mất thật)'],[{a:D3[0].dn,b:D3[1].dn,c:D3[2].dn},{a:D3[0].de,b:D3[1].de,c:D3[2].de}]);
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
@@ -1506,7 +1507,32 @@ const PAGES={
 /* ==== chart cfg helpers ==== */
 function lvl(){return "tháng";}
 function shortSP(s){return s.replace("Nick Random Roblox","Nick").replace("Razer Gold","Razer").replace("Gift Card","GC").replace("Topup Galaxylink","Topup GLX");}
-function donut(labels,data,colors,sm){return{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:1}]},options:{cutout:'56%',plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10},padding:4}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}};}
+/* ---- vẽ CON SỐ lên biểu đồ (không dùng thư viện ngoài) ----
+   viền trắng quanh chữ để đọc được cả trên nền màu đậm lẫn nhạt */
+function dlDraw(ctx,t,x,y,col){ctx.lineWidth=3;ctx.strokeStyle='rgba(255,255,255,.92)';ctx.strokeText(t,x,y);ctx.fillStyle=col||'#1f2937';ctx.fillText(t,x,y);}
+/* cột chồng: số nằm giữa mỗi khúc (khúc quá mỏng thì bỏ qua); dataset dạng đường ghi % phía trên điểm */
+const DL_BAR={id:'dlbar',afterDatasetsDraw(c){const ctx=c.ctx;ctx.save();ctx.textAlign='center';
+  c.data.datasets.forEach((ds,di)=>{const meta=c.getDatasetMeta(di);if(meta.hidden)return;
+    const isLine=(ds.type||meta.type)==='line';
+    ctx.font=(isLine?'bold 10px ':'bold 10px ')+"'Be Vietnam Pro',Arial,sans-serif";
+    meta.data.forEach((el,i)=>{const v=ds.data[i];if(v==null||!v)return;
+      /* % của đường ghi thành một hàng sát mép trên khung — tránh đè lên số trong cột */
+      if(isLine){ctx.textBaseline='top';dlDraw(ctx,(''+v).replace('.',',')+'%',el.x,c.chartArea.top+1,ds.borderColor||'#24594F');}
+      else{const h=Math.abs((el.base==null?el.y:el.base)-el.y);if(h<14)return;
+        ctx.textBaseline='middle';dlDraw(ctx,fmtn(v),el.x,((el.base==null?el.y:el.base)+el.y)/2);}});});
+  ctx.restore();}};
+/* hình tròn: mỗi miếng ghi số và tỉ lệ %, miếng quá nhỏ thì bỏ qua cho khỏi chồng chữ */
+const DL_PIE={id:'dlpie',afterDatasetsDraw(c){const ctx=c.ctx,ds=c.data.datasets[0];if(!ds)return;
+  const tot=ds.data.reduce((a,b)=>a+(+b||0),0);if(!tot)return;
+  ctx.save();ctx.textAlign='center';ctx.textBaseline='middle';
+  c.getDatasetMeta(0).data.forEach((el,i)=>{const v=+ds.data[i]||0;if(!v)return;
+    const a=el.endAngle-el.startAngle;if(a<0.3)return;
+    const mid=(el.startAngle+el.endAngle)/2,r=(el.innerRadius+el.outerRadius)/2;
+    const x=el.x+Math.cos(mid)*r,y=el.y+Math.sin(mid)*r;
+    ctx.font="bold 11px 'Be Vietnam Pro',Arial,sans-serif";dlDraw(ctx,fmtn(v),x,y-6);
+    ctx.font="600 10px 'Be Vietnam Pro',Arial,sans-serif";dlDraw(ctx,(v/tot*100).toFixed(1).replace('.',',')+'%',x,y+7);});
+  ctx.restore();}};
+function donut(labels,data,colors,sm,dl){const cfg={type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#fff',borderWidth:1}]},options:{cutout:'56%',plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:10},padding:4}},tooltip:{callbacks:{label:c=>c.label+': '+fmt(c.parsed)}}}}};if(dl)cfg.plugins=[DL_PIE];return cfg;}
 function barOpt(stackLegend){return{plugins:{legend:{display:!!stackLegend,position:'top',labels:{boxWidth:10}},tooltip:{callbacks:{label:c=>(c.dataset.label?c.dataset.label+': ':'')+fmt(c.parsed.y)}}},scales:{x:noX,y:{...yG,ticks:{callback:fmtAxis}}}};}
 /* cột chồng theo tháng, mỗi SPDV một màu */
 function stackCfg(labels,datasets){return{type:'bar',data:{labels,datasets},options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10,font:{size:10}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmt(c.parsed.y)}}},scales:{x:{...noX,stacked:true},y:{...yG,stacked:true,ticks:{callback:fmtAxis}}}}};}
