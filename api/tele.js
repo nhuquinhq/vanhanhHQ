@@ -62,7 +62,9 @@ function csvParse(input) {
   row.push(cell); if (row.length > 1 || row[0] !== "") rows.push(row);
   return rows;
 }
-const nrm = x => { try { x = ("" + x).normalize("NFC"); } catch (e) { x = "" + x; } return x.replace(/ /g, " ").replace(/\s+/g, " ").trim(); };
+/* ô trống / thiếu phải ra CHUỖI RỖNG — trước đây nrm(undefined) ra chữ "undefined" nên hàng tiêu đề
+   ngắn hơn các hàng khác bị đếm nhầm là hàng nhiều chữ nhất → chọn sai hàng tên nhân viên */
+const nrm = x => { if (x == null) return ""; try { x = ("" + x).normalize("NFC"); } catch (e) { x = "" + x; } return x.replace(/ /g, " ").replace(/\s+/g, " ").trim(); };
 function vnum(x) {
   if (x == null) return 0; x = ("" + x).replace(/["\s₫đ$%]/g, ""); if (x === "" || x === "-") return 0;
   if (x.indexOf(",") > -1 && x.indexOf(".") === -1) x = x.replace(",", ".");
@@ -71,6 +73,7 @@ function vnum(x) {
   const n = parseFloat(x); return isNaN(n) ? 0 : n;
 }
 const fmt = n => Math.round(n).toLocaleString("vi-VN");
+const pad2 = x => String(x).padStart(2, "0");
 /* tone màu biểu đồ: xanh ngọc · san hô · xanh lá · kem — dùng chung cho mọi ảnh bot gửi */
 const PAL = ["#357D71", "#FA8A89", "#638A55", "#C48D60", "#C2CB81", "#9BBA74", "#E1B083", "#B3564F", "#FDACBB", "#7FBFB2"];
 /* dựng ảnh biểu đồ qua QuickChart: POST lấy link ngắn rồi để Telegram tự tải ảnh về */
@@ -176,19 +179,31 @@ function parseThangTong(rows) {
   return Object.keys(out).length ? out : null;
 }
 
+/* Ngày cần báo cáo theo GIỜ VN. Khung 23h hay bị nhả trễ sang sau nửa đêm (vd 00h04) — lúc đó
+   ngày mới chưa có đơn nào nên phải báo cáo NGÀY HÔM TRƯỚC, không bắn một bảng toàn số 0. */
+function reportDay(q) {
+  const now = new Date(Date.now() + 7 * 3600 * 1000); /* giờ VN (UTC+7) */
+  const d = now.getUTCHours() < 6 ? new Date(now.getTime() - 24 * 3600 * 1000) : now;
+  let dd = d.getUTCDate(), mo = d.getUTCMonth() + 1;
+  const md = q.d && ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})$/); if (md) { dd = +md[1]; mo = +md[2]; }
+  return { dd, mo, key: pad2(mo) + "-" + pad2(dd), khuyaVN: now.getUTCHours() < 6 && !md };
+}
 /* ---- dựng nội dung báo cáo PVH10 ---- */
 async function buildPVH10(q) {
   const [tcRows, gpRows] = await Promise.all([readTab(GIDS.tc), readTab(GIDS.gp_ngay)]);
-  const now = new Date(Date.now() + 7 * 3600 * 1000); /* giờ VN (UTC+7) */
-  let dd = now.getUTCDate(), mo = now.getUTCMonth() + 1;
-  const md = q.d && ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})$/); if (md) { dd = +md[1]; mo = +md[2]; }
-  let key = String(mo).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+  const RD = reportDay(q);
+  let key = RD.key;
   const lines = ["📊 <b>PVH10 · Năng suất xử lý đơn thủ công</b>"];
   let chartCfg = null;
   const P = tcRows ? parseTC(tcRows) : null;
   if (P) {
     const avail = P.dateCols.map(c => c.dk).filter(k => P.types.some(t => t.daily[k] != null));
     if (avail.length && avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+    /* ngày đó chưa có đơn nào (sheet chưa nhập, hoặc bắn ngay sau nửa đêm) → lùi về ngày gần nhất có số */
+    if (!q.d) {
+      const tot = k => P.types.reduce((a, t) => a + (t.daily[k] || 0), 0);
+      if (!tot(key)) { const past = avail.filter(k => k < key && tot(k) > 0).sort(); if (past.length) key = past[past.length - 1]; }
+    }
     lines.push("🗓 Ngày " + key.slice(3) + "/" + key.slice(0, 2) + "/2026");
     /* xếp theo số đơn NHIỀU → ÍT cho dễ đọc */
     const day = P.types.map(t => ({ name: t.name, v: t.daily[key] || 0 })).sort((a, b) => b.v - a.v);
@@ -284,7 +299,8 @@ function parseNS(rows) {
   const groups = [], emps = []; let gi = -1;
   for (let c = 0; c < W; c++) {
     while (gi + 1 < labs.length && labs[gi + 1].from <= c) gi++;
-    groups[c] = gi >= 0 ? labs[gi].g : ""; emps[c] = nrm((rows[HR] || [])[c]);
+    /* ô thiếu phải coi là RỖNG — nrm(undefined) ra chuỗi "undefined" và lọt vào danh sách nhân viên */
+    groups[c] = gi >= 0 ? labs[gi].g : ""; emps[c] = nrm((rows[HR] || [])[c] || "");
   }
   const cols = [];
   for (let c = dCol + 1; c < W; c++) if (emps[c] && /[a-zA-ZÀ-ỹ]/.test(emps[c]) && !/^\d/.test(emps[c]) && !isTot(emps[c]) && !isTot(groups[c]))
@@ -334,10 +350,7 @@ function parseNS(rows) {
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
 async function buildNS(q) {
   const rows = await readTab(GIDS.ns);
-  const now = new Date(Date.now() + 7 * 3600 * 1000);
-  let dd = now.getUTCDate(), mo = now.getUTCMonth() + 1;
-  const md = q.d && ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})$/); if (md) { dd = +md[1]; mo = +md[2]; }
-  let key = String(mo).padStart(2, "0") + "-" + String(dd).padStart(2, "0");
+  let key = reportDay(q).key;
   const lines = ["👥 <b>Năng suất nhân viên — Phòng vận hành</b>"];
   const P = rows ? parseNS(rows) : null;
   /* không đọc được thì IM LẶNG (trả lý do trong log) — tránh bắn tin lỗi vào box */
@@ -524,7 +537,6 @@ module.exports = async (req, res) => {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify(thread ? Object.assign({ message_thread_id: thread }, b) : b)
   }).then(x => x.json());
-  const pad2 = x => String(x).padStart(2, "0");
   const done = [], preview = [];
   for (const r of rs) {
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
