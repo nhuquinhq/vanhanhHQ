@@ -74,6 +74,8 @@ function vnum(x) {
 }
 const fmt = n => Math.round(n).toLocaleString("vi-VN");
 const pad2 = x => String(x).padStart(2, "0");
+/* bỏ dấu tiếng Việt để so khớp cho dễ (dùng trong bộ lọc của lệnh soi) */
+const stripD = s => { try { return ("" + s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/đ/g, "d").replace(/Đ/g, "D").toLowerCase(); } catch (e) { return ("" + s).toLowerCase(); } };
 /* tone màu biểu đồ: xanh ngọc · san hô · xanh lá · kem — dùng chung cho mọi ảnh bot gửi */
 const PAL = ["#357D71", "#FA8A89", "#638A55", "#C48D60", "#C2CB81", "#9BBA74", "#E1B083", "#B3564F", "#FDACBB", "#7FBFB2"];
 /* dựng ảnh biểu đồ qua QuickChart: POST lấy link ngắn rồi để Telegram tự tải ảnh về */
@@ -503,6 +505,23 @@ module.exports = async (req, res) => {
               rp.push("   [dong " + r + "] " + (rows[r] || []).map((v, i) => i + ":" + nrm(v)).filter(x => x.split(":")[1]).slice(0, 40).join("  "));
             rp.push("   cot nhan vien -> nhom: " + P.dbg.cols.map(x => x.c + ":" + x.emp + "=" + x.grp).join("  "));
           }
+        }
+        /* cộng số theo tháng: &ngay=<cột ngày>&gia=<cột tiền>[&loc=<cột>:<chữ cần chứa, bỏ dấu>]
+           dùng để đối chiếu một tab RAW (vd Data Supercell) với số đang hiện trên trang */
+        if (!html && rows.length > 1 && q.ngay != null && q.gia != null) {
+          const ci = +q.ngay, vi = +q.gia, lc = q.loc ? String(q.loc).split(":") : null;
+          const per = {}; let n = 0, bỏ = 0, noDate = 0;
+          for (const row of rows) {
+            const dv = nrm((row || [])[ci]);
+            const m = dv.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+            if (!m) { noDate++; continue; }
+            if (lc && stripD(nrm((row || [])[+lc[0]])).indexOf(stripD(lc[1] || "")) < 0) { bỏ++; continue; }
+            const k = (m[3] ? ("20" + m[3].slice(-2)) : "????") + "-" + pad2(+m[2]);
+            const p = (per[k] = per[k] || { n: 0, s: 0 }); p.n++; p.s += vnum((row || [])[vi]); n++;
+          }
+          rp.push("   CONG THEO THANG (cot ngay=" + ci + ", cot tien=" + vi + (lc ? ", loc cot " + lc[0] + " chua '" + lc[1] + "'" : "") + ")");
+          Object.keys(per).sort().forEach(k => rp.push("     " + k + ": " + per[k].n + " dong · " + per[k].s.toLocaleString("vi-VN", { maximumFractionDigits: 2 })));
+          rp.push("     => " + n + " dong tinh vao · " + bỏ + " dong bi bo loc loai · " + noDate + " dong khong co ngay o cot " + ci);
         }
       } catch (e) { rp.push("[" + f + "] loi: " + (e && e.message ? e.message : e)); }
     }
