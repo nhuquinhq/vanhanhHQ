@@ -506,6 +506,18 @@ module.exports = async (req, res) => {
             rp.push("   cot nhan vien -> nhom: " + P.dbg.cols.map(x => x.c + ":" + x.emp + "=" + x.grp).join("  "));
           }
         }
+        /* tìm dòng chứa một từ khoá: &tim=<chữ> — xem nguyên dòng đó trên tab (vd dòng Supercell
+           trong tab tổng theo tháng) để biết tháng nào đang có số, tháng nào trống */
+        if (!html && rows.length > 1 && q.tim) {
+          const need = stripD(q.tim); let hit = 0;
+          for (let r = 0; r < rows.length && hit < 6; r++) {
+            const row = rows[r] || [];
+            if (!row.slice(0, 6).some(v => stripD(nrm(v)).indexOf(need) > -1)) continue;
+            hit++;
+            rp.push("   [dong " + r + "] " + row.map((v, i) => i + ":" + nrm(v)).filter(x => x.split(":").slice(1).join(":")).slice(0, 30).join("  "));
+          }
+          if (!hit) rp.push("   KHONG thay dong nao chua '" + q.tim + "'");
+        }
         /* cộng số theo tháng: &ngay=<cột ngày>&gia=<cột tiền>[&loc=<cột>:<chữ cần chứa, bỏ dấu>]
            dùng để đối chiếu một tab RAW (vd Data Supercell) với số đang hiện trên trang */
         if (!html && rows.length > 1 && q.ngay != null && q.gia != null) {
