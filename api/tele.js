@@ -534,6 +534,22 @@ module.exports = async (req, res) => {
           rp.push("   CONG THEO THANG (cot ngay=" + ci + ", cot tien=" + vi + (lc ? ", loc cot " + lc[0] + " chua '" + lc[1] + "'" : "") + ")");
           Object.keys(per).sort().forEach(k => rp.push("     " + k + ": " + per[k].n + " dong · " + per[k].s.toLocaleString("vi-VN", { maximumFractionDigits: 2 })));
           rp.push("     => " + n + " dong tinh vao · " + bỏ + " dong bi bo loc loai · " + noDate + " dong khong co ngay o cot " + ci);
+          /* &ngayle=<mm>: cộng theo TỪNG NGÀY của tháng đó — để đối chiếu số tuần trên trang */
+          if (q.ngayle) {
+            const mm = pad2(+String(q.ngayle).replace(/\D/g, "") || 0);
+            const pd = {};
+            for (const row of rows) {
+              const dv = nrm((row || [])[ci]);
+              const m = dv.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/); if (!m) continue;
+              if (pad2(+m[2]) !== mm) continue;
+              if (lc && stripD(nrm((row || [])[+lc[0]])).indexOf(stripD(lc[1] || "")) < 0) continue;
+              const k = pad2(+m[1]);
+              const p = (pd[k] = pd[k] || { n: 0, s: 0 }); p.n++; p.s += vnum((row || [])[vi]);
+            }
+            rp.push("   CONG THEO NGAY thang " + mm);
+            Object.keys(pd).sort().forEach(k => rp.push("     " + k + "/" + mm + ": " + pd[k].n + " dong · " + pd[k].s.toLocaleString("vi-VN", { maximumFractionDigits: 2 })));
+            if (!Object.keys(pd).length) rp.push("     (khong co dong nao trong thang " + mm + ")");
+          }
         }
       } catch (e) { rp.push("[" + f + "] loi: " + (e && e.message ? e.message : e)); }
     }
