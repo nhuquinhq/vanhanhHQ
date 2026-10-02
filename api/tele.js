@@ -396,8 +396,17 @@ function parseBC(rows) {
     const top = path.find(x => /don\s*(thu\s*cong|tu\s*dong)/.test(S(x)));
     if (!top) continue;                                   /* khối tóm tắt → bỏ, tránh đếm 2 lần */
     const cls = /tu\s*dong/.test(S(top)) ? "Tự động" : "Thủ công";
-    const mid = path.slice().reverse().find(x => x && x !== top && /giftcard|nap\s*game/.test(S(x))) || "";
-    const loai = /nap\s*game/.test(S(mid)) ? "Nạp game" : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (nrm(mid) || "Khác"));
+    /* loại đơn = băng THẤP NHẤT còn lại (ngay trên hàng tên): GIFTCARD · NẠP GAME ·
+       ĐƠN THỦ CÔNG BE… — lấy nguyên nhãn của sheet nên thêm loại mới là tự nhận */
+    const mid = path.slice().reverse().find(x => x && x !== top) || "";
+    /* nhãn sheet viết HOA hết → chuyển về dạng câu cho dễ đọc, giữ nguyên từ viết tắt (BE, API) */
+    const dep = s => nrm(s).toLowerCase().split(" ").map((w, i) => {
+      const raw = nrm(s).split(" ")[i] || "";
+      if (/^[A-Z0-9]{1,4}$/.test(raw)) return raw;   /* từ viết tắt thuần ASCII: BE, API, BSV… */
+      return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+    }).join(" ");
+    const loai = /nap\s*game/.test(S(mid)) ? "Nạp game"
+               : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (dep(mid) || "Khác"));
     cols.push({ c, name, key: canonEmp(name), cls, loai, nhan: cls + " · " + loai });
   }
   if (!cols.length) return null;
