@@ -18,8 +18,9 @@ const FILES_ALL = {
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 /* Từ T10/2026 năng suất đọc ở file RIÊNG "Báo cáo Năng Suất Xử lý đơn 2026", tab "BC đơn":
    đơn chia THỦ CÔNG (mua giftcard · nạp game) và TỰ ĐỘNG (tool mua giftcard).
-   Khoá publish khai ở biến môi trường BC_PUB_KEY (Vercel) hoặc điền thẳng vào đây. */
-const FILE_BC = (process.env.BC_PUB_KEY || "").trim();
+   Link xuất bản chị gửi 02/10 dùng CHUNG khoá publish với file SLA (…C5jIbW55y0lE1W), tab gid 752626108.
+   Đổi khoá/ tab bằng biến môi trường BC_PUB_KEY / BC_GID trên Vercel, không cần sửa code. */
+const FILE_BC = (process.env.BC_PUB_KEY || FILE_SLA).trim();
 const GID_BC = (process.env.BC_GID || "752626108").trim();
 
 /* Danh sách box nhận báo cáo.
