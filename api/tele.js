@@ -516,16 +516,17 @@ async function buildBC(q) {
       scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
     }
   });
-  /* biểu đồ 2 — trong ngày: từng nhân viên/tool, chồng theo loại */
-  const names = nguoi.concat(tool);
-  if (names.length) charts.push({
+  /* biểu đồ 2 — trong ngày: CHỈ nhân viên (khối đơn thủ công, cột J:V trên sheet).
+     Tool tự động không phải người nên không đứng chung bảng xếp hạng/biểu đồ nhân sự. */
+  const gTC = gAll.filter(g => P.clsOf[g] === "Thủ công");
+  if (nguoi.length && gTC.length) charts.push({
     type: "bar",
     data: {
-      labels: names.map(x => x.n),
-      datasets: gAll.map((g, i) => ({ label: g, data: names.map(x => (dNL[x.n] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+      labels: nguoi.map(x => x.n),
+      datasets: gTC.map((g, i) => ({ label: short(g), data: nguoi.map(x => (dNL[x.n] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
     },
     options: {
-      title: { display: true, text: "Ngày " + key.slice(3) + "/" + mm + " — từng người/tool · tổng " + fmt(dTot) + " đơn", fontSize: 16 },
+      title: { display: true, text: "Ngày " + key.slice(3) + "/" + mm + " — năng suất theo nhân viên · " + fmt(tc) + " đơn thủ công", fontSize: 16 },
       legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
       scales: {
         xAxes: [{ stacked: true, ticks: { fontSize: 10, minRotation: 45, maxRotation: 60 } }],
