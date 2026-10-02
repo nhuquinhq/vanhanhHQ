@@ -584,14 +584,10 @@ async function buildBC(q) {
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
 async function buildNS(q) {
   /* Từ T10/2026 số nằm ở file mới (tab "BC đơn") và chia theo PHÂN LOẠI đơn.
-     Ưu tiên nguồn mới; chưa khai khoá publish hoặc ngày cần báo cáo không có ở đó
-     (ví dụ xem lại tháng 9) thì quay về tab "Năng suất Nhân viên" như cũ. */
+     Tháng 10 trở đi CHỈ dùng nguồn mới — chưa nối được thì im lặng, KHÔNG quay về form cũ
+     (tab cũ đã ngừng cập nhật, bắn ra sẽ sai số). Form cũ chỉ còn dùng cho ngày TRƯỚC 01/10. */
   const RDm = +reportDay(q).key.slice(0, 2);
-  if (q.mau === "1" || (FILE_BC && RDm >= 10)) {
-    const moi = await buildBC(q);
-    if (!moi.skip) return moi;
-    if (!q.cu) return moi; /* tháng 10 trở đi chỉ có nguồn mới — báo rõ lý do, không lấy số cũ */
-  }
+  if (q.mau === "1" || RDm >= 10) return await buildBC(q);
   const rows = await readTab(GIDS.ns);
   let key = reportDay(q).key;
   const lines = ["👥 <b>Năng suất nhân viên — Phòng vận hành</b>"];
