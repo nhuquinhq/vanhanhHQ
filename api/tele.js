@@ -681,6 +681,10 @@ async function buildNS(q) {
 }
 
 const REPORTS = { pvh10: buildPVH10, nv: buildNS };
+/* PVH10 (form cũ — đơn thủ công theo game) TẮT từ 02/10/2026: nguồn cũ không còn được cập nhật
+   (01/10 chỉ đọc 17 đơn trong khi tab BC đơn ghi gần 600) và tin mới đã có đủ phân loại đơn.
+   Bật lại khi cần: đặt biến môi trường TELE_PVH10=1 trên Vercel, không phải sửa code. */
+const REPORTS_OFF = process.env.TELE_PVH10 === "1" ? {} : { pvh10: 1 };
 /* Báo cáo nào gửi vào box nào: mặc định gửi MỌI box đã khai (PVH và PCU).
    Muốn giới hạn riêng một báo cáo thì khai TELE_BOXES_<TÊN>="chatid:topicid,…"
    (ví dụ TELE_BOXES_NV để báo cáo năng suất nhân viên chỉ vào một box). */
@@ -800,8 +804,8 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
     res.status(200).send("SOI TAB gid=" + gid + "\n\n" + rp.join("\n")); return;
   }
-  /* r có thể liệt kê nhiều báo cáo: ?r=pvh10,nv — mặc định lấy env TELE_REPORTS */
-  const rs = ("" + (q.r || process.env.TELE_REPORTS || "pvh10,nv")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
+  /* r có thể liệt kê nhiều báo cáo: ?r=nv — mặc định lấy env TELE_REPORTS */
+  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);
   if (!rs.length || unknown.length) { res.status(400).json({ error: "unknown_report", unknown, reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
@@ -830,6 +834,7 @@ module.exports = async (req, res) => {
   }).then(x => x.json());
   const done = [], preview = [];
   for (const r of rs) {
+    if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
     let markKey = null;
     if (slotN != null && KV_URL && KV_TOKEN) {
