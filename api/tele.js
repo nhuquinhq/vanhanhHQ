@@ -507,14 +507,17 @@ async function buildBC(q) {
     .filter(x => x.v > 0).sort((a, b) => b.v - a.v);
   const short = k => k.split(" · ")[1];
   const nguoi = listOf("Thủ công");
+  /* TIN 2 — năng suất nhân viên, tách riêng khỏi tin phân loại đơn */
+  const l2 = ["👥 <b>Báo cáo đơn thủ công theo nhân viên</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
+  if (mau) l2.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
   if (nguoi.length) {
-    lines.push("", "👤 <b>Thủ công theo nhân viên</b>");
+    l2.push("");
     nguoi.slice(0, 12).forEach(x => {
       const gs = Object.keys(x.o).filter(k => P.clsOf[k] === "Thủ công" && x.o[k]).sort((a, b) => x.o[b] - x.o[a]);
-      lines.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>" + (gs.length > 1 ? " (" + gs.map(k => short(k) + " " + fmt(x.o[k])).join(" · ") + ")" : " · " + short(gs[0])));
+      l2.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>" + (gs.length > 1 ? " (" + gs.map(k => short(k) + " " + fmt(x.o[k])).join(" · ") + ")" : " · " + short(gs[0])));
     });
-    if (nguoi.length > 12) lines.push(" … và " + (nguoi.length - 12) + " người khác");
-  }
+    if (nguoi.length > 12) l2.push(" … và " + (nguoi.length - 12) + " người khác");
+  } else l2.push("", "Hôm nay chưa có đơn thủ công nào.");
   const tool = listOf("Tự động");
   if (tool.length) {
     const nhieuLoai = new Set(tool.map(x => Object.keys(x.o).filter(k => P.clsOf[k] === "Tự động" && x.o[k])[0])).size > 1;
@@ -541,11 +544,11 @@ async function buildBC(q) {
   lines.push.apply(lines, sub(cum, "Tự động"));
   const top = Object.keys(emp).sort((a, b) => emp[b] - emp[a]);
   if (top.length) {
-    lines.push("", "🏅 <b>Top nhân sự tháng " + (+mm) + " (đơn thủ công)</b>");
-    top.slice(0, 5).forEach((e, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + e + ": " + fmt(emp[e]) + (cTC ? " (" + pct(emp[e] / cTC) + ")" : "")));
+    l2.push("", "🏅 <b>Top nhân sự tháng " + (+mm) + " (đơn thủ công)</b>");
+    top.slice(0, 5).forEach((e, i) => l2.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + e + ": " + fmt(emp[e]) + (cTC ? " (" + pct(emp[e] / cTC) + ")" : "")));
   }
   const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
-  if (dom) lines.push("", "🔗 Chi tiết: " + dom);
+  if (dom) l2.push("", "🔗 Chi tiết: " + dom);
   /* biểu đồ 1 — cả tháng theo ngày, cột chồng theo PHÂN LOẠI đơn */
   const charts = [];
   const gAll = P.loaiOrder.slice().sort((a, b) => (cum[b] || 0) - (cum[a] || 0)).filter(g => cum[g]);
@@ -579,7 +582,8 @@ async function buildBC(q) {
       }
     }
   });
-  return { text: lines.join("\n"), charts };
+  return { parts: [{ text: lines.join("\n"), charts: charts.slice(0, 1) },
+                   { text: l2.join("\n"), charts: charts.slice(1) }] };
 }
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
 async function buildNS(q) {
@@ -834,36 +838,52 @@ module.exports = async (req, res) => {
     try { out = await REPORTS[r](q); }
     catch (e) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, ok: false, error: "" + (e && e.message ? e.message : e) }); continue; }
     if (out && out.skip) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, skip: out.skip }); if (q.dry) preview.push("=== " + r + " === (bỏ qua: " + out.skip + ")"); continue; }
-    const text = typeof out === "string" ? out : out.text;
-    const cfgs = (typeof out === "object" && (out.charts || (out.chart ? [out.chart] : []))) || [];
-    if (q.dry) { preview.push("=== " + r + " ===\n" + text + (cfgs.length ? "\n\n[kèm " + cfgs.length + " biểu đồ: " + cfgs.map(c => c.data.labels.length + "×" + c.data.datasets.length).join(", ") + "]" : "")); continue; }
+    /* một báo cáo có thể gồm NHIỀU TIN (vd: tin phân loại đơn + tin năng suất nhân viên) */
+    const parts = (out && out.parts) ? out.parts : [{
+      text: typeof out === "string" ? out : out.text,
+      charts: (typeof out === "object" && (out.charts || (out.chart ? [out.chart] : []))) || []
+    }];
+    if (q.dry) {
+      preview.push(parts.map((p, i) => "=== " + r + (parts.length > 1 ? " · tin " + (i + 1) : "") + " ===\n" + p.text +
+        (p.charts.length ? "\n\n[kèm " + p.charts.length + " biểu đồ: " + p.charts.map(c => c.data.labels.length + "×" + c.data.datasets.length).join(", ") + "]" : "")).join("\n\n"));
+      continue;
+    }
     try {
-      /* render ảnh 1 lần, dùng chung cho mọi box */
-      const imgs = (q.noimg === "1" ? [] : await Promise.all(cfgs.map(chartURL))).filter(Boolean);
+      /* render ảnh 1 lần cho từng tin, dùng chung cho mọi box */
+      const imgsOf = await Promise.all(parts.map(p => q.noimg === "1" ? Promise.resolve([]) : Promise.all(p.charts.map(chartURL))));
       /* tin thử (?mau=1) chỉ gửi BOX ĐẦU để không làm nhiễu các box khác */
       const sent = [], boxes = q.mau === "1" ? boxesFor(r).slice(0, 1) : boxesFor(r);
+      let nAnh = 0;
       for (const b of boxes) {
-        let j = null, photo = false;
-        if (imgs.length >= 2) { /* nhiều ảnh → gửi thành 1 album */
-          const media = imgs.map((u, i) => Object.assign({ type: "photo", media: u },
-            i === 0 && text.length <= 1000 ? { caption: text, parse_mode: "HTML" } : {}));
-          j = await api("sendMediaGroup", { chat_id: b.chat, media }, b.thread);
-          photo = !!(j && j.ok);
-          if (photo && text.length > 1000) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
-        } else if (imgs.length === 1) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
-          if (text.length <= 1000) j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text, parse_mode: "HTML" }, b.thread);
-          else {
-            j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" }, b.thread);
-            if (j && j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+        let okBox = true, photoBox = false, err;
+        for (let pi = 0; pi < parts.length; pi++) {
+          const text = parts[pi].text, imgs = (imgsOf[pi] || []).filter(Boolean);
+          if (!b.__dem) nAnh += imgs.length;
+          let j = null, photo = false;
+          if (imgs.length >= 2) { /* nhiều ảnh → gửi thành 1 album */
+            const media = imgs.map((u, i) => Object.assign({ type: "photo", media: u },
+              i === 0 && text.length <= 1000 ? { caption: text, parse_mode: "HTML" } : {}));
+            j = await api("sendMediaGroup", { chat_id: b.chat, media }, b.thread);
+            photo = !!(j && j.ok);
+            if (photo && text.length > 1000) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+          } else if (imgs.length === 1) { /* ảnh + chú thích; chú thích Telegram giới hạn 1024 ký tự */
+            if (text.length <= 1000) j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text, parse_mode: "HTML" }, b.thread);
+            else {
+              j = await api("sendPhoto", { chat_id: b.chat, photo: imgs[0], caption: text.split("\n").slice(0, 3).join("\n"), parse_mode: "HTML" }, b.thread);
+              if (j && j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+            }
+            photo = !!(j && j.ok);
           }
-          photo = !!(j && j.ok);
+          if (!j || !j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
+          if (!(j && j.ok)) { okBox = false; err = j && j.description; }
+          if (photo) photoBox = true;
         }
-        if (!j || !j.ok) j = await api("sendMessage", { chat_id: b.chat, text, parse_mode: "HTML", disable_web_page_preview: true }, b.thread);
-        sent.push({ chat: b.chat, ok: !!(j && j.ok), photo, error: j && j.ok ? undefined : (j && j.description) });
+        b.__dem = 1;
+        sent.push({ chat: b.chat, ok: okBox, photo: photoBox, error: okBox ? undefined : err });
       }
       const anyOk = sent.some(x => x.ok);
       if (!anyOk && markKey) await kv(["DEL", markKey]); /* không box nào nhận được thì nhả khung để lần gõ cửa sau thử lại */
-      done.push({ report: r, ok: anyOk, anh: imgs.length, boxes: sent });
+      done.push({ report: r, ok: anyOk, tin: parts.length, anh: nAnh, boxes: sent });
     } catch (e) {
       if (markKey) await kv(["DEL", markKey]);
       done.push({ report: r, ok: false, error: "" + (e && e.message ? e.message : e) });
