@@ -414,7 +414,9 @@ function parseBC(rows) {
       return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w;
     }).join(" ");
     const loai = /nap\s*game/.test(S(mid)) ? "Nạp game"
-               : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (ALIAS_LOAI[S(mid)] || dep(mid) || "Khác"));
+               : (/giftcard/.test(S(mid)) ? "Mua giftcard"
+               : (/topup|rbx|tu\s*dong\s*khac/.test(S(mid)) ? "Đơn tự động Topup+RBX"
+               : (ALIAS_LOAI[S(mid)] || dep(mid) || "Khác")));
     cols.push({ c, name, key: canonEmp(name), cls, loai, nhan: cls + " · " + loai });
   }
   if (!cols.length) return null;
