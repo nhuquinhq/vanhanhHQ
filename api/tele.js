@@ -16,6 +16,11 @@ const FILES_ALL = {
   kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5"
 };
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
+/* Từ T10/2026 năng suất đọc ở file RIÊNG "Báo cáo Năng Suất Xử lý đơn 2026", tab "BC đơn":
+   đơn chia THỦ CÔNG (mua giftcard · nạp game) và TỰ ĐỘNG (tool mua giftcard).
+   Khoá publish khai ở biến môi trường BC_PUB_KEY (Vercel) hoặc điền thẳng vào đây. */
+const FILE_BC = (process.env.BC_PUB_KEY || "").trim();
+const GID_BC = (process.env.BC_GID || "752626108").trim();
 
 /* Danh sách box nhận báo cáo.
    - TELEGRAM_CHAT_ID (+ TELEGRAM_THREAD_ID)  : box 1
@@ -90,8 +95,8 @@ async function chartURL(cfg) {
   } catch (e) { return null; }
 }
 const pct = x => (x * 100).toFixed(1).replace(".", ",") + "%";
-async function readTab(gid) {
-  const url = "https://docs.google.com/spreadsheets/d/e/" + FILE_SLA + "/pub?gid=" + gid + "&single=true&output=csv";
+async function readTab(gid, fileKey) {
+  const url = "https://docs.google.com/spreadsheets/d/e/" + (fileKey || FILE_SLA) + "/pub?gid=" + gid + "&single=true&output=csv";
   try {
     const r = await fetch(url, { redirect: "follow" }); if (!r.ok) return null;
     const t = await r.text();
@@ -349,8 +354,198 @@ function parseNS(rows) {
            dbg: { dCol, HR, GR, first, cols: cols.map(x => ({ c: x.c, emp: x.emp, grp: x.grp })) } };
 }
 
+/* ---- tab "BC đơn" (từ T10/2026): hàng = NGÀY, cột = (phân loại × nhân viên/tool) ----
+   Tiêu đề xếp nhiều tầng:
+     tầng trên : NĂNG SUẤT (khối tóm tắt) · NĂNG SUẤT ĐƠN THỦ CÔNG · NĂNG SUẤT ĐƠN TỰ ĐỘNG
+     tầng giữa : GIFTCARD · NẠP GAME  (loại đơn trong từng phân loại)
+     tầng dưới : tên nhân viên (thủ công) hoặc tên tool/nguồn (tự động)
+   Ô gộp chỉ ghi ở cột đầu nên nhãn được điền xuôi sang phải. Khối "NĂNG SUẤT" chỉ là cột cộng
+   lại nên BỎ QUA — chỉ nhận cột nào thuộc "ĐƠN THỦ CÔNG" hoặc "ĐƠN TỰ ĐỘNG" để khỏi đếm hai lần. */
+function parseBC(rows) {
+  const W = Math.max.apply(null, rows.slice(0, 60).map(r => (r || []).length).concat([0]));
+  const isD = v => /^\d{1,2}\/\d{1,2}(\/\d{2,4})?$/.test(nrm(v));
+  const isLab = v => !!v && /[a-zA-ZÀ-ỹ]/.test(v) && !/^\d/.test(v);
+  let dCol = -1, dHits = 0;
+  for (let c = 0; c < Math.min(W, 8); c++) {
+    let h = 0; for (let r = 0; r < rows.length; r++) if (isD((rows[r] || [])[c])) h++;
+    if (h > dHits) { dHits = h; dCol = c; }
+  }
+  if (dCol < 0 || dHits < 5) return null;
+  const first = rows.findIndex(r => isD((r || [])[dCol]));
+  /* hàng tên (nhân viên/tool) = hàng nhiều nhãn chữ nhất trong 8 hàng ngay trên vùng dữ liệu */
+  let HR = -1, best = 0;
+  for (let r = Math.max(0, first - 8); r < first; r++) {
+    const row = rows[r] || []; let n = 0;
+    for (let c = dCol + 1; c < W; c++) if (isLab(nrm(row[c] || ""))) n++;
+    if (n > best) { best = n; HR = r; }
+  }
+  if (HR < 0 || best < 3) return null;
+  /* các hàng tiêu đề phía trên hàng tên → điền xuôi để biết mỗi cột thuộc khối nào */
+  const bands = [];
+  for (let r = Math.max(0, HR - 4); r < HR; r++) {
+    const row = rows[r] || [], fill = []; let cur = "";
+    for (let c = 0; c < W; c++) { const v = nrm(row[c] || ""); if (isLab(v)) cur = v; fill[c] = cur; }
+    if (fill.some(x => x)) bands.push(fill);
+  }
+  if (!bands.length) return null;
+  const S = x => stripD(x || "");
+  const cols = [];
+  for (let c = dCol + 1; c < W; c++) {
+    const name = nrm((rows[HR] || [])[c] || ""); if (!isLab(name)) continue;
+    const path = bands.map(b => b[c] || "");
+    const top = path.find(x => /don\s*(thu\s*cong|tu\s*dong)/.test(S(x)));
+    if (!top) continue;                                   /* khối tóm tắt → bỏ, tránh đếm 2 lần */
+    const cls = /tu\s*dong/.test(S(top)) ? "Tự động" : "Thủ công";
+    const mid = path.slice().reverse().find(x => x && x !== top && /giftcard|nap\s*game/.test(S(x))) || "";
+    const loai = /nap\s*game/.test(S(mid)) ? "Nạp game" : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (nrm(mid) || "Khác"));
+    cols.push({ c, name, key: canonEmp(name), cls, loai, nhan: cls + " · " + loai });
+  }
+  if (!cols.length) return null;
+  const byDay = {}, byDayLoai = {}, byDayName = {}, byDayNameLoai = {}, loaiOrder = [], rawTot = {};
+  for (let r = first; r < rows.length; r++) {
+    const row = rows[r] || []; const d = nrm(row[dCol]); if (!isD(d)) continue;
+    const p = d.split("/"); const dk = pad2(+p[1]) + "-" + pad2(+p[0]);
+    cols.forEach(x => {
+      const v = vnum(row[x.c]); if (!(v > 0)) return;
+      byDay[dk] = (byDay[dk] || 0) + v;
+      (byDayLoai[dk] = byDayLoai[dk] || {})[x.nhan] = (byDayLoai[dk][x.nhan] || 0) + v;
+      (byDayName[dk] = byDayName[dk] || {})[x.key] = (byDayName[dk][x.key] || 0) + v;
+      const dn = (byDayNameLoai[dk] = byDayNameLoai[dk] || {});
+      (dn[x.key] = dn[x.key] || {})[x.nhan] = (dn[x.key][x.nhan] || 0) + v;
+      rawTot[x.name] = (rawTot[x.name] || 0) + v;
+      if (loaiOrder.indexOf(x.nhan) < 0) loaiOrder.push(x.nhan);
+    });
+  }
+  if (!Object.keys(byDay).length) return null;
+  /* tên hiển thị của mỗi người = tài khoản nhiều đơn nhất (hoà thì lấy tên ngắn hơn) */
+  const disp = {};
+  Object.keys(rawTot).forEach(raw => {
+    const k = canonEmp(raw), cur = disp[k];
+    if (!cur || rawTot[raw] > rawTot[cur] || (rawTot[raw] === rawTot[cur] && raw.length < cur.length)) disp[k] = raw;
+  });
+  const ren = k => disp[k] || k;
+  Object.keys(byDayName).forEach(dk => {
+    const o = byDayName[dk], n = {}; Object.keys(o).forEach(k => { const t = ren(k); n[t] = (n[t] || 0) + o[k]; }); byDayName[dk] = n;
+  });
+  Object.keys(byDayNameLoai).forEach(dk => {
+    const o = byDayNameLoai[dk], n = {};
+    Object.keys(o).forEach(k => { const t = ren(k), s = (n[t] = n[t] || {}); Object.keys(o[k]).forEach(g => s[g] = (s[g] || 0) + o[k][g]); });
+    byDayNameLoai[dk] = n;
+  });
+  const clsOf = {}; cols.forEach(x => clsOf[x.nhan] = x.cls);
+  return { byDay, byDayLoai, byDayName, byDayNameLoai, loaiOrder, clsOf,
+           nNguoi: new Set(cols.filter(x => x.cls === "Thủ công").map(x => x.key)).size,
+           dbg: { dCol, HR, first, cols: cols.map(x => ({ c: x.c, name: x.name, nhan: x.nhan })) } };
+}
+/* ---- báo cáo năng suất theo PHÂN LOẠI ĐƠN (từ T10/2026) ---- */
+async function buildBC(q) {
+  if (!FILE_BC) return { skip: "chua_khai_BC_PUB_KEY_cho_file_bao_cao_nang_suat_moi" };
+  const rows = await readTab(GID_BC, FILE_BC);
+  const P = rows ? parseBC(rows) : null;
+  if (!P) return { skip: "khong_doc_duoc_tab_BC_don_kiem_tra_publish_to_web" };
+  let key = reportDay(q).key;
+  const avail = Object.keys(P.byDay).filter(k => P.byDay[k] > 0).sort();
+  if (!avail.length) return { skip: "tab_BC_don_chua_co_so" };
+  if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+  const mm = key.slice(0, 2), days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
+  const lines = ["📊 <b>Năng suất xử lý đơn — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
+  const dL = P.byDayLoai[key] || {}, dTot = P.byDay[key] || 0;
+  const sumCls = (o, cls) => Object.keys(o).filter(k => P.clsOf[k] === cls).reduce((a, k) => a + o[k], 0);
+  const tc = sumCls(dL, "Thủ công"), td = sumCls(dL, "Tự động");
+  const sub = (o, cls) => Object.keys(o).filter(k => P.clsOf[k] === cls && o[k]).sort((a, b) => o[b] - o[a])
+    .map(k => " • " + k.split(" · ")[1] + ": " + fmt(o[k]));
+  lines.push("", "🧮 <b>Tổng đơn trong ngày: " + fmt(dTot) + "</b>");
+  lines.push("🖐 <b>Thủ công: " + fmt(tc) + "</b>" + (dTot ? " (" + pct(tc / dTot) + ")" : ""));
+  lines.push.apply(lines, sub(dL, "Thủ công"));
+  lines.push("🤖 <b>Tự động: " + fmt(td) + "</b>" + (dTot ? " (" + pct(td / dTot) + ")" : ""));
+  lines.push.apply(lines, sub(dL, "Tự động"));
+  /* ai làm gì trong ngày — tách riêng người (thủ công) và tool (tự động) */
+  const dNL = P.byDayNameLoai[key] || {};
+  const sumOf = o => Object.keys(o).reduce((a, k) => a + o[k], 0);
+  const listOf = cls => Object.keys(dNL)
+    .map(n => ({ n, v: Object.keys(dNL[n]).filter(k => P.clsOf[k] === cls).reduce((a, k) => a + dNL[n][k], 0), o: dNL[n] }))
+    .filter(x => x.v > 0).sort((a, b) => b.v - a.v);
+  const short = k => k.split(" · ")[1];
+  const nguoi = listOf("Thủ công");
+  if (nguoi.length) {
+    lines.push("", "👤 <b>Thủ công theo nhân viên</b>");
+    nguoi.slice(0, 12).forEach(x => {
+      const gs = Object.keys(x.o).filter(k => P.clsOf[k] === "Thủ công" && x.o[k]).sort((a, b) => x.o[b] - x.o[a]);
+      lines.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>" + (gs.length > 1 ? " (" + gs.map(k => short(k) + " " + fmt(x.o[k])).join(" · ") + ")" : " · " + short(gs[0])));
+    });
+    if (nguoi.length > 12) lines.push(" … và " + (nguoi.length - 12) + " người khác");
+  }
+  const tool = listOf("Tự động");
+  if (tool.length) {
+    lines.push("", "🤖 <b>Tự động theo tool</b>");
+    tool.slice(0, 8).forEach(x => lines.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>"));
+  }
+  /* lũy kế tháng */
+  const cum = {}, emp = {};
+  days.forEach(k => {
+    Object.keys(P.byDayLoai[k] || {}).forEach(g => cum[g] = (cum[g] || 0) + P.byDayLoai[k][g]);
+    const d = P.byDayNameLoai[k] || {};
+    Object.keys(d).forEach(n => Object.keys(d[n]).forEach(g => { if (P.clsOf[g] === "Thủ công") emp[n] = (emp[n] || 0) + d[n][g]; }));
+  });
+  const cTot = days.reduce((a, k) => a + P.byDay[k], 0);
+  const cTC = sumCls(cum, "Thủ công"), cTD = sumCls(cum, "Tự động");
+  lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cTot) + " đơn</b> · BQ " + fmt(cTot / (days.length || 1)) + " đơn/ngày");
+  lines.push(" 🖐 Thủ công: " + fmt(cTC) + (cTot ? " (" + pct(cTC / cTot) + ")" : ""));
+  lines.push.apply(lines, sub(cum, "Thủ công"));
+  lines.push(" 🤖 Tự động: " + fmt(cTD) + (cTot ? " (" + pct(cTD / cTot) + ")" : ""));
+  lines.push.apply(lines, sub(cum, "Tự động"));
+  const top = Object.keys(emp).sort((a, b) => emp[b] - emp[a]);
+  if (top.length) {
+    lines.push("", "🏅 <b>Top nhân sự tháng " + (+mm) + " (đơn thủ công)</b>");
+    top.slice(0, 5).forEach((e, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + e + ": " + fmt(emp[e]) + (cTC ? " (" + pct(emp[e] / cTC) + ")" : "")));
+  }
+  const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
+  if (dom) lines.push("", "🔗 Chi tiết: " + dom);
+  /* biểu đồ 1 — cả tháng theo ngày, cột chồng theo PHÂN LOẠI đơn */
+  const charts = [];
+  const gAll = P.loaiOrder.slice().sort((a, b) => (cum[b] || 0) - (cum[a] || 0)).filter(g => cum[g]);
+  if (days.length && gAll.length) charts.push({
+    type: "bar",
+    data: {
+      labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
+      datasets: gAll.map((g, i) => ({ label: g, data: days.map(k => (P.byDayLoai[k] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+    },
+    options: {
+      title: { display: true, text: "Đơn theo ngày × phân loại — tháng " + (+mm) + "/2026 · tổng " + fmt(cTot), fontSize: 16 },
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
+    }
+  });
+  /* biểu đồ 2 — trong ngày: từng nhân viên/tool, chồng theo loại */
+  const names = nguoi.concat(tool);
+  if (names.length) charts.push({
+    type: "bar",
+    data: {
+      labels: names.map(x => x.n),
+      datasets: gAll.map((g, i) => ({ label: g, data: names.map(x => (dNL[x.n] || {})[g] || 0), backgroundColor: PAL[i % PAL.length] }))
+    },
+    options: {
+      title: { display: true, text: "Ngày " + key.slice(3) + "/" + mm + " — từng người/tool · tổng " + fmt(dTot) + " đơn", fontSize: 16 },
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: {
+        xAxes: [{ stacked: true, ticks: { fontSize: 10, minRotation: 45, maxRotation: 60 } }],
+        yAxes: [{ stacked: true, ticks: { beginAtZero: true } }]
+      }
+    }
+  });
+  return { text: lines.join("\n"), charts };
+}
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
 async function buildNS(q) {
+  /* Từ T10/2026 số nằm ở file mới (tab "BC đơn") và chia theo PHÂN LOẠI đơn.
+     Ưu tiên nguồn mới; chưa khai khoá publish hoặc ngày cần báo cáo không có ở đó
+     (ví dụ xem lại tháng 9) thì quay về tab "Năng suất Nhân viên" như cũ. */
+  const RDm = +reportDay(q).key.slice(0, 2);
+  if (FILE_BC && RDm >= 10) {
+    const moi = await buildBC(q);
+    if (!moi.skip) return moi;
+    if (!q.cu) return moi; /* tháng 10 trở đi chỉ có nguồn mới — báo rõ lý do, không lấy số cũ */
+  }
   const rows = await readTab(GIDS.ns);
   let key = reportDay(q).key;
   const lines = ["👥 <b>Năng suất nhân viên — Phòng vận hành</b>"];
