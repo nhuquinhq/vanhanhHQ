@@ -358,6 +358,9 @@ function parseNS(rows) {
            dbg: { dCol, HR, GR, first, cols: cols.map(x => ({ c: x.c, emp: x.emp, grp: x.grp })) } };
 }
 
+/* Tên hiển thị gọn hơn cho vài nhãn trên sheet (so khớp sau khi bỏ dấu, viết thường).
+   Đổi tên băng trên sheet thì tên mới tự lên — bảng này chỉ là lớp đặt tên cho dễ đọc. */
+const ALIAS_LOAI = { "don tu dong khac": "Đơn tự động Topup+RBX" };
 /* ---- tab "BC đơn" (từ T10/2026): hàng = NGÀY, cột = (phân loại × nhân viên/tool) ----
    Tiêu đề xếp nhiều tầng:
      tầng trên : NĂNG SUẤT (khối tóm tắt) · NĂNG SUẤT ĐƠN THỦ CÔNG · NĂNG SUẤT ĐƠN TỰ ĐỘNG
@@ -410,7 +413,7 @@ function parseBC(rows) {
       return i === 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w;
     }).join(" ");
     const loai = /nap\s*game/.test(S(mid)) ? "Nạp game"
-               : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (dep(mid) || "Khác"));
+               : (/giftcard/.test(S(mid)) ? "Mua giftcard" : (ALIAS_LOAI[S(mid)] || dep(mid) || "Khác"));
     cols.push({ c, name, key: canonEmp(name), cls, loai, nhan: cls + " · " + loai });
   }
   if (!cols.length) return null;
@@ -454,10 +457,29 @@ function parseBC(rows) {
            nNguoi: new Set(cols.filter(x => x.cls === "Thủ công").map(x => x.key)).size,
            dbg: { dCol, HR, first, cols: cols.map(x => ({ c: x.c, name: x.name, nhan: x.nhan })) } };
 }
+/* Số MINH HOẠ để bắn thử khi file nguồn chưa được Đăng lên web (gọi với ?mau=1).
+   Lấy đúng số ngày 01/10 và 02/10 trong ảnh chụp sheet — tin gửi đi có ghi rõ là tin thử. */
+const MAU_BC = [
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",NĂNG SUẤT NHÂN VIÊN PHÒNG VẬN HÀNH,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",,,NĂNG SUẤT,,,,,,,NĂNG SUẤT ĐƠN THỦ CÔNG,,,,,,,,,,,,,,,,,NĂNG SUẤT ĐƠN TỰ ĐỘNG,,,,,,,,,,",
+  ",,,THỦ CÔNG,,,TỰ ĐỘNG,,,,GIFTCARD,,,,,ĐƠN THỦ CÔNG BE,,,,NẠP GAME,,,,,,,,GIFTCARD,,,,,ĐƠN TỰ ĐỘNG KHÁC,,,,,",
+  ",,,GIFTCARD,NẠP GAME,ĐƠN THỦ CÔNG KHÁC,GIFTCARD,,,,CTVThuyHTTPCU,QTVMaiCT,QTVAnhLPT,CTVLinhPTTPCU,,Qtvlinhptt,Qtvmaict,Qtvthuyhtt,Qtvanhlpt,ManhTND,TuPC,,,,,,,SEAGM API,BEP - BSV (Conggame),TRC - BSV (Conggame),,,RBX,OGGaming X,Galaxy,Gamota,Razer Gold,G-engine",
+  ",,222,13,169,40,134,,,,5,,8,,,35,,5,,70,99,,,,,,,36,82,16,,,37,133,245,13,13,1",
+  ",01/10,567,,,,,,,,4,,8,,,13,,5,,70,47,,,,,,,22,76,16,,,33,98,152,12,10,1",
+  ",02/10,231,,,,,,,,1,,,,,22,,,,,52,,,,,,,14,6,,,,4,35,93,1,3,",
+  ",03/10,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",04/10,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",05/10,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,",
+  ",06/10,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,,"
+].join("\n");
 /* ---- báo cáo năng suất theo PHÂN LOẠI ĐƠN (từ T10/2026) ---- */
 async function buildBC(q) {
-  if (!FILE_BC) return { skip: "chua_khai_BC_PUB_KEY_cho_file_bao_cao_nang_suat_moi" };
-  const rows = await readTab(GID_BC, FILE_BC);
+  const mau = q.mau === "1";
+  if (!FILE_BC && !mau) return { skip: "chua_khai_BC_PUB_KEY_cho_file_bao_cao_nang_suat_moi" };
+  const rows = mau ? csvParse(MAU_BC) : await readTab(GID_BC, FILE_BC);
   const P = rows ? parseBC(rows) : null;
   if (!P) return { skip: "khong_doc_duoc_tab_BC_don_kiem_tra_publish_to_web" };
   let key = reportDay(q).key;
@@ -466,6 +488,7 @@ async function buildBC(q) {
   if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
   const mm = key.slice(0, 2), days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
   const lines = ["📊 <b>Năng suất xử lý đơn — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
+  if (mau) lines.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
   const dL = P.byDayLoai[key] || {}, dTot = P.byDay[key] || 0;
   const sumCls = (o, cls) => Object.keys(o).filter(k => P.clsOf[k] === cls).reduce((a, k) => a + o[k], 0);
   const tc = sumCls(dL, "Thủ công"), td = sumCls(dL, "Tự động");
@@ -564,7 +587,7 @@ async function buildNS(q) {
      Ưu tiên nguồn mới; chưa khai khoá publish hoặc ngày cần báo cáo không có ở đó
      (ví dụ xem lại tháng 9) thì quay về tab "Năng suất Nhân viên" như cũ. */
   const RDm = +reportDay(q).key.slice(0, 2);
-  if (FILE_BC && RDm >= 10) {
+  if (q.mau === "1" || (FILE_BC && RDm >= 10)) {
     const moi = await buildBC(q);
     if (!moi.skip) return moi;
     if (!q.cu) return moi; /* tháng 10 trở đi chỉ có nguồn mới — báo rõ lý do, không lấy số cũ */
@@ -821,7 +844,8 @@ module.exports = async (req, res) => {
     try {
       /* render ảnh 1 lần, dùng chung cho mọi box */
       const imgs = (q.noimg === "1" ? [] : await Promise.all(cfgs.map(chartURL))).filter(Boolean);
-      const sent = [], boxes = boxesFor(r);
+      /* tin thử (?mau=1) chỉ gửi BOX ĐẦU để không làm nhiễu các box khác */
+      const sent = [], boxes = q.mau === "1" ? boxesFor(r).slice(0, 1) : boxesFor(r);
       for (const b of boxes) {
         let j = null, photo = false;
         if (imgs.length >= 2) { /* nhiều ảnh → gửi thành 1 album */
