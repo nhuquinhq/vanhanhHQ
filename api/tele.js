@@ -494,8 +494,13 @@ async function buildBC(q) {
   }
   const tool = listOf("Tự động");
   if (tool.length) {
+    const nhieuLoai = new Set(tool.map(x => Object.keys(x.o).filter(k => P.clsOf[k] === "Tự động" && x.o[k])[0])).size > 1;
     lines.push("", "🤖 <b>Tự động theo tool</b>");
-    tool.slice(0, 8).forEach(x => lines.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>"));
+    tool.slice(0, 12).forEach(x => {
+      const gs = Object.keys(x.o).filter(k => P.clsOf[k] === "Tự động" && x.o[k]).sort((a, b) => x.o[b] - x.o[a]);
+      lines.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>" + (nhieuLoai && gs.length ? " · " + short(gs[0]) : ""));
+    });
+    if (tool.length > 12) lines.push(" … và " + (tool.length - 12) + " tool khác");
   }
   /* lũy kế tháng */
   const cum = {}, emp = {};
