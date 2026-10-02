@@ -334,7 +334,11 @@ function parseNS(rows) {
   const disp = {};
   Object.keys(rawTot).forEach(raw => {
     const k = canonEmp(raw), cur = disp[k];
-    if (!cur || rawTot[raw] > rawTot[cur] || (rawTot[raw] === rawTot[cur] && raw.length < cur.length)) disp[k] = raw;
+    /* tên hiển thị = tài khoản NGẮN NHẤT (Qtvthuyhtt thay vì CTVThuyHTTPCU) — chọn theo độ dài
+       nên tên không đổi qua lại theo ngày; bằng nhau thì lấy tài khoản nhiều đơn hơn, rồi theo a→z */
+    if (!cur || raw.length < cur.length ||
+        (raw.length === cur.length && (rawTot[raw] > rawTot[cur] ||
+         (rawTot[raw] === rawTot[cur] && raw.toLowerCase() < cur.toLowerCase())))) disp[k] = raw;
   });
   const renName = k => disp[k] || k;
   Object.keys(byEmp).forEach(dk => {
@@ -430,7 +434,11 @@ function parseBC(rows) {
   const disp = {};
   Object.keys(rawTot).forEach(raw => {
     const k = canonEmp(raw), cur = disp[k];
-    if (!cur || rawTot[raw] > rawTot[cur] || (rawTot[raw] === rawTot[cur] && raw.length < cur.length)) disp[k] = raw;
+    /* tên hiển thị = tài khoản NGẮN NHẤT (Qtvthuyhtt thay vì CTVThuyHTTPCU) — chọn theo độ dài
+       nên tên không đổi qua lại theo ngày; bằng nhau thì lấy tài khoản nhiều đơn hơn, rồi theo a→z */
+    if (!cur || raw.length < cur.length ||
+        (raw.length === cur.length && (rawTot[raw] > rawTot[cur] ||
+         (rawTot[raw] === rawTot[cur] && raw.toLowerCase() < cur.toLowerCase())))) disp[k] = raw;
   });
   const ren = k => disp[k] || k;
   Object.keys(byDayName).forEach(dk => {
