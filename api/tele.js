@@ -856,7 +856,10 @@ const REPORTS_OFF = process.env.TELE_PVH10 === "1" ? {} : { pvh10: 1 };
 /* Nơi bắn CỐ ĐỊNH của riêng một báo cáo — ghi "chatid:topicid" lấy từ link t.me/c/<chatid>/<topic>.
    Báo cáo nhập hàng bắn vào topic riêng trong box Phòng vận hành (t.me/c/4428753122/863).
    Muốn đổi mà không sửa code thì khai biến môi trường TELE_BOXES_NHAP trên Vercel. */
-const BOX_MAC_DINH = { nhap: "-1004428753122:863" };
+const BOX_MAC_DINH = {
+  /* Phòng vận hành · topic 863  +  Kế toán Kho - Cung ứng · topic 14157 */
+  nhap: "-1004428753122:863,-1002344565165:14157"
+};
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
