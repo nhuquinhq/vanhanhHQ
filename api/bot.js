@@ -23,26 +23,38 @@ function ngayDu(bqUSDT) {
 /* làm tròn LÊN cho số tiền đề xuất: USDT lên bội số 100, VNĐ lên bội số 1 triệu */
 const tronLen = (n, b) => Math.ceil(n / b) * b;
 
-/* tên gọi tắt kế toán hay dùng → tên cột trên sheet */
+/* tên gọi tắt kế toán hay dùng → tên cột trên sheet (so khớp sau khi bỏ dấu, bỏ khoảng trắng) */
+const nen = s => stripD(s).replace(/[^a-z0-9]/g, "");
 const BIET_DANH = {
-  "bsv": "giftcard", "bep": "giftcard", "conggame": "giftcard", "gc": "giftcard",
+  "seagm": "seagmapi", "seagmapi": "seagmapi",
+  "bep": "bepbsv", "bepbsv": "bepbsv", "conggame": "bepbsv",
+  "trc": "trcbsv", "trcbsv": "trcbsv",
+  "gc": "gcthucong", "gcthucong": "gcthucong", "thucong": "gcthucong",
   "galaxy": "galaxylink", "glx": "galaxylink",
-  "sc": "supercell", "razer": "razer gold", "rz": "razer gold",
+  "sc": "supercell", "razer": "razergold", "rz": "razergold",
   "oggaming": "og", "ogg": "og"
 };
+/* trả về DANH SÁCH nguồn khớp — "bsv" khớp cả BEP - BSV và TRC - BSV nên phải trả nhiều */
 function timNguon(P, chu) {
-  const t = stripD(chu).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
-  if (!t) return null;
-  const ten = s => stripD(s).replace(/^data\s+/, "");
-  /* khớp nguyên cụm trước, sau đó khớp từng từ (kể cả qua biệt danh) */
-  let hit = P.src.find(s => t === ten(s.name) || t.indexOf(ten(s.name)) > -1);
-  if (hit) return hit;
-  for (const w of t.split(" ")) {
-    const key = BIET_DANH[w] || w;
-    hit = P.src.find(s => ten(s.name) === key || ten(s.name).indexOf(key) > -1 || key.indexOf(ten(s.name)) > -1);
-    if (hit) return hit;
+  const t = nen(chu);
+  if (!t) return [];
+  const ten = s => nen(s.name).replace(/^data/, "");
+  const hit = P.src.filter(s => t === ten(s) || t.indexOf(ten(s)) > -1);
+  if (hit.length) return hit;
+  /* tách câu hỏi thành từng từ, đổi qua biệt danh rồi dò */
+  const tu = stripD(chu).replace(/[^a-z0-9]/g, " ").split(/\s+/).filter(Boolean);
+  for (const w0 of tu) {
+    const w = BIET_DANH[w0] || w0;
+    const m = P.src.filter(s => ten(s) === w || ten(s).indexOf(w) > -1 || w.indexOf(ten(s)) > -1);
+    if (m.length) return m;
   }
-  return null;
+  /* "bep bsv" / "trc bsv" viết rời: ghép các từ liền nhau rồi dò lại */
+  for (let i = 0; i + 1 < tu.length; i++) {
+    const w = BIET_DANH[tu[i] + tu[i + 1]] || (tu[i] + tu[i + 1]);
+    const m = P.src.filter(s => ten(s) === w || ten(s).indexOf(w) > -1);
+    if (m.length) return m;
+  }
+  return [];
 }
 
 /* n ngày gần nhất CÓ SỐ trên tab (ngày trống chưa nhập liệu thì không tính) */
@@ -93,9 +105,10 @@ function traLoiMot(P, rate, s, ks0) {
   return L.join("\n");
 }
 
-function traLoiTatCa(P, rate, ks) {
+function traLoiTatCa(P, rate, ks, loc) {
+  const src = loc && loc.length ? loc : P.src;
   const L = ["💰 <b>Gợi ý nạp theo NCC</b> — bình quân " + ks.length + " ngày gần nhất (" + ks.map(nhan).join(" · ") + ")"];
-  const ds = P.src.map(s => {
+  const ds = src.map(s => {
     const bq = ks.reduce((a, k) => a + (s.daily[k] || 0), 0) / (ks.length || 1);
     const bqUSDT = s.usd ? bq : bq / rate(ks[ks.length - 1] || "");
     const R = ngayDu(bqUSDT);
@@ -106,7 +119,7 @@ function traLoiTatCa(P, rate, ks) {
   ds.forEach(x => L.push(" • <b>" + x.n + "</b>: tiêu " + (x.usd ? fu(x.bq) + " USDT" : fmt(x.bq) + " đ") +
     "/ngày → nạp <b>" + fmt(x.can) + (x.usd ? " USDT" : " đ") + "</b> (~" + x.ngay + " ngày)"));
   L.push("", "<i>Quy tắc: dưới 1.000/ngày nạp 3 ngày · 1.000–2.000 nạp 2 ngày · trên 2.000 nạp hàng ngày.</i>");
-  L.push("<i>Hỏi riêng một NCC: tag bot kèm tên, ví dụ “@bot galaxy” hoặc “/nap bsv”.</i>");
+  L.push("<i>Hỏi riêng một NCC: “/nap seagm” · “/nap bepbsv” · “/nap trc bsv” · “/nap galaxy” · “/nap og”.</i>");
   return L.join("\n");
 }
 
@@ -159,8 +172,9 @@ module.exports = async (req, res) => {
   /* bỏ phần gọi bot ra khỏi câu hỏi rồi tìm tên NCC trong phần còn lại */
   const hoi = text.replace(/^\/nap(@\S+)?/i, " ").replace(new RegExp("@" + (me || "x"), "ig"), " ")
     .replace(/\b(nap|nạp|tien|tiền|bao nhieu|bao nhiêu|ncc|cho|can|cần)\b/gi, " ").trim();
-  const s = timNguon(D.P, hoi);
-  const loi = s ? traLoiMot(D.P, D.rate, s, ks) : traLoiTatCa(D.P, D.rate, ks);
+  const ds = timNguon(D.P, hoi);
+  /* đúng một NCC → trả lời chi tiết · nhiều NCC (vd hỏi "bsv") → liệt kê gọn từng NCC */
+  const loi = ds.length === 1 ? traLoiMot(D.P, D.rate, ds[0], ks) : traLoiTatCa(D.P, D.rate, ks, ds);
   const j = await tra(loi + (D.coTyGia ? "" : "\n<i>⚠ chưa đọc được bảng tỷ giá tuần, số quy đổi đang tạm tính</i>"));
-  res.status(200).json({ ok: !!(j && j.ok), ncc: s ? s.name : "tat_ca", ngay: ks });
+  res.status(200).json({ ok: !!(j && j.ok), ncc: ds.map(x => x.name), ngay: ks });
 };

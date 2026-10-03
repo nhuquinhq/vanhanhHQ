@@ -662,9 +662,27 @@ function parseNhap(rows) {
   if (!ds.length) return null;
   return { src: src.filter(s => Object.keys(s.daily).length), days: ds, fx: FX_USDT };
 }
+/* Trên sheet, giftcard tách theo NCC để tiện nạp tiền (GC thủ công đến 31/7, từ 1/8 là
+   SEAGM API · BEP - BSV · TRC - BSV). BÁO CÁO gom cả nhóm thành một dòng "Giftcard";
+   riêng bot trả lời /nap vẫn tách theo từng NCC. */
+const nenTen = s => stripD(s).replace(/[^a-z0-9]/g, "");
+const GOM_NGUON = [{ ten: "Giftcard", khop: /^(gcthucong|seagm|bepbsv|trcbsv|giftcard)/ }];
+function gomNguon(src) {
+  const out = [], idx = {};
+  (src || []).forEach(s => {
+    const g = GOM_NGUON.find(x => x.khop.test(nenTen(s.name)));
+    const ten = g ? g.ten : s.name.replace(/^data\s+/i, "");
+    const key = ten + "|" + (s.usd ? "u" : "v");
+    if (!idx[key]) { idx[key] = { name: ten, usd: s.usd, daily: {} }; out.push(idx[key]); }
+    const d = idx[key].daily;
+    Object.keys(s.daily).forEach(k => d[k] = (d[k] || 0) + s.daily[k]);
+  });
+  return out;
+}
 async function buildNhap(q) {
   const rows = await readTab(GID_NHAP, FILE_NHAP);
-  const P = rows ? parseNhap(rows) : null;
+  const P0 = rows ? parseNhap(rows) : null;
+  const P = P0 ? { src: gomNguon(P0.src), days: P0.days, fx: P0.fx } : null;
   if (!P) return { skip: "khong_doc_duoc_tab_Data_Chi_tiet_kiem_tra_publish_to_web" };
   /* tỷ giá CO theo TUẦN; ngày nào bảng tỷ giá chưa có thì lấy tỷ giá tuần gần nhất trước đó */
   const FX = await fxWeek();
