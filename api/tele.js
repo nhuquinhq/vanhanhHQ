@@ -703,7 +703,8 @@ async function buildNhap(q) {
   /* mỗi ngày quy theo tỷ giá của TUẦN ngày đó, không nhân cả tháng bằng một tỷ giá */
   const cUv = days.reduce((a, k) => a + P.src.filter(s => s.usd).reduce((x, s) => x + (s.daily[k] || 0), 0) * rate(k), 0);
   const cT = cUv + cV;
-  lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b> · BQ " + fmt(cT / (days.length || 1)) + " đ/ngày");
+  /* BQ chỉ ghi bằng USDT (ở dòng dưới) — không ghi BQ quy VNĐ nữa */
+  lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b>");
   /* lũy kế giữ NGUYÊN TỆ: USDT ghi bằng USDT, VNĐ ghi bằng đồng — % là tỷ trọng trong tổng quy VNĐ */
   lines.push(" 💵 USDT " + fu(cU) + (cT ? " (" + pct(cUv / cT) + ")" : "") +
              " · BQ " + fu(cU / (days.length || 1)) + " USDT/ngày" +
