@@ -706,6 +706,7 @@ async function buildNhap(q) {
   lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b> · BQ " + fmt(cT / (days.length || 1)) + " đ/ngày");
   /* lũy kế giữ NGUYÊN TỆ: USDT ghi bằng USDT, VNĐ ghi bằng đồng — % là tỷ trọng trong tổng quy VNĐ */
   lines.push(" 💵 USDT " + fu(cU) + (cT ? " (" + pct(cUv / cT) + ")" : "") +
+             " · BQ " + fu(cU / (days.length || 1)) + " USDT/ngày" +
              " · 🏦 VNĐ " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
   /* top nguồn trong tháng, quy về VNĐ để xếp chung một thước đo */
   const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days),
