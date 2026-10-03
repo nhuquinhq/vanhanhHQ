@@ -588,6 +588,118 @@ async function buildBC(q) {
   return { parts: [{ text: lines.join("\n"), charts: charts.slice(0, 1) },
                    { text: l2.join("\n"), charts: charts.slice(1) }] };
 }
+
+/* ---- báo cáo NHẬP HÀNG theo ngày — tab "Data Chi tiết" (gid 14100067) ----
+   Khuôn tab: hàng băng "Nhập USDT" / "Nhập VNĐ" → hàng tên nguồn → hàng "Ngày" (ô tổng cột) → mỗi ngày một dòng.
+   Giữ nguyên nguyên tệ của từng nhóm như trên sheet; tổng chung quy VNĐ theo tỷ giá TẠM TÍNH FX_USDT. */
+const GID_NHAP = (process.env.NHAP_GID || "14100067").trim();
+const FILE_NHAP = (process.env.NHAP_PUB_KEY || FILES_ALL.def).trim();
+const FX_USDT = +(process.env.FX_USDT || 27000) || 27000;  /* có tỷ giá chốt thì khai FX_USDT trên Vercel */
+function parseNhap(rows) {
+  if (!rows || rows.length < 6) return null;
+  let gr = -1;   /* hàng băng = hàng có ô "Nhập USDT" */
+  for (let r = 0; r < Math.min(rows.length, 25) && gr < 0; r++)
+    if ((rows[r] || []).some(v => /nhap\s*usdt/.test(stripD(nrm(v))))) gr = r;
+  if (gr < 0) return null;
+  const band = []; let cur = "";   /* băng là ô gộp → kéo tên băng sang các cột bên phải */
+  (rows[gr] || []).forEach((v, i) => { const t = nrm(v); if (t) cur = t; band[i] = cur; });
+  const names = rows[gr + 1] || [], src = [];
+  for (let c = 1; c < names.length; c++) {
+    const n = nrm(names[c]); if (!n) continue;
+    const g = nrm(band[c]) || "Nhập VNĐ";
+    src.push({ c, name: n, grp: g, usd: /usdt/.test(stripD(g)), daily: {} });
+  }
+  if (!src.length) return null;
+  const days = {};
+  for (let r = gr + 2; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const m = nrm(row[0]).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);   /* ngày ghi kiểu d/m/yyyy */
+    if (!m) continue;                                                /* hàng "Ngày" (dòng tổng) tự bị bỏ qua */
+    const k = pad2(+m[2]) + "-" + pad2(+m[1]);
+    days[k] = 1;
+    src.forEach(s => { const v = vnum(row[s.c]); if (v) s.daily[k] = (s.daily[k] || 0) + v; });
+  }
+  const ds = Object.keys(days).sort();
+  if (!ds.length) return null;
+  return { src: src.filter(s => Object.keys(s.daily).length), days: ds, fx: FX_USDT };
+}
+async function buildNhap(q) {
+  const rows = await readTab(GID_NHAP, FILE_NHAP);
+  const P = rows ? parseNhap(rows) : null;
+  if (!P) return { skip: "khong_doc_duoc_tab_Data_Chi_tiet_kiem_tra_publish_to_web" };
+  const vnd = (s, k) => (s.daily[k] || 0) * (s.usd ? P.fx : 1);
+  const tongVND = k => P.src.reduce((a, s) => a + vnd(s, k), 0);
+  let key = reportDay(q).key;
+  const avail = P.days.filter(k => tongVND(k) > 0);
+  if (!avail.length) return { skip: "tab_Data_Chi_tiet_chua_co_so" };
+  if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+  const mm = key.slice(0, 2), days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
+  const fu = n => n ? n.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) : "0";
+  const sumK = (s, ks) => ks.reduce((a, k) => a + (s.daily[k] || 0), 0);
+  /* ----- trong ngày ----- */
+  const dU = P.src.filter(s => s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
+  const dV = P.src.filter(s => !s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
+  const sU = dU.reduce((a, x) => a + x.v, 0), sV = dV.reduce((a, x) => a + x.v, 0), sT = sU * P.fx + sV;
+  const lines = ["💵 <b>Nhập hàng theo ngày — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
+  lines.push("", "🧮 <b>Tổng nhập quy VNĐ: " + fmt(sT) + " đ</b>");
+  lines.push("💵 <b>Nhập USDT: " + fu(sU) + "</b>" + (sU ? " ≈ " + fmt(sU * P.fx) + " đ (" + pct(sU * P.fx / sT) + ")" : ""));
+  dU.forEach(x => lines.push(" • " + x.n + ": " + fu(x.v)));
+  if (!dU.length) lines.push(" • chưa có số");
+  lines.push("🏦 <b>Nhập VNĐ: " + fmt(sV) + " đ</b>" + (sV && sT ? " (" + pct(sV / sT) + ")" : ""));
+  dV.forEach(x => lines.push(" • " + x.n + ": " + fmt(x.v) + " đ"));
+  if (!dV.length) lines.push(" • chưa có số");
+  /* ----- lũy kế tháng ----- */
+  const cU = P.src.filter(s => s.usd).reduce((a, s) => a + sumK(s, days), 0);
+  const cV = P.src.filter(s => !s.usd).reduce((a, s) => a + sumK(s, days), 0);
+  const cT = cU * P.fx + cV;
+  lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b> · BQ " + fmt(cT / (days.length || 1)) + " đ/ngày");
+  lines.push(" 💵 USDT: " + fu(cU) + " ≈ " + fmt(cU * P.fx) + " đ" + (cT ? " (" + pct(cU * P.fx / cT) + ")" : ""));
+  lines.push(" 🏦 VNĐ: " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
+  /* top nguồn trong tháng, quy về VNĐ để xếp chung một thước đo */
+  const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days), v: sumK(s, days) * (s.usd ? P.fx : 1) }))
+    .filter(x => x.v).sort((a, b) => b.v - a.v);
+  if (topNg.length) {
+    lines.push("", "🏅 <b>Nguồn nhập nhiều nhất tháng " + (+mm) + "</b>");
+    topNg.slice(0, 5).forEach((x, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + x.n + ": " +
+      (x.usd ? fu(x.raw) + " USDT ≈ " + fmt(x.v) + " đ" : fmt(x.v) + " đ") + (cT ? " (" + pct(x.v / cT) + ")" : "")));
+  }
+  lines.push("", "<i>Tỷ giá tạm tính " + fmt(P.fx) + " đ/USDT</i>");
+  const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
+  if (dom) lines.push("🔗 Chi tiết: " + dom + " (trang PVH15)");
+  /* biểu đồ 1 — cả tháng theo ngày, cột chồng: USDT quy đổi + VNĐ */
+  const charts = [];
+  const dayU = k => P.src.filter(s => s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0) * P.fx;
+  const dayV = k => P.src.filter(s => !s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0);
+  if (days.length) charts.push({
+    type: "bar",
+    data: {
+      labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
+      datasets: [
+        { label: "Nhập USDT (quy VNĐ)", data: days.map(dayU), backgroundColor: PAL[0] },
+        { label: "Nhập VNĐ", data: days.map(dayV), backgroundColor: PAL[2] }
+      ]
+    },
+    options: {
+      title: { display: true, text: "Nhập theo ngày — tháng " + (+mm) + "/2026 · tổng " + fmt(cT) + " đ", fontSize: 16 },
+      legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
+      scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
+    }
+  });
+  /* biểu đồ 2 — cơ cấu nguồn nhập trong tháng (quy VNĐ) */
+  if (topNg.length) charts.push({
+    type: "bar",
+    data: {
+      labels: topNg.map(x => x.n + (x.usd ? " (USDT)" : "")),
+      datasets: [{ label: "Quy VNĐ", data: topNg.map(x => x.v), backgroundColor: topNg.map((x, i) => PAL[i % PAL.length]) }]
+    },
+    options: {
+      title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (quy VNĐ)", fontSize: 16 },
+      legend: { display: false },
+      scales: { xAxes: [{ ticks: { fontSize: 10, minRotation: 30, maxRotation: 60 } }], yAxes: [{ ticks: { beginAtZero: true } }] }
+    }
+  });
+  return { text: lines.join("\n"), charts };
+}
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
 async function buildNS(q) {
   /* Từ T10/2026 số nằm ở file mới (tab "BC đơn") và chia theo PHÂN LOẠI đơn.
@@ -680,7 +792,7 @@ async function buildNS(q) {
   return { text: lines.join("\n"), charts };
 }
 
-const REPORTS = { pvh10: buildPVH10, nv: buildNS };
+const REPORTS = { pvh10: buildPVH10, nv: buildNS, nhap: buildNhap };
 /* PVH10 (form cũ — đơn thủ công theo game) TẮT từ 02/10/2026: nguồn cũ không còn được cập nhật
    (01/10 chỉ đọc 17 đơn trong khi tab BC đơn ghi gần 600) và tin mới đã có đủ phân loại đơn.
    Bật lại khi cần: đặt biến môi trường TELE_PVH10=1 trên Vercel, không phải sửa code. */
@@ -688,9 +800,14 @@ const REPORTS_OFF = process.env.TELE_PVH10 === "1" ? {} : { pvh10: 1 };
 /* Báo cáo nào gửi vào box nào: mặc định gửi MỌI box đã khai (PVH và PCU).
    Muốn giới hạn riêng một báo cáo thì khai TELE_BOXES_<TÊN>="chatid:topicid,…"
    (ví dụ TELE_BOXES_NV để báo cáo năng suất nhân viên chỉ vào một box). */
+/* Riêng báo cáo NHẬP HÀNG (có số tiền nhập) mặc định chỉ vào BOX ĐẦU (PVH) cho kín;
+   muốn gửi thêm box khác thì khai TELE_BOXES_NHAP="chatid:topicid,chatid:topicid". */
+const BOX_1 = { nhap: 1 };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
-  return E ? parseBoxes(E) : targets();
+  if (E) return parseBoxes(E);
+  const T = targets();
+  return BOX_1[r] ? T.slice(0, 1) : T;
 }
 
 module.exports = async (req, res) => {
@@ -816,8 +933,8 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
     res.status(200).send("SOI TAB gid=" + gid + "\n\n" + rp.join("\n")); return;
   }
-  /* r có thể liệt kê nhiều báo cáo: ?r=nv — mặc định lấy env TELE_REPORTS */
-  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
+  /* r có thể liệt kê nhiều báo cáo: ?r=nv,nhap — mặc định lấy env TELE_REPORTS */
+  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);
   if (!rs.length || unknown.length) { res.status(400).json({ error: "unknown_report", unknown, reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
