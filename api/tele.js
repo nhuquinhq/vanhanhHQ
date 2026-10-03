@@ -1047,8 +1047,11 @@ module.exports = async (req, res) => {
     try {
       /* render ảnh 1 lần cho từng tin, dùng chung cho mọi box */
       const imgsOf = await Promise.all(parts.map(p => q.noimg === "1" ? Promise.resolve([]) : Promise.all(p.charts.map(chartURL))));
-      /* tin thử (?mau=1) chỉ gửi BOX ĐẦU để không làm nhiễu các box khác */
-      const sent = [], boxes = q.mau === "1" ? boxesFor(r).slice(0, 1) : boxesFor(r);
+      /* ?box=<chatid>[:<topic>] — bắn thử vào đúng một box/topic, chỉ cho lần gọi này.
+         Lấy từ link Telegram t.me/c/<chatid>/<topic> → box=-100<chatid>:<topic>.
+         tin thử (?mau=1) chỉ gửi BOX ĐẦU để không làm nhiễu các box khác */
+      const sent = [], boxes = q.box ? parseBoxes(String(q.box))
+        : (q.mau === "1" ? boxesFor(r).slice(0, 1) : boxesFor(r));
       let nAnh = 0;
       for (const b of boxes) {
         let okBox = true, photoBox = false, err;
