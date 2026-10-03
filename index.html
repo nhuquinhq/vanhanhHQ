@@ -1181,7 +1181,7 @@ const PAGES={
    w15Init();w15Sync();
    document.getElementById('rmeta').innerHTML=`<span class="badge" style="background:#1e5fd0">Tuần ${w15Rng(W15,0,0).no}: ${w15Rng(W15,0,0).lab}</span> &nbsp; ${PAGES.PVH15.meta}`;
    host.innerHTML=spinner("Đang gom số liệu tuần: nhập chi tiết · giá vốn Robux · tồn kho · automation · năng suất…");
-   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),khoCTData(),autoTCData()]).then(([,,,,,Rt,KC,AU])=>{
+   Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),khoCTData(),autoTCData(),nhapCTData()]).then(([,,,,,Rt,KC,AU])=>{
      if(curr!=='PVH15')return;
      const A=w15Rng(W15,0,0),B=w15Rng(W15,-1,0),C=w15Rng(W15,0,-1);
      const chg=(a,b)=>a?`<span class="${b>=a?'up':'down'}">${b>=a?'+':'−'}${pct(Math.abs(b-a)/a)}</span>`:'—';
@@ -1197,15 +1197,38 @@ const PAGES={
         {label:'Tuần '+B.no,data:rows.map(r=>r.b),backgroundColor:'#94a3b8'},
         {label:'Cùng kỳ T.trước',data:rows.map(r=>r.c),backgroundColor:'#DCE7D5'}]},options:barOpt(true)});
      let h=`<div class="small" style="margin:0 4px 8px">So sánh: <b>Tuần ${A.no}</b> (${A.lab}) ↔ <b>Tuần ${B.no}</b> (${B.lab}) ↔ cùng kỳ tháng trước (${C.lab})</div>`;
-     /* ---------- 1) PVH13 · Nhập chi tiết theo SPDV ---------- */
-     const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
-     const spRows=S3[0].map((x,i)=>({name:x.name,a:x.tot,b:S3[1][i].tot,c:S3[2][i].tot})).filter(r=>r.a||r.b||r.c);
-     const tA=spRows.reduce((x,r)=>x+r.a,0),tB=spRows.reduce((x,r)=>x+r.b,0),tC=spRows.reduce((x,r)=>x+r.c,0);
-     const topSp=[...spRows].sort((x,y)=>y.a-x.a)[0];
-     h+=box('1 · PVH13 — Nhập chi tiết theo SPDV','Đọc RAW các tab chi tiết · tab USD quy VND theo tỷ giá ngày')
-      +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab)}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("SPDV lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
-       <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo SPDV — 3 kỳ (VND)","w1")}</div>`
-      +tbl(spRows.concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VND.');
+     /* ---------- 1) Nhập chi tiết — tab "Data Chi tiết" (Nhập USDT + Nhập VNĐ) ---------- */
+     const NS=[A,B,C].map(r=>p15Series(r.f,r.t));
+     let spRows,tA,tB,tC;
+     if(NS[0]){
+       spRows=NS[0].map((x,i)=>({name:x.name,usd:x.usd,a:x.tot,b:NS[1][i].tot,c:NS[2][i].tot,
+         ra:x.raw,rb:NS[1][i].raw,rc:NS[2][i].raw})).filter(r=>r.a||r.b||r.c);
+       tA=spRows.reduce((x,r)=>x+r.a,0);tB=spRows.reduce((x,r)=>x+r.b,0);tC=spRows.reduce((x,r)=>x+r.c,0);
+       const topSp=[...spRows].sort((x,y)=>y.a-x.a)[0];
+       const fu=n=>n?n.toLocaleString('vi-VN',{maximumFractionDigits:2}):'-';
+       const uRows=spRows.filter(r=>r.usd),vRows=spRows.filter(r=>!r.usd);
+       const sumR=(L,k)=>L.reduce((x,r)=>x+r[k],0);
+       const uA=sumR(uRows,'ra'),vA=sumR(vRows,'ra');
+       h+=box('1 · Nhập chi tiết — tab "Data Chi tiết"','Mỗi ngày một dòng · giữ nguyên hai nhóm Nhập USDT và Nhập VNĐ như trên sheet; số tổng quy VNĐ theo tỷ giá tạm tính '+fmt(FX15)+' đ/USDT')
+        +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab+" · quy VNĐ")}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("Nhập USDT tuần "+A.no,fu(uA),"≈ "+fmt(uA*FX15)+" đ · nhập VNĐ "+fmt(vA)+" đ")}${kpi("Nguồn lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
+         <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo nguồn — 3 kỳ (quy VNĐ)","w1")}</div>`
+        +(uRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP USDT — nguyên tệ</div>`
+          +tbl(uRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG USDT</b>',a:uA,b:sumR(uRows,'rb'),c:sumR(uRows,'rc')}]),fu,'Đơn vị: USDT (đúng số trên sheet, chưa quy đổi).'):'')
+        +(vRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP VNĐ — nguyên tệ</div>`
+          +tbl(vRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG VNĐ</b>',a:vA,b:sumR(vRows,'rb'),c:sumR(vRows,'rc')}]),fmtn,'Đơn vị: VNĐ.'):'')
+        +`<div class="small" style="margin:14px 4px 6px;font-weight:700">Tất cả nguồn — quy về VNĐ</div>`
+        +tbl(spRows.map(r=>({name:r.name+(r.usd?' <span class="small">(USDT)</span>':''),a:r.a,b:r.b,c:r.c}))
+            .concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VNĐ · USDT quy đổi theo tỷ giá tạm tính '+fmt(FX15)+' đ/USDT.');
+     }else{
+       /* chưa đọc được tab mới (chưa xuất bản / mất mạng) → tạm dùng cách cũ để trang không trống */
+       const S3=[A,B,C].map(r=>p13Series(r.f,r.t));
+       spRows=S3[0].map((x,i)=>({name:x.name,a:x.tot,b:S3[1][i].tot,c:S3[2][i].tot})).filter(r=>r.a||r.b||r.c);
+       tA=spRows.reduce((x,r)=>x+r.a,0);tB=spRows.reduce((x,r)=>x+r.b,0);tC=spRows.reduce((x,r)=>x+r.c,0);
+       h+=box('1 · Nhập chi tiết theo SPDV (nguồn tạm)','⚠ Chưa đọc được tab "Data Chi tiết" (gid '+NHAPCT_GID+') — đang tạm gom từ các tab RAW như trước')
+        +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab)}${kpi("So tuần "+B.no,tB?chg(tB,tA):'—',tB?fmt(tB)+' đ':'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?chg(tC,tA):'—',tC?fmt(tC)+' đ':'kỳ trước chưa có số')}</div>
+         <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo SPDV — 3 kỳ (VND)","w1")}</div>`
+        +tbl(spRows.concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VND.');
+     }
      /* ---------- 2) PVH4 · Giá vốn Robux ---------- */
      const rbx=r=>{let t=0,q=0;rangeDays2(r.f,r.t).forEach(k=>{t+=(ROBUXDAILY||{})[k]||0;q+=(ROBUXSL||{})[k]||0;});return{t,q,gv:q?t/q:0};};
      const R3=[A,B,C].map(rbx);
@@ -1700,6 +1723,45 @@ function p13Series(fk,tk){
  ];
  S.forEach(s=>{s.tot=Object.keys(s.daily).reduce((a,k)=>a+s.daily[k],0);});
  return S;}
+/* ===== CO NHẬP CHI TIẾT theo NGÀY — tab "Data Chi tiết" (gid 14100067): nguồn của PVH15 · Báo cáo tuần =====
+   Khuôn tab: hàng băng "Nhập USDT" / "Nhập VNĐ" → hàng tên nguồn → hàng "Ngày" (ô tổng cột) → mỗi ngày một dòng.
+   GIỮ NGUYÊN hai nhóm như trên sheet; chỗ nào cần một con số chung thì quy USDT ra VNĐ theo tỷ giá TẠM TÍNH FX15. */
+const NHAPCT_GID="14100067";
+const FX15=27000;        /* tỷ giá USDT→VNĐ tạm tính — có tỷ giá chốt thì sửa đúng một chỗ này */
+const NHAPCT_MAU={"Data Giftcard":"#357D71","Supercell":"#E1B083","Razer Gold":"#B3564F","RBX":"#7FBFB2","Galaxylink":"#D9B25A","OG":"#C48D60","Gamota":"#9BBA74","Doduy":"#C2CB81","Robux":"#638A55"};
+let NHAPCT,NHAPCTPREV=null,NHAPCTTS=0;
+function parseNhapCT(rows){
+ if(!rows||rows.length<6)return null;
+ const N=x=>{if(x==null)return'';let s=''+x;try{s=s.normalize('NFC');}catch(e){}return s.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
+ const S=x=>N(x).normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase();
+ let gr=-1;   /* hàng băng: hàng có ô "Nhập USDT" */
+ for(let r=0;r<Math.min(rows.length,25)&&gr<0;r++)if((rows[r]||[]).some(v=>/nhap\s*usdt/.test(S(v))))gr=r;
+ if(gr<0)return null;
+ const band=[];let cur='';   /* băng là ô gộp → kéo tên băng sang các cột bên phải */
+ (rows[gr]||[]).forEach((v,i)=>{const t=N(v);if(t)cur=t;band[i]=cur;});
+ const names=rows[gr+1]||[],src=[];
+ for(let c=1;c<names.length;c++){const n=N(names[c]);if(!n)continue;
+  const g=N(band[c])||'Nhập VNĐ';
+  src.push({c,name:n,grp:g,usd:/usdt/.test(S(g)),color:NHAPCT_MAU[n]||'#94a3b8',daily:{}});}
+ if(!src.length)return null;
+ const days={};
+ for(let r=gr+2;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[0]);
+  if(!dt||!okY(dt))continue;          /* hàng "Ngày" (dòng tổng) không phải ngày → tự bỏ qua */
+  const dk=dkey(dt.mo,dt.d);days[dk]=1;
+  src.forEach(s=>{const v=num(row[s.c]);if(v)s.daily[dk]=(s.daily[dk]||0)+v;});}
+ const ds=Object.keys(days).sort();
+ if(!ds.length)return null;
+ return{src:src.filter(s=>Object.keys(s.daily).length),days:ds,fx:FX15};}
+async function nhapCTData(){if(NHAPCT!==undefined&&Date.now()-NHAPCTTS<RAW_TTL)return NHAPCT;
+ let rows=await loadCSV(directURL(NHAPCT_GID));let o=parseNhapCT(rows);
+ if(!o){const r2=await loadCSV(apiURL(NHAPCT_GID));if(r2)rows=r2;o=parseNhapCT(rows);}
+ NHAPCTPREV=rows?rows.slice(0,8):null;NHAPCTTS=Date.now();NHAPCT=o||undefined;return o;}
+/* CO Nhập trong [fk,tk] theo từng nguồn — raw = nguyên tệ (USDT hoặc VNĐ), tot = quy VNĐ */
+function p15Series(fk,tk){
+ const D=NHAPCT;if(!D||!D.src.length)return null;
+ return D.src.map(s=>{const daily={};let raw=0;
+  Object.keys(s.daily).forEach(k=>{if(k<fk||k>tk)return;const v=s.daily[k];raw+=v;daily[k]=s.usd?v*D.fx:v;});
+  return{name:s.name,usd:s.usd,grp:s.grp,color:s.color,daily,raw,tot:s.usd?raw*D.fx:raw};});}
 /* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
 async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
 /* PVH13: chế độ xem Tự động / Ngày / Tuần / Tháng — auto bám theo độ dài phạm vi lọc */
@@ -2605,9 +2667,10 @@ async function xuatSlideRun(){
  try{
   if(btn){btn.disabled=true;btn.textContent='⏳ Đang gom số liệu…';}
   await loadPptxLib();
-  await Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc')]);
+  await Promise.all([ensureRaw(['og','razer','rbx','sc']),ensureFX(),robuxDaily(),gc13Daily(),glxDaily(),slaRows('tc'),nhapCTData()]);
   const fk=iso(FROM),tk=iso(TO);
-  const SP_ALL=p13Series(fk,tk);const S=SP_ALL.filter(s=>s.tot>0);
+  /* slide nhập chi tiết lấy cùng nguồn với trang PVH15 (tab "Data Chi tiết"), chưa đọc được thì tạm gom RAW */
+  const SP_ALL=p15Series(fk,tk)||p13Series(fk,tk);const S=SP_ALL.filter(s=>s.tot>0);
   const p13tot=S.reduce((a,s)=>a+s.tot,0);
   /* SLA dùng chung cho nhiều slide */
   const tcRows=await slaRows('tc');const P=tcRows?parseSlaTongTC(tcRows):null;
@@ -2641,7 +2704,7 @@ async function xuatSlideRun(){
    const fA=new Date(FROM.y,FROM.mo,FROM.d);fA.setDate(fA.getDate()-len);
    const tA=new Date(FROM.y,FROM.mo,FROM.d);tA.setDate(tA.getDate()-1);
    const fkA=iso({y:fA.getFullYear(),mo:fA.getMonth(),d:fA.getDate()}),tkA=iso({y:tA.getFullYear(),mo:tA.getMonth(),d:tA.getDate()});
-   const SA=p13Series(fkA,tkA);
+   const SA=p15Series(fkA,tkA)||p13Series(fkA,tkA);
    const fd=k=>k.slice(8,10)+'/'+k.slice(5,7);
    const rows=SP_ALL.map((s,i)=>({name:s.name,a:SA[i].tot,b:s.tot})).filter(r=>r.a>0||r.b>0);
    const slaPrev=slaIn(fkA,tkA);
@@ -2758,7 +2821,7 @@ function renderSRC(){const host=document.getElementById('content');
  /* nhóm tab theo file nguồn */
  const groups=[
   ['FILE CHÍNH — Google Sheet vận hành',[
-   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Data Supercell (PVH13)','564846337'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK],['Automation / thủ công (PVH9)','1785292172']]],
+   ['Data theo SPDV','460836856'],['Data theo NCC','1758921427'],['Data Nhập Theo Nhân viên',GIDS.nv],['Bảng tỉ giá','163849763'],['Data Robux (cũ)','562469906'],['Data Robux — giá vốn PVH4','386815906'],['Data giftcard','1043029815'],['Data Razergold','1868031300'],['Data OGGAMING','793401472'],['Data Nick Roblox','61864847'],['Data RBX (PVH13)','1267159006'],['Data Supercell (PVH13)','564846337'],['Hoàn nick theo CTV (PVH12)',GID_HOAN_NICK],['Automation / thủ công (PVH9)','1785292172'],['Data Chi tiết — nhập USDT/VNĐ (PVH15)',NHAPCT_GID]]],
   ['FILE TỒN KHO HUB (PVH6)',[['Tồn kho Gift Card','0','ton']]],
   ['FILE TỒN KHO HQGROUP (PVH6 · tồn kho chi tiết)',[['Tổng tồn HQ',KHO_GID,'kho']]],
   ['FILE GIFT CARD (PVH13)',[['GiftCards raw — live từ T8',GC13_GID,'gc13']]],
