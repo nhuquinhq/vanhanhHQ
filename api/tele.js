@@ -999,6 +999,28 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
     res.status(200).send("SOI TAB gid=" + gid + "\n\n" + rp.join("\n")); return;
   }
+  /* ?hook=set|info|del — bật/xem/tắt ĐẦU NHẬN tin nhắn (/api/bot) để kế toán tag bot hỏi số tiền nạp.
+     Lưu ý: khi webhook đang bật thì lệnh ?peek=1 (đọc chat id bằng getUpdates) sẽ báo lỗi 409 —
+     cần tra chat id thì tắt webhook (?hook=del), tra xong bật lại (?hook=set). */
+  if (q.hook) {
+    const tk = process.env.TELEGRAM_BOT_TOKEN;
+    if (!tk) { res.status(200).json({ error: "thieu_TELEGRAM_BOT_TOKEN" }); return; }
+    const base = "https://api.telegram.org/bot" + tk + "/";
+    const goi = async (m, b) => (await fetch(base + m, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b || {}) })).json();
+    let out;
+    if (q.hook === "set") {
+      const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
+      if (!dom) { res.status(200).json({ error: "khong_biet_ten_mien_hay_khai_DASH_URL" }); return; }
+      const st = SECRET.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 256);   /* secret_token chỉ nhận chữ, số, _ và - */
+      out = await goi("setWebhook", Object.assign({
+        url: dom + "/api/bot" + (SECRET ? "?k=" + encodeURIComponent(SECRET) : ""),
+        allowed_updates: ["message"], drop_pending_updates: true
+      }, st ? { secret_token: st } : {}));
+    } else if (q.hook === "del") out = await goi("deleteWebhook", { drop_pending_updates: true });
+    else out = await goi("getWebhookInfo", {});
+    res.setHeader("Cache-Control", "no-store");
+    res.status(200).json(out); return;
+  }
   /* ?tygia=1 — soi bảng tỷ giá tuần: đọc ra bao nhiêu ngày, tỷ giá CO của các ngày gần đây */
   if (q.tygia) {
     const rws = await readTab(GID_FX, FILE_FX);
@@ -1118,3 +1140,21 @@ module.exports = async (req, res) => {
   if (q.dry) { res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.status(200).send(preview.join("\n\n")); return; }
   res.status(200).json({ ok: done.some(x => x.ok), ket_qua: done });
 };
+
+/* ---- dùng chung cho /api/bot (kế toán tag bot hỏi số tiền cần nạp NCC) ----
+   Trả về bảng nhập theo ngày + tỷ giá tuần để bên kia khỏi phải đọc lại sheet. */
+async function docNhap() {
+  const rows = await readTab(GID_NHAP, FILE_NHAP);
+  const P = rows ? parseNhap(rows) : null;
+  const FX = await fxWeek();
+  const FXK = FX ? Object.keys(FX.map).sort() : [];
+  const rate = k => {
+    if (!FXK.length) return FX_USDT;
+    if (FX.map[k]) return FX.map[k];
+    const past = FXK.filter(x => x <= k);
+    return past.length ? FX.map[past[past.length - 1]] : FX.map[FXK[0]];
+  };
+  return { P: P, rate: rate, coTyGia: !!FXK.length };
+}
+module.exports.docNhap = docNhap;
+module.exports.BOX_MAC_DINH = BOX_MAC_DINH;
