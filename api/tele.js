@@ -13,7 +13,9 @@ const FILES_ALL = {
   def_old: "2PACX-1vSve6XRHg5gWRzqkazHm5zvlrkTkAMLa7TJms_U-ebAFcrDAmcvCYfNJ50hrvV988tXyKC7q70LQgPc",
   gc13: "2PACX-1vSlOzVTuSNAfW-lVKF7xjLAPwVtnebtOFxCDiJKaseD8xQ9NfRpAWRQG-ivkUSMM83Tf1Ea2xnnRX_4",
   ton: "2PACX-1vQToyJFyIIxiDtucrAhxnTVZmjNWF2InPci5r-C75DfkHR6aQbUrmZNBcwDDadNrET82VwxtdjDhITE",
-  kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5"
+  kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5",
+  /* HQS — BẢNG TỶ GIÁ HÀNG TUẦN: tỷ giá tính giá nhập là hàng "USDT/VND · CO Rate" */
+  fx: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ"
 };
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 /* Từ T10/2026 năng suất đọc ở file RIÊNG "Báo cáo Năng Suất Xử lý đơn 2026", tab "BC đơn":
@@ -594,7 +596,44 @@ async function buildBC(q) {
    Giữ nguyên nguyên tệ của từng nhóm như trên sheet; tổng chung quy VNĐ theo tỷ giá TẠM TÍNH FX_USDT. */
 const GID_NHAP = (process.env.NHAP_GID || "14100067").trim();
 const FILE_NHAP = (process.env.NHAP_PUB_KEY || FILES_ALL.def).trim();
-const FX_USDT = +(process.env.FX_USDT || 27000) || 27000;  /* có tỷ giá chốt thì khai FX_USDT trên Vercel */
+const FX_USDT = +(process.env.FX_USDT || 27000) || 27000;  /* chỉ dùng khi KHÔNG đọc được bảng tỷ giá tuần */
+/* ---- bảng TỶ GIÁ THEO TUẦN (file "HQS - BẢNG TỶ GIÁ HÀNG TUẦN") ----
+   Khuôn: một hàng ghi NGÀY (d/m, mỗi cột một ngày), hàng "USDT/VND · CO Rate" ghi tỷ giá
+   của cả tuần trong ô gộp → kéo giá trị sang phải cho 7 ngày của tuần đó.
+   Giá nhập hàng quy VNĐ dùng đúng hàng CO Rate này. */
+const GID_FX = (process.env.FX_GID || "1739295342").trim();
+const FILE_FX = (process.env.FX_PUB_KEY || FILES_ALL.fx).trim();
+function parseFXWeek(rows) {
+  if (!rows || rows.length < 5) return null;
+  const isD = v => /^\d{1,2}\/\d{1,2}$/.test(nrm(v));
+  let dr = -1, best = 0;                       /* hàng NGÀY = hàng có nhiều ô dạng d/m nhất */
+  for (let r = 0; r < Math.min(rows.length, 25); r++) {
+    const n = (rows[r] || []).filter(isD).length;
+    if (n > best) { best = n; dr = r; }
+  }
+  if (dr < 0 || best < 5) return null;
+  let rr = -1;                                 /* hàng CO Rate (nhãn nằm ở mấy cột đầu) */
+  for (let r = 0; r < rows.length && rr < 0; r++) {
+    const lab = (rows[r] || []).slice(0, 8).map(v => stripD(nrm(v))).join(" ");
+    if (/co\s*rate/.test(lab)) rr = r;
+  }
+  if (rr < 0) return null;
+  const row = rows[rr] || [], dates = rows[dr] || [], map = {};
+  let cur = 0, n = 0;
+  for (let c = 0; c < Math.max(row.length, dates.length); c++) {
+    const v = vnum(row[c]); if (v > 1000) cur = v;   /* ô gộp: giá trị nằm ở cột đầu của tuần */
+    const m = nrm(dates[c]).match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (m && cur) { map[pad2(+m[2]) + "-" + pad2(+m[1])] = cur; n++; }
+  }
+  return n ? { map, dbg: { dr, rr, nNgay: n } } : null;
+}
+let FXW_CACHE;
+async function fxWeek() {
+  if (FXW_CACHE !== undefined) return FXW_CACHE;
+  const rows = await readTab(GID_FX, FILE_FX);
+  FXW_CACHE = (rows ? parseFXWeek(rows) : null) || null;
+  return FXW_CACHE;
+}
 function parseNhap(rows) {
   if (!rows || rows.length < 6) return null;
   let gr = -1;   /* hàng băng = hàng có ô "Nhập USDT" */
@@ -627,7 +666,16 @@ async function buildNhap(q) {
   const rows = await readTab(GID_NHAP, FILE_NHAP);
   const P = rows ? parseNhap(rows) : null;
   if (!P) return { skip: "khong_doc_duoc_tab_Data_Chi_tiet_kiem_tra_publish_to_web" };
-  const vnd = (s, k) => (s.daily[k] || 0) * (s.usd ? P.fx : 1);
+  /* tỷ giá CO theo TUẦN; ngày nào bảng tỷ giá chưa có thì lấy tỷ giá tuần gần nhất trước đó */
+  const FX = await fxWeek();
+  const FXK = FX ? Object.keys(FX.map).sort() : [];
+  const rate = k => {
+    if (!FXK.length) return FX_USDT;
+    if (FX.map[k]) return FX.map[k];
+    const past = FXK.filter(x => x <= k);
+    return past.length ? FX.map[past[past.length - 1]] : FX.map[FXK[0]];
+  };
+  const vnd = (s, k) => (s.daily[k] || 0) * (s.usd ? rate(k) : 1);
   const tongVND = k => P.src.reduce((a, s) => a + vnd(s, k), 0);
   let key = reportDay(q).key;
   const avail = P.days.filter(k => tongVND(k) > 0);
@@ -639,10 +687,11 @@ async function buildNhap(q) {
   /* ----- trong ngày ----- */
   const dU = P.src.filter(s => s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
   const dV = P.src.filter(s => !s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
-  const sU = dU.reduce((a, x) => a + x.v, 0), sV = dV.reduce((a, x) => a + x.v, 0), sT = sU * P.fx + sV;
+  const rK = rate(key);
+  const sU = dU.reduce((a, x) => a + x.v, 0), sV = dV.reduce((a, x) => a + x.v, 0), sT = sU * rK + sV;
   const lines = ["💵 <b>Nhập hàng theo ngày — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   lines.push("", "🧮 <b>Tổng nhập quy VNĐ: " + fmt(sT) + " đ</b>");
-  lines.push("💵 <b>Nhập USDT: " + fu(sU) + "</b>" + (sU ? " ≈ " + fmt(sU * P.fx) + " đ (" + pct(sU * P.fx / sT) + ")" : ""));
+  lines.push("💵 <b>Nhập USDT: " + fu(sU) + "</b>" + (sU ? " ≈ " + fmt(sU * rK) + " đ (" + pct(sU * rK / sT) + ")" : ""));
   dU.forEach(x => lines.push(" • " + x.n + ": " + fu(x.v)));
   if (!dU.length) lines.push(" • chưa có số");
   lines.push("🏦 <b>Nhập VNĐ: " + fmt(sV) + " đ</b>" + (sV && sT ? " (" + pct(sV / sT) + ")" : ""));
@@ -651,24 +700,29 @@ async function buildNhap(q) {
   /* ----- lũy kế tháng ----- */
   const cU = P.src.filter(s => s.usd).reduce((a, s) => a + sumK(s, days), 0);
   const cV = P.src.filter(s => !s.usd).reduce((a, s) => a + sumK(s, days), 0);
-  const cT = cU * P.fx + cV;
+  /* mỗi ngày quy theo tỷ giá của TUẦN ngày đó, không nhân cả tháng bằng một tỷ giá */
+  const cUv = days.reduce((a, k) => a + P.src.filter(s => s.usd).reduce((x, s) => x + (s.daily[k] || 0), 0) * rate(k), 0);
+  const cT = cUv + cV;
   lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b> · BQ " + fmt(cT / (days.length || 1)) + " đ/ngày");
-  lines.push(" 💵 USDT: " + fu(cU) + " ≈ " + fmt(cU * P.fx) + " đ" + (cT ? " (" + pct(cU * P.fx / cT) + ")" : ""));
+  lines.push(" 💵 USDT: " + fu(cU) + " ≈ " + fmt(cUv) + " đ" + (cT ? " (" + pct(cUv / cT) + ")" : ""));
   lines.push(" 🏦 VNĐ: " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
   /* top nguồn trong tháng, quy về VNĐ để xếp chung một thước đo */
-  const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days), v: sumK(s, days) * (s.usd ? P.fx : 1) }))
+  const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days),
+      v: days.reduce((a, k) => a + (s.daily[k] || 0) * (s.usd ? rate(k) : 1), 0) }))
     .filter(x => x.v).sort((a, b) => b.v - a.v);
   if (topNg.length) {
     lines.push("", "🏅 <b>Nguồn nhập nhiều nhất tháng " + (+mm) + "</b>");
     topNg.slice(0, 5).forEach((x, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + x.n + ": " +
       (x.usd ? fu(x.raw) + " USDT ≈ " + fmt(x.v) + " đ" : fmt(x.v) + " đ") + (cT ? " (" + pct(x.v / cT) + ")" : "")));
   }
-  lines.push("", "<i>Tỷ giá tạm tính " + fmt(P.fx) + " đ/USDT</i>");
+  lines.push("", FXK.length
+    ? "<i>Tỷ giá CO tuần này: " + fmt(rK) + " đ/USDT (bảng tỷ giá HQS hàng tuần)</i>"
+    : "<i>⚠ Chưa đọc được bảng tỷ giá tuần — tạm tính " + fmt(rK) + " đ/USDT</i>");
   const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
   if (dom) lines.push("🔗 Chi tiết: " + dom + " (trang PVH15)");
   /* biểu đồ 1 — cả tháng theo ngày, cột chồng: USDT quy đổi + VNĐ */
   const charts = [];
-  const dayU = k => P.src.filter(s => s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0) * P.fx;
+  const dayU = k => P.src.filter(s => s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0) * rate(k);
   const dayV = k => P.src.filter(s => !s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0);
   if (days.length) charts.push({
     type: "bar",
@@ -932,6 +986,24 @@ module.exports = async (req, res) => {
     }
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
     res.status(200).send("SOI TAB gid=" + gid + "\n\n" + rp.join("\n")); return;
+  }
+  /* ?tygia=1 — soi bảng tỷ giá tuần: đọc ra bao nhiêu ngày, tỷ giá CO của các ngày gần đây */
+  if (q.tygia) {
+    const rws = await readTab(GID_FX, FILE_FX);
+    const F = rws ? parseFXWeek(rws) : null;
+    const rp = ["SOI BANG TY GIA TUAN gid=" + GID_FX, "so dong doc duoc: " + (rws ? rws.length : "KHONG DOC DUOC")];
+    if (F) {
+      rp.push("hang NGAY = dong " + F.dbg.dr + " · hang CO Rate = dong " + F.dbg.rr + " · " + F.dbg.nNgay + " ngay co ty gia");
+      const ks = Object.keys(F.map).sort();
+      rp.push("20 ngay gan nhat:");
+      ks.slice(-20).forEach(k => rp.push("   " + k.slice(3) + "/" + k.slice(0, 2) + ": " + fmt(F.map[k])));
+    } else if (rws) {
+      rp.push("KHONG nhan ra khuon — 12 dong dau:");
+      for (let r = 0; r < Math.min(rws.length, 12); r++)
+        rp.push(" [dong " + r + "] " + (rws[r] || []).map((v, i) => i + ":" + nrm(v)).filter(x => x.slice(x.indexOf(":") + 1)).slice(0, 30).join("  ").slice(0, 900));
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(rp.join("\n")); return;
   }
   /* r có thể liệt kê nhiều báo cáo: ?r=nv,nhap — mặc định lấy env TELE_REPORTS */
   const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
