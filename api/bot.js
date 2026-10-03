@@ -71,8 +71,11 @@ function traLoiMot(P, rate, s, ks0) {
   const dv = usd ? " USDT" : " đ";
   const mm = (ks[ks.length - 1] || "").slice(0, 2);
   const thang = P.days.filter(k => k.slice(0, 2) === mm).reduce((a, k) => a + (s.daily[k] || 0), 0);
-  const L = ["💰 <b>Nạp NCC — " + tenNg(s.name) + "</b>"];
-  L.push("🗓 " + ks.length + " ngày gần nhất: " + ks.map((k, i) => nhan(k) + " " + (usd ? fu(so[i]) : fmt(so[i]))).join(" · "));
+  /* mỗi ngày một dòng cho dễ đọc trên điện thoại */
+  const L = ["💰 <b>Nạp NCC — " + tenNg(s.name) + "</b>", ""];
+  L.push("🗓 " + ks.length + " ngày gần nhất:");
+  ks.forEach((k, i) => L.push(nhan(k) + "  " + (usd ? fu(so[i]) : fmt(so[i]))));
+  L.push("");
   L.push("📊 Bình quân: <b>" + (usd ? fu(bq) : fmt(bq)) + dv + "/ngày</b> · mức tiêu " + R.muc);
   L.push("👉 <b>Đề xuất nạp: " + (usd ? fmt(can) : fmt(can)) + dv + "</b> (đủ dùng ~" + R.ngay + " ngày)");
   L.push("📈 Đã nhập tháng " + (+mm) + ": " + (usd ? fu(thang) : fmt(thang)) + dv);
