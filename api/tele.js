@@ -842,14 +842,15 @@ const REPORTS_OFF = process.env.TELE_PVH10 === "1" ? {} : { pvh10: 1 };
 /* Báo cáo nào gửi vào box nào: mặc định gửi MỌI box đã khai (PVH và PCU).
    Muốn giới hạn riêng một báo cáo thì khai TELE_BOXES_<TÊN>="chatid:topicid,…"
    (ví dụ TELE_BOXES_NV để báo cáo năng suất nhân viên chỉ vào một box). */
-/* Riêng báo cáo NHẬP HÀNG (có số tiền nhập) mặc định chỉ vào BOX ĐẦU (PVH) cho kín;
-   muốn gửi thêm box khác thì khai TELE_BOXES_NHAP="chatid:topicid,chatid:topicid". */
-const BOX_1 = { nhap: 1 };
+/* Nơi bắn CỐ ĐỊNH của riêng một báo cáo — ghi "chatid:topicid" lấy từ link t.me/c/<chatid>/<topic>.
+   Báo cáo nhập hàng bắn vào topic riêng trong box Phòng vận hành (t.me/c/4428753122/863).
+   Muốn đổi mà không sửa code thì khai biến môi trường TELE_BOXES_NHAP trên Vercel. */
+const BOX_MAC_DINH = { nhap: "-1004428753122:863" };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
-  const T = targets();
-  return BOX_1[r] ? T.slice(0, 1) : T;
+  if (BOX_MAC_DINH[r]) return parseBoxes(BOX_MAC_DINH[r]);
+  return targets();
 }
 
 module.exports = async (req, res) => {
