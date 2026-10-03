@@ -766,6 +766,18 @@ module.exports = async (req, res) => {
           }
           if (!hit) rp.push("   KHONG thay dong nao chua '" + q.tim + "'");
         }
+        /* &xem=<n>: in nguyên n dòng đầu (kèm số thứ tự cột) — xem khuôn của một tab mới */
+        if (!html && rows.length && q.xem) {
+          const n = Math.min(+String(q.xem).replace(/\D/g, "") || 12, 40);
+          rp.push("   " + n + " DONG DAU CO CHU (cot:gia tri)");
+          let shown = 0;
+          for (let r = 0; r < rows.length && shown < n; r++) {
+            const cells = (rows[r] || []).map((v, i) => i + ":" + nrm(v)).filter(x => x.slice(x.indexOf(":") + 1));
+            if (!cells.length) continue;
+            shown++;
+            rp.push("   [dong " + r + "] " + cells.slice(0, 45).join("  ").slice(0, 1500));
+          }
+        }
         /* cộng số theo tháng: &ngay=<cột ngày>&gia=<cột tiền>[&loc=<cột>:<chữ cần chứa, bỏ dấu>]
            dùng để đối chiếu một tab RAW (vd Data Supercell) với số đang hiện trên trang */
         if (!html && rows.length > 1 && q.ngay != null && q.gia != null) {
