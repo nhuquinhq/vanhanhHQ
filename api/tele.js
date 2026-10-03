@@ -865,6 +865,10 @@ const BOX_MAC_DINH = {
   /* Phòng vận hành · topic 863  +  Kế toán Kho - Cung ứng · topic 14157 */
   nhap: "-1004428753122:863,-1002344565165:14157"
 };
+/* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
+   Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
+   hôm nào GitHub nhả job trễ thì vẫn gửi ở lần gõ sau, mỗi ngày đúng một tin. */
+const CHI_KHUNG = { nhap: 18 };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
@@ -1044,6 +1048,8 @@ module.exports = async (req, res) => {
   const done = [], preview = [];
   for (const r of rs) {
     if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
+    /* báo cáo chỉ bắn MỘT khung trong ngày (vd nhập hàng: chỉ khung 18h) — bắn tay vẫn gửi bình thường */
+    if (slotN != null && CHI_KHUNG[r] && CHI_KHUNG[r] !== slotN) { done.push({ report: r, skip: "chi_ban_khung_" + CHI_KHUNG[r] + "h" }); continue; }
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
     let markKey = null;
     if (slotN != null && KV_URL && KV_TOKEN) {
