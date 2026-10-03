@@ -723,32 +723,30 @@ async function buildNhap(q) {
   }
   /* biểu đồ 1 — cả tháng theo ngày, cột chồng: USDT quy đổi + VNĐ */
   const charts = [];
-  const dayU = k => P.src.filter(s => s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0) * rate(k);
-  const dayV = k => P.src.filter(s => !s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0);
-  if (days.length) charts.push({
+  /* Hai biểu đồ ĐỀU tính bằng USDT — không quy đổi, không trộn nguồn VNĐ (Gamota, Robux…)
+     vào cùng một cột. Phần nhập bằng VNĐ đã có trong chữ. */
+  const srcU = P.src.filter(s => s.usd && sumK(s, days) > 0).sort((a, b) => sumK(b, days) - sumK(a, days));
+  if (days.length && srcU.length) charts.push({
     type: "bar",
     data: {
       labels: days.map(k => k.slice(3) + "/" + k.slice(0, 2)),
-      datasets: [
-        { label: "Nhập USDT (quy VNĐ)", data: days.map(dayU), backgroundColor: PAL[0] },
-        { label: "Nhập VNĐ", data: days.map(dayV), backgroundColor: PAL[2] }
-      ]
+      datasets: srcU.map((s, i) => ({ label: tenNg(s.name), data: days.map(k => s.daily[k] || 0), backgroundColor: PAL[i % PAL.length] }))
     },
     options: {
-      title: { display: true, text: "Nhập theo ngày — tháng " + (+mm) + "/2026 · tổng " + fmt(cT) + " đ", fontSize: 16 },
+      title: { display: true, text: "Nhập theo ngày — tháng " + (+mm) + "/2026 · lũy kế " + fu(cU) + " USDT", fontSize: 16 },
       legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
       scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
     }
   });
-  /* biểu đồ 2 — nhập theo NGUỒN trong tháng (quy VNĐ để các nhóm đứng chung một thước đo) */
-  if (topNg.length) charts.push({
+  /* biểu đồ 2 — nhập theo NGUỒN trong tháng, tính bằng USDT */
+  if (srcU.length) charts.push({
     type: "bar",
     data: {
-      labels: topNg.map(x => tenNg(x.n) + (x.usd ? " (USDT)" : "")),
-      datasets: [{ label: "Quy VNĐ", data: topNg.map(x => x.v), backgroundColor: topNg.map((x, i) => PAL[i % PAL.length]) }]
+      labels: srcU.map(s => tenNg(s.name)),
+      datasets: [{ label: "USDT", data: srcU.map(s => sumK(s, days)), backgroundColor: srcU.map((s, i) => PAL[i % PAL.length]) }]
     },
     options: {
-      title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (quy VNĐ)", fontSize: 16 },
+      title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (USDT)", fontSize: 16 },
       legend: { display: false },
       scales: { xAxes: [{ ticks: { fontSize: 10, minRotation: 30, maxRotation: 60 } }], yAxes: [{ ticks: { beginAtZero: true } }] }
     }
