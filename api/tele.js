@@ -748,6 +748,8 @@ async function buildNhap(q) {
     options: {
       title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (USDT)", fontSize: 16 },
       legend: { display: false },
+      layout: { padding: { top: 28 } },   /* chừa chỗ cho số ghi trên đầu cột */
+      plugins: { datalabels: { display: true, anchor: "end", align: "top", color: "#1f2937", font: { size: 13, weight: "bold" } } },
       scales: { xAxes: [{ ticks: { fontSize: 10, minRotation: 30, maxRotation: 60 } }], yAxes: [{ ticks: { beginAtZero: true } }] }
     }
   });
