@@ -1790,7 +1790,19 @@ function parseNhapCT(rows){
   src.forEach(s=>{const v=num(row[s.c]);if(v)s.daily[dk]=(s.daily[dk]||0)+v;});}
  const ds=Object.keys(days).sort();
  if(!ds.length)return null;
- return{src:src.filter(s=>Object.keys(s.daily).length),days:ds,fx:FX15};}
+ /* Giftcard trên sheet tách theo NCC từ 1/8 (GC thủ công · SEAGM API · BEP - BSV · TRC - BSV)
+    — gom lại thành MỘT dòng "Giftcard" để số của tuần này so được với các tuần trước 1/8.
+    Bot trả lời nạp tiền vẫn tách theo từng NCC. */
+ const nenT=x=>S(x).replace(/[^a-z0-9]/g,'');
+ const gom=[{ten:'Giftcard',khop:/^(gcthucong|seagm|bepbsv|trcbsv|giftcard)/}];
+ const out=[],idx={};
+ src.filter(s=>Object.keys(s.daily).length).forEach(s=>{
+  const g=gom.find(x=>x.khop.test(nenT(s.name)));
+  const ten=g?g.ten:s.name;
+  const key=ten+'|'+(s.usd?'u':'v');
+  if(!idx[key]){idx[key]={name:ten,grp:s.grp,usd:s.usd,color:NHAPCT_MAU[ten]||s.color,daily:{}};out.push(idx[key]);}
+  const d=idx[key].daily;Object.keys(s.daily).forEach(k=>d[k]=(d[k]||0)+s.daily[k]);});
+ return{src:out,days:ds,fx:FX15};}
 async function nhapCTData(){if(NHAPCT!==undefined&&Date.now()-NHAPCTTS<RAW_TTL)return NHAPCT;
  let rows=await loadCSV(directURL(NHAPCT_GID));let o=parseNhapCT(rows);
  if(!o){const r2=await loadCSV(apiURL(NHAPCT_GID));if(r2)rows=r2;o=parseNhapCT(rows);}
