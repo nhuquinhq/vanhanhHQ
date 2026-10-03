@@ -1017,6 +1017,9 @@ module.exports = async (req, res) => {
         allowed_updates: ["message"], drop_pending_updates: true
       }, st ? { secret_token: st } : {}));
     } else if (q.hook === "me") out = await goi("getMe", {});   /* lấy @tên bot để viết hướng dẫn */
+    else if (q.hook === "lenh") out = await goi("setMyCommands", {   /* gõ "/" trong nhóm là thấy gợi ý */
+      commands: [{ command: "nap", description: "Số tiền nên nạp cho NCC — vd: /nap bsv, /nap galaxy" }]
+    });
     else if (q.hook === "del") out = await goi("deleteWebhook", { drop_pending_updates: true });
     else out = await goi("getWebhookInfo", {});
     res.setHeader("Cache-Control", "no-store");
