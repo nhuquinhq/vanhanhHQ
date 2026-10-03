@@ -77,6 +77,15 @@ function traLoiMot(P, rate, s, ks0) {
   ks.forEach((k, i) => L.push(nhan(k) + "  " + (usd ? fu(so[i]) : fmt(so[i]))));
   L.push("");
   L.push("📊 Bình quân: <b>" + (usd ? fu(bq) : fmt(bq)) + dv + "/ngày</b> · mức tiêu " + R.muc);
+  /* so với bình quân THÁNG TRƯỚC (tính trên các ngày tháng đó có số) để thấy xu hướng */
+  const pad2 = x => String(x).padStart(2, "0");
+  const coSo = k => P.src.reduce((a, x) => a + (x.daily[k] || 0), 0) > 0;
+  const kTr = P.days.filter(k => k.slice(0, 2) === pad2(+mm - 1) && coSo(k));
+  if (kTr.length) {
+    const bqTr = kTr.reduce((a, k) => a + (s.daily[k] || 0), 0) / kTr.length;
+    const xu = !bqTr ? "" : (bq >= bqTr ? " (↑ " : " (↓ ") + (Math.abs(bq - bqTr) / bqTr * 100).toFixed(1).replace(".", ",") + "%)";
+    L.push("🆚 Bình quân tháng " + (+mm - 1) + ": " + (usd ? fu(bqTr) : fmt(bqTr)) + dv + "/ngày" + xu);
+  }
   L.push("👉 <b>Đề xuất nạp: " + (usd ? fmt(can) : fmt(can)) + dv + "</b> (đủ dùng ~" + R.ngay + " ngày)");
   L.push("📈 Đã nhập tháng " + (+mm) + ": " + (usd ? fu(thang) : fmt(thang)) + dv);
   if (ghiChu) L.push(ghiChu);
