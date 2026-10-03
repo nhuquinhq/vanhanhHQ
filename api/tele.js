@@ -740,6 +740,19 @@ async function buildNhap(q) {
       scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
     }
   });
+  /* biểu đồ 2 — nhập theo NGUỒN trong tháng (quy VNĐ để các nhóm đứng chung một thước đo) */
+  if (topNg.length) charts.push({
+    type: "bar",
+    data: {
+      labels: topNg.map(x => tenNg(x.n) + (x.usd ? " (USDT)" : "")),
+      datasets: [{ label: "Quy VNĐ", data: topNg.map(x => x.v), backgroundColor: topNg.map((x, i) => PAL[i % PAL.length]) }]
+    },
+    options: {
+      title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (quy VNĐ)", fontSize: 16 },
+      legend: { display: false },
+      scales: { xAxes: [{ ticks: { fontSize: 10, minRotation: 30, maxRotation: 60 } }], yAxes: [{ ticks: { beginAtZero: true } }] }
+    }
+  });
   return { text: lines.join("\n"), charts };
 }
 /* ---- báo cáo năng suất nhân viên: 2 biểu đồ ---- */
