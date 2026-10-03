@@ -745,7 +745,8 @@ async function buildNhap(q) {
     type: "bar",
     data: {
       labels: srcU.map(s => tenNg(s.name)),
-      datasets: [{ label: "USDT", data: srcU.map(s => sumK(s, days)), backgroundColor: srcU.map((s, i) => PAL[i % PAL.length]) }]
+      /* làm tròn về số nguyên: nhãn trên cột chỉ hiện 6.480, không hiện đuôi lẻ của máy tính */
+      datasets: [{ label: "USDT", data: srcU.map(s => Math.round(sumK(s, days))), backgroundColor: srcU.map((s, i) => PAL[i % PAL.length]) }]
     },
     options: {
       title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (USDT)", fontSize: 16 },
