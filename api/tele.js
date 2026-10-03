@@ -684,6 +684,7 @@ async function buildNhap(q) {
   const mm = key.slice(0, 2), days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
   const fu = n => n ? n.toLocaleString("vi-VN", { maximumFractionDigits: 2 }) : "0";
   const sumK = (s, ks) => ks.reduce((a, k) => a + (s.daily[k] || 0), 0);
+  const tenNg = n => n.replace(/^data\s+/i, "");   /* "Data Giftcard" trên sheet → gọi gọn "Giftcard" */
   /* ----- trong ngày ----- */
   const dU = P.src.filter(s => s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
   const dV = P.src.filter(s => !s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
@@ -692,11 +693,10 @@ async function buildNhap(q) {
   const lines = ["💵 <b>Nhập hàng theo ngày — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   lines.push("", "🧮 <b>Tổng nhập quy VNĐ: " + fmt(sT) + " đ</b>");
   lines.push("💵 <b>Nhập USDT: " + fu(sU) + "</b>" + (sU ? " ≈ " + fmt(sU * rK) + " đ (" + pct(sU * rK / sT) + ")" : ""));
-  dU.forEach(x => lines.push(" • " + x.n + ": " + fu(x.v)));
-  if (!dU.length) lines.push(" • chưa có số");
+  lines.push(dU.length ? " • " + dU.map(x => tenNg(x.n) + ": " + fu(x.v)).join(" · ") : " • chưa có số");
   lines.push("🏦 <b>Nhập VNĐ: " + fmt(sV) + " đ</b>" + (sV && sT ? " (" + pct(sV / sT) + ")" : ""));
-  dV.forEach(x => lines.push(" • " + x.n + ": " + fmt(x.v) + " đ"));
-  if (!dV.length) lines.push(" • chưa có số");
+  lines.push(dV.length ? " • " + dV.map(x => tenNg(x.n) + ": " + fmt(x.v) + " đ").join(" · ") : " • chưa có số");
+  lines.push("Tỷ giá : " + fmt(rK) + " đ/USDT" + (FXK.length ? "" : " ⚠ tạm tính, chưa đọc được bảng tỷ giá tuần"));
   /* ----- lũy kế tháng ----- */
   const cU = P.src.filter(s => s.usd).reduce((a, s) => a + sumK(s, days), 0);
   const cV = P.src.filter(s => !s.usd).reduce((a, s) => a + sumK(s, days), 0);
@@ -704,22 +704,22 @@ async function buildNhap(q) {
   const cUv = days.reduce((a, k) => a + P.src.filter(s => s.usd).reduce((x, s) => x + (s.daily[k] || 0), 0) * rate(k), 0);
   const cT = cUv + cV;
   lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b> · BQ " + fmt(cT / (days.length || 1)) + " đ/ngày");
-  lines.push(" 💵 USDT: " + fu(cU) + " ≈ " + fmt(cUv) + " đ" + (cT ? " (" + pct(cUv / cT) + ")" : ""));
-  lines.push(" 🏦 VNĐ: " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
+  lines.push(" 💵 USDT " + fu(cU) + " ≈ " + fmt(cUv) + " đ" + (cT ? " (" + pct(cUv / cT) + ")" : "") +
+             " · 🏦 VNĐ " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
   /* top nguồn trong tháng, quy về VNĐ để xếp chung một thước đo */
   const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days),
       v: days.reduce((a, k) => a + (s.daily[k] || 0) * (s.usd ? rate(k) : 1), 0) }))
     .filter(x => x.v).sort((a, b) => b.v - a.v);
   if (topNg.length) {
+    const HUY = ["🥇", "🥈", "🥉", "4.", "5."];
+    let daGhiUSDT = false;   /* đơn vị USDT chỉ ghi ở nguồn USDT đầu tiên cho gọn */
     lines.push("", "🏅 <b>Nguồn nhập nhiều nhất tháng " + (+mm) + "</b>");
-    topNg.slice(0, 5).forEach((x, i) => lines.push(" " + ["🥇", "🥈", "🥉", "4.", "5."][i] + " " + x.n + ": " +
-      (x.usd ? fu(x.raw) + " USDT ≈ " + fmt(x.v) + " đ" : fmt(x.v) + " đ") + (cT ? " (" + pct(x.v / cT) + ")" : "")));
+    lines.push(" " + topNg.slice(0, 5).map((x, i) => {
+      const so = x.usd ? fu(x.raw) + (daGhiUSDT ? "" : " USDT") : fmt(x.v) + " đ";
+      if (x.usd) daGhiUSDT = true;
+      return HUY[i] + " " + tenNg(x.n) + " " + so;
+    }).join(" · "));
   }
-  lines.push("", FXK.length
-    ? "<i>Tỷ giá CO tuần này: " + fmt(rK) + " đ/USDT (bảng tỷ giá HQS hàng tuần)</i>"
-    : "<i>⚠ Chưa đọc được bảng tỷ giá tuần — tạm tính " + fmt(rK) + " đ/USDT</i>");
-  const dom = process.env.DASH_URL || (process.env.VERCEL_PROJECT_PRODUCTION_URL ? "https://" + process.env.VERCEL_PROJECT_PRODUCTION_URL : "");
-  if (dom) lines.push("🔗 Chi tiết: " + dom + " (trang PVH15)");
   /* biểu đồ 1 — cả tháng theo ngày, cột chồng: USDT quy đổi + VNĐ */
   const charts = [];
   const dayU = k => P.src.filter(s => s.usd).reduce((a, s) => a + (s.daily[k] || 0), 0) * rate(k);
@@ -737,19 +737,6 @@ async function buildNhap(q) {
       title: { display: true, text: "Nhập theo ngày — tháng " + (+mm) + "/2026 · tổng " + fmt(cT) + " đ", fontSize: 16 },
       legend: { position: "bottom", labels: { boxWidth: 12, fontSize: 11 } },
       scales: { xAxes: [{ stacked: true, ticks: { fontSize: 10 } }], yAxes: [{ stacked: true, ticks: { beginAtZero: true } }] }
-    }
-  });
-  /* biểu đồ 2 — cơ cấu nguồn nhập trong tháng (quy VNĐ) */
-  if (topNg.length) charts.push({
-    type: "bar",
-    data: {
-      labels: topNg.map(x => x.n + (x.usd ? " (USDT)" : "")),
-      datasets: [{ label: "Quy VNĐ", data: topNg.map(x => x.v), backgroundColor: topNg.map((x, i) => PAL[i % PAL.length]) }]
-    },
-    options: {
-      title: { display: true, text: "Nguồn nhập tháng " + (+mm) + "/2026 (quy VNĐ)", fontSize: 16 },
-      legend: { display: false },
-      scales: { xAxes: [{ ticks: { fontSize: 10, minRotation: 30, maxRotation: 60 } }], yAxes: [{ ticks: { beginAtZero: true } }] }
     }
   });
   return { text: lines.join("\n"), charts };
