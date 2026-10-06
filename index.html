@@ -1285,19 +1285,7 @@ const PAGES={
            <tbody>${rows}${tRow}</tbody></table></div>
            <div class="small" style="margin-top:6px">Ô của từng nguồn là SỐ ĐƠN trong tháng; nền càng xanh đậm nghĩa là tháng đó nguồn ấy đã tự động hoá càng nhiều (rê chuột vào ô để xem % chi tiết). Hàng cuối là % tự động chung của cả phòng. Cột viền đậm là tháng T${pad2(mi+1)} đang xem.</div></div>`;})();
      } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
-     /* ---------- 4) PVH10 · Năng suất xử lý đơn thủ công ---------- */
-     h+=box('4 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
-     const P=Rt?parseSlaTongTC(Rt):null;
-     let slaRows3=[];
-     if(P){
-       const sum=(t,r)=>rangeDays2(r.f,r.t).reduce((a,k)=>a+(t.daily[k]||0),0);
-       slaRows3=P.types.map(t=>({name:t.name,a:sum(t,A),b:sum(t,B),c:sum(t,C)})).filter(r=>r.a||r.b||r.c);
-       const sA=slaRows3.reduce((x,r)=>x+r.a,0),sB=slaRows3.reduce((x,r)=>x+r.b,0),sC=slaRows3.reduce((x,r)=>x+r.c,0);
-       const nd=rangeDays2(A.f,A.t).filter(k=>P.types.some(t=>t.daily[k]!=null)).length;
-       h+=`<div class="kpis">${kpi("Đơn thủ công tuần "+A.no,fmtn(sA),A.lab)}${kpi("So tuần "+B.no,sB?chg(sB,sA):'—',sB?fmtn(sB)+' đơn':'chưa có số')}${kpi("So cùng kỳ tháng trước",sC?chg(sC,sA):'—',sC?fmtn(sC)+' đơn':'chưa có số')}${kpi("Bình quân/ngày",nd?fmtn(sA/nd):'—',nd?nd+" ngày có số"+(P.kpi?" · KPI "+P.kpi:""):"")}</div>
-        <div class="grid2" style="grid-template-columns:1fr">${cc("Đơn thủ công theo loại — 3 kỳ","w5")}</div>`
-        +tbl(slaRows3.concat([{name:'<b>TỔNG</b>',a:sA,b:sB,c:sC}]),fmtn,'Đơn vị: đơn.');
-     } else h+=`<div class="note">Chưa đọc được tab "Tổng đơn xử lý thủ công" — xem trang PVH10.</div>`;
+     /* mục PVH10 (năng suất đơn thủ công) tạm bỏ khỏi báo cáo tuần — xem trang PVH10 */
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
@@ -1320,7 +1308,6 @@ const PAGES={
        {const L=(AU.man.kids||[]).map(k=>({n:k.name,v:k.m[mi]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
         if(L.length)mk("w7",donut(L.map(x=>x.n),L.map(x=>x.v),BLUE,0,1));
         else{const el=document.getElementById("w7");if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có đơn thủ công theo nguồn.</div>';}}}
-     if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
  }},
  PVH4:{title:"PVH4 · Biến động giá vốn theo tháng — Robux · Razer Gold",meta:"GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân GIA QUYỀN, loại dòng tiền = 0) · Razer: Rate = giá vốn (USD/RG) · cả kỳ, không phụ thuộc bộ lọc ngày",render(host){
