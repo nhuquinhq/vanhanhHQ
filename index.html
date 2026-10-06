@@ -1232,36 +1232,17 @@ const PAGES={
          <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo SPDV — 3 kỳ (VND)","w1")}</div>`
         +tbl(spRows.concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VND.');
      }
-     /* ---------- 2) PVH4 · Giá vốn Robux ---------- */
-     const rbx=r=>{let t=0,q=0;rangeDays2(r.f,r.t).forEach(k=>{t+=(ROBUXDAILY||{})[k]||0;q+=(ROBUXSL||{})[k]||0;});return{t,q,gv:q?t/q:0};};
-     const R3=[A,B,C].map(rbx);
-     const fgv=n=>n?n.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2}):'—';
-     h+=box('2 · PVH4 — Biến động giá vốn: Robux','GV ĐV = Σ Thành tiền ÷ Σ SL (bình quân gia quyền, chỉ dòng tiền > 0)')
-      +`<div class="kpis">${kpi("Giá vốn ĐV tuần "+A.no,fgv(R3[0].gv),"đ/robux")}${kpi("So tuần "+B.no,R3[1].gv?chg(R3[1].gv,R3[0].gv):'—',R3[1].gv?fgv(R3[1].gv)+' đ/robux':'chưa có số')}${kpi("So cùng kỳ tháng trước",R3[2].gv?chg(R3[2].gv,R3[0].gv):'—',R3[2].gv?fgv(R3[2].gv)+' đ/robux':'chưa có số')}${kpi("SL nhập tuần "+A.no,fmtn(R3[0].q),"robux · "+fmt(R3[0].t)+" đ")}</div>
-       <div class="grid2" style="grid-template-columns:1fr">${cc("Giá vốn ĐV Robux theo NGÀY trong tuần — 3 kỳ (đ/robux)","w2")}</div>`
-      +tbl([{name:'Giá vốn ĐV (đ/robux)',a:R3[0].gv,b:R3[1].gv,c:R3[2].gv}],fgv)
-      +tbl([{name:'SL nhập (robux)',a:R3[0].q,b:R3[1].q,c:R3[2].q},{name:'Thành tiền (đ)',a:R3[0].t,b:R3[1].t,c:R3[2].t}],fmtn);
-     /* Robux dồn (thu hồi) & Die — tách theo cột Trạng thái trên tab Data Robux */
-     const dd=r=>{let de=0,dn=0;rangeDays2(r.f,r.t).forEach(k=>{de+=(ROBUXDIE||{})[k]||0;dn+=(ROBUXDON||{})[k]||0;});return{de,dn};};
-     const D3=[A,B,C].map(dd);
-     const rDie=[{name:'Robux dồn — thu hồi (đ)',a:D3[0].dn,b:D3[1].dn,c:D3[2].dn},
-                 {name:'Robux die — mất thật (đ)',a:D3[0].de,b:D3[1].de,c:D3[2].de},
-                 {name:'Tổng dồn + die (đ)',a:D3[0].dn+D3[0].de,b:D3[1].dn+D3[1].de,c:D3[2].dn+D3[2].de}];
-     h+=box('2b · Robux dồn (thu hồi) &amp; die','Tách theo cột Trạng thái trên tab Data Robux: Trạng thái = Die → die, còn lại → dồn (đã đối chiếu khớp từng đồng với hàng Die/Dồn trên Data theo SPDV)')
-      +`<div class="kpis">${kpi("Robux dồn tuần "+A.no,fmt(D3[0].dn),"thu hồi tái sử dụng"+(D3[1].dn?" · "+chg(D3[1].dn,D3[0].dn)+" so tuần "+B.no:""))}${kpi("Robux die tuần "+A.no,fmt(D3[0].de),"mất thật"+(D3[1].de?" · "+chg(D3[1].de,D3[0].de)+" so tuần "+B.no:""))}${kpi("Tỷ lệ die / nhập",R3[0].t?pct(D3[0].de/R3[0].t):'—',"die ÷ thành tiền nhập trong tuần")}${kpi("Tỷ lệ thu hồi",(D3[0].dn+D3[0].de)?pct(D3[0].dn/(D3[0].dn+D3[0].de)):'—',"dồn ÷ (dồn + die)")}</div>
-       <div class="grid2" style="grid-template-columns:1fr">${cc("Robux dồn &amp; die — 3 kỳ (đ)","w2c")}</div>`
-      +tbl(rDie,fmtn,'Dồn = số dư còn lại trên nick đã thu hồi để dùng tiếp · Die = mất thật.');
-     /* ---------- 3) PVH6 · Tồn kho & tuổi tồn ---------- */
-     h+=box('3 · PVH6 — Tồn kho & tuổi tồn','⚠ Nguồn tồn kho là ẢNH CHỤP HIỆN TẠI (sheet không lưu lịch sử theo ngày) — không so sánh được theo tuần');
+     /* ---------- 2) PVH6 · Tồn kho & tuổi tồn ---------- */
+     h+=box('2 · PVH6 — Tồn kho & tuổi tồn','⚠ Nguồn tồn kho là ẢNH CHỤP HIỆN TẠI (sheet không lưu lịch sử theo ngày) — không so sánh được theo tuần');
      if(KC&&KC.items&&KC.items.length){
        const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton);
        const tot=KC.tot?KC.tot.ton:its.reduce((a,x)=>a+x.ton,0);
        h+=`<div class="kpis">${kpi("Tổng CO tồn",fmt(tot),"ảnh chụp hiện tại")}${kpi("Số hạng mục còn tồn",fmtn(its.length),"")}${kpi("Tồn lớn nhất",its[0]?its[0].label:'—',its[0]?fmt(its[0].ton)+' đ · '+pct(its[0].ton/(tot||1)):'')}${kpi("Top 3 chiếm",pct(its.slice(0,3).reduce((a,x)=>a+x.ton,0)/(tot||1)),"tổng tồn")}</div>
         <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tồn theo hạng mục (top 12)","w3")}<div class="card"><h3>Bảng tồn theo hạng mục</h3><div class="scroll" style="max-height:260px"><table class="tbl"><thead><tr><th>Hạng mục</th><th class="n">CO tồn</th><th class="n">%</th></tr></thead><tbody>${its.slice(0,20).map(x=>`<tr><td>${x.label}</td><td class="n">${fmtn(x.ton)}</td><td class="n">${pct(x.ton/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>`;
      } else h+=`<div class="note">Chưa đọc được file TỒN KHO HQGROUP — xem trang PVH6 để biết chi tiết lỗi.</div>`;
-     /* ---------- 4) PVH9 · Automation / thủ công ---------- */
+     /* ---------- 3) PVH9 · Automation / thủ công ---------- */
      const mi=+A.f.slice(5,7)-1, pm=mi>0?mi-1:null;   /* tháng chứa tuần đang chọn, và tháng liền trước */
-     h+=box('4 · PVH9 — Tỉ lệ đơn thủ công / tự động','⚠ Nguồn chỉ có số THEO THÁNG — cột chồng so tỉ lệ giữa các tháng, biểu đồ tròn cho tháng T'+pad2(mi+1));
+     h+=box('3 · PVH9 — Tỉ lệ đơn thủ công / tự động','⚠ Nguồn chỉ có số THEO THÁNG — cột chồng so tỉ lệ giữa các tháng, biểu đồ tròn cho tháng T'+pad2(mi+1));
      if(AU){
        const man=AU.man.m,aut=AU.auto.m;
        const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
@@ -1301,8 +1282,8 @@ const PAGES={
            <tbody>${rows}${tRow}</tbody></table></div>
            <div class="small" style="margin-top:6px">Ô của từng nguồn là SỐ ĐƠN trong tháng; nền càng xanh đậm nghĩa là tháng đó nguồn ấy đã tự động hoá càng nhiều (rê chuột vào ô để xem % chi tiết). Hàng cuối là % tự động chung của cả phòng. Cột viền đậm là tháng T${pad2(mi+1)} đang xem.</div></div>`;})();
      } else h+=`<div class="note">Chưa đọc được tab Automation / thủ công — xem trang PVH9.</div>`;
-     /* ---------- 5) PVH10 · Năng suất xử lý đơn thủ công ---------- */
-     h+=box('5 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
+     /* ---------- 4) PVH10 · Năng suất xử lý đơn thủ công ---------- */
+     h+=box('4 · PVH10 — Năng suất xử lý đơn thủ công','Tổng đơn thủ công (Gamepass + Pokémon + …) theo ngày, cộng trong từng kỳ');
      const P=Rt?parseSlaTongTC(Rt):null;
      let slaRows3=[];
      if(P){
@@ -1316,17 +1297,6 @@ const PAGES={
      } else h+=`<div class="note">Chưa đọc được tab "Tổng đơn xử lý thủ công" — xem trang PVH10.</div>`;
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
-     /* giá vốn ĐV theo từng ngày trong tuần — 3 đường để so dáng biến động */
-     {const DOW=['Thứ 2','Thứ 3','Thứ 4','Thứ 5','Thứ 6','Thứ 7','CN'];
-      const gvDay=r=>rangeDays2(r.f,r.t).map(k=>{const t=(ROBUXDAILY||{})[k]||0,q=(ROBUXSL||{})[k]||0;return q?+(t/q).toFixed(2):null;});
-      const cols=['#357D71','#94a3b8','#DCE7D5'];
-      mk("w2",{type:'line',data:{labels:DOW,datasets:[A,B,C].map((r,i)=>({
-        label:i===0?'Tuần '+A.no:(i===1?'Tuần '+B.no:'Cùng kỳ T.trước ('+C.lab+')'),
-        data:gvDay(r),borderColor:cols[i],backgroundColor:cols[i],borderWidth:i===0?2.6:2,
-        tension:.3,pointRadius:3,fill:false,spanGaps:true}))},
-       options:{plugins:{legend:{display:true,position:'top',labels:{boxWidth:10}},
-         tooltip:{callbacks:{label:c=>c.dataset.label+': '+(c.parsed.y==null?'—':c.parsed.y.toLocaleString('vi-VN',{minimumFractionDigits:2,maximumFractionDigits:2})+' đ/robux')}}},
-        scales:{x:noX,y:{...yG,ticks:{callback:v=>Math.round(v).toLocaleString('vi-VN')}}}}});}
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#357D71'}]},options:hbarOpt()});}
      if(AU){const man=AU.man.m,aut=AU.auto.m;
@@ -1347,7 +1317,6 @@ const PAGES={
        {const L=(AU.man.kids||[]).map(k=>({n:k.name,v:k.m[mi]||0})).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
         if(L.length)mk("w7",donut(L.map(x=>x.n),L.map(x=>x.v),BLUE,0,1));
         else{const el=document.getElementById("w7");if(el&&el.parentElement&&el.parentElement.parentElement)el.parentElement.parentElement.innerHTML='<h3>—</h3><div class="note" style="margin:0">Tháng '+pad2(mi+1)+' chưa có đơn thủ công theo nguồn.</div>';}}}
-     grp("w2c",['Dồn (thu hồi)','Die (mất thật)'],[{a:D3[0].dn,b:D3[1].dn,c:D3[2].dn},{a:D3[0].de,b:D3[1].de,c:D3[2].de}]);
      if(slaRows3.length)grp("w5",slaRows3.map(r=>r.name),slaRows3);
    });
  }},
