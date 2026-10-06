@@ -1237,8 +1237,23 @@ const PAGES={
      if(KC&&KC.items&&KC.items.length){
        const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton);
        const tot=KC.tot?KC.tot.ton:its.reduce((a,x)=>a+x.ton,0);
-       h+=`<div class="kpis">${kpi("Tổng CO tồn",fmt(tot),"ảnh chụp hiện tại")}${kpi("Số hạng mục còn tồn",fmtn(its.length),"")}${kpi("Tồn lớn nhất",its[0]?its[0].label:'—',its[0]?fmt(its[0].ton)+' đ · '+pct(its[0].ton/(tot||1)):'')}${kpi("Top 3 chiếm",pct(its.slice(0,3).reduce((a,x)=>a+x.ton,0)/(tot||1)),"tổng tồn")}</div>
-        <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tồn theo hạng mục (top 12)","w3")}<div class="card"><h3>Bảng tồn theo hạng mục</h3><div class="scroll" style="max-height:260px"><table class="tbl"><thead><tr><th>Hạng mục</th><th class="n">CO tồn</th><th class="n">%</th></tr></thead><tbody>${its.slice(0,20).map(x=>`<tr><td>${x.label}</td><td class="n">${fmtn(x.ton)}</td><td class="n">${pct(x.ton/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>`;
+       /* nhãn đầy đủ để không lẫn: "Tồn các game khác" có ở cả BD10F và HQS200 */
+       const nhanDay=x=>(x.pkd&&x.game&&x.pkd!==x.game)?x.pkd+' · '+x.game:(x.label||'—');
+       h+=`<div class="kpis">${kpi("Tổng CO tồn",fmt(tot),"ảnh chụp hiện tại")}${kpi("Số hạng mục còn tồn",fmtn(its.length),"")}${kpi("Tồn lớn nhất",its[0]?nhanDay(its[0]):'—',its[0]?fmt(its[0].ton)+' đ · '+pct(its[0].ton/(tot||1)):'')}${kpi("Top 3 chiếm",pct(its.slice(0,3).reduce((a,x)=>a+x.ton,0)/(tot||1)),"tổng tồn")}</div>
+        <div class="grid2" style="grid-template-columns:1fr">${cc("Tồn theo hạng mục (top 12)","w3")}</div>`
+        /* bảng giữ nguyên bố cục của sheet: Sản phẩm · PKD · Game — tên nhóm chỉ ghi ở dòng đầu như ô gộp */
+        +(function(){let sp0='',pk0='';
+          const dong=KC.items.map(x=>{
+            const sp=x.sp!==sp0?(sp0=x.sp,x.sp||''):'';
+            const pk=(x.pkd&&x.pkd!==pk0)?(pk0=x.pkd,x.pkd):'';
+            const nen=sp?' style="border-top:2px solid #cfd9e6"':'';
+            return `<tr${nen}><td><b>${sp}</b></td><td>${pk}</td><td>${x.game||(pk?'':x.label)}</td>`
+              +`<td class="n">${x.ton?fmtn(x.ton):'—'}</td><td class="n">${x.ton?pct(x.ton/(tot||1)):''}</td>`
+              +`<td class="n">${x.mx?fmtn(x.mx):'—'}</td><td class="small">${x.note||''}</td></tr>`;}).join('');
+          return `<div class="card"><h3>Bảng tồn kho — đúng cấu trúc file TỒN KHO HQGROUP</h3><div class="scroll" style="max-height:520px">
+            <table class="tbl"><thead><tr><th>Sản phẩm</th><th>PKD đang bán</th><th>Game</th><th class="n">Tổng CO tồn</th><th class="n">%</th><th class="n">Tiền kho tối đa</th><th>Ghi chú</th></tr></thead>
+            <tbody>${dong}<tr style="font-weight:bold;background:#eef4ff"><td>TỔNG</td><td></td><td></td><td class="n">${fmtn(tot)}</td><td class="n">100%</td><td class="n">${fmtn(KC.tot?KC.tot.mx:0)}</td><td></td></tr></tbody></table></div>
+            <div class="small" style="margin-top:6px">Lấy nguyên trạng từ tab "Tổng tồn HQ": dòng nào trên file trống CO tồn thì ở đây ghi "—". Ô gộp Sản phẩm/PKD được giữ như trên sheet.</div></div>`;})();
      } else h+=`<div class="note">Chưa đọc được file TỒN KHO HQGROUP — xem trang PVH6 để biết chi tiết lỗi.</div>`;
      /* ---------- 3) PVH9 · Automation / thủ công ---------- */
      /* tháng của tuần đang xem = tháng CHIẾM NHIỀU NGÀY NHẤT trong tuần (hoà thì lấy tháng sau):
@@ -1289,7 +1304,8 @@ const PAGES={
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
-       mk("w3",{type:'bar',data:{labels:its.map(x=>x.label),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#357D71'}]},options:hbarOpt()});}
+       const nhan=x=>(x.pkd&&x.game&&x.pkd!==x.game)?x.pkd+' · '+x.game:(x.label||'—');
+       mk("w3",{type:'bar',data:{labels:its.map(nhan),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#357D71'}]},options:hbarOpt()});}
      if(AU){const man=AU.man.m,aut=AU.auto.m;
        const ms=[];for(let i=0;i<12;i++)if(man[i]||aut[i])ms.push(i);
        const rt=i=>{const t=man[i]+aut[i];return t?aut[i]/t:0;};
@@ -2213,7 +2229,8 @@ function khoApiURL(g){return "/api/csv?f=kho&gid="+(g||KHO_GID);}
 let KHOCT;
 function parseKhoCT(rows){
  if(!rows||rows.length<3)return null;
- const nm=x=>{try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
+ /* ô thiếu (dòng ngắn hơn hàng tiêu đề) phải ra RỖNG — trước đây thành chữ "undefined" và đẻ ra dòng rác */
+ const nm=x=>{if(x==null)return'';try{x=(''+x).normalize('NFC');}catch(e){x=''+x;}return x.replace(/ /g,' ').replace(/\s+/g,' ').trim();};
  /* dò dòng tiêu đề theo cột "Tổng CO tồn" — không phụ thuộc vị trí cố định trên sheet */
  let H=-1,iA=0,iPKD=1,iGame=2,iTon=-1,iBan=-1,iRatio=-1,iSafe=-1,iMax=-1,iNote=-1;
  for(let r=0;r<Math.min(rows.length,25);r++){const row=(rows[r]||[]).map(x=>nm(x).toLowerCase());
@@ -2224,17 +2241,19 @@ function parseKhoCT(rows){
   iBan=f(/co\s*bán/);iRatio=f(/co\s*tồn\s*\/\s*co\s*bán/);iSafe=f(/an\s*toàn/);
   iMax=f(/số\s*tiền|tối\s*đa/);iNote=f(/ghi\s*chú/);break;}
  if(H<0)return null;
- const items=[];let tot=null,pkd='';
+ const items=[];let tot=null,pkd='',sp='';
  for(let r=H+1;r<rows.length;r++){const row=rows[r];if(!row)continue;
   const A=nm(row[iA]),B=nm(row[iPKD]),C=nm(row[iGame]);
   const ton=num(row[iTon]),ban=iBan>-1?num(row[iBan]):0,mx=iMax>-1?num(row[iMax]):0;
   const rat=iRatio>-1?nm(row[iRatio]):'',safe=iSafe>-1?nm(row[iSafe]):'',note=iNote>-1?nm(row[iNote]):'';
   if(!A&&!B&&!C&&!(ton||ban||mx))continue; /* dòng trống */
+  if(/tổng/i.test(A)&&!B&&!C){if(!tot)tot={ton,ban,mx};continue;} /* dòng TỔNG của file */
+  /* Sản phẩm và PKD là ô GỘP trên sheet → kéo tên xuống các dòng bên dưới */
+  if(A)sp=A;
   if(B)pkd=B;
-  if(!C&&!B){ /* dòng không có nhãn hạng mục: dòng TỔNG của file hoặc dòng tổng nhóm chưa đặt tên */
-   if(/tổng/i.test(A)&&!tot){tot={ton,ban,mx};continue;}
-   items.push({pkd:'',label:A||'—',ton,ban,rat,safe,mx,note,unnamed:true});continue;}
-  items.push({pkd,label:C||B,ton,ban,rat,safe,mx,note});}
+  if(!C&&!B){ /* dòng tổng nhóm chưa đặt tên */
+   items.push({sp,pkd:'',game:'',label:A||'—',ton,ban,rat,safe,mx,note,unnamed:true});continue;}
+  items.push({sp,pkd,game:C,label:C||B,ton,ban,rat,safe,mx,note});}
  if(!items.length)return null;
  if(!tot)tot={ton:items.reduce((a,x)=>a+x.ton,0),ban:items.reduce((a,x)=>a+x.ban,0),mx:items.reduce((a,x)=>a+x.mx,0)};
  return {items,tot};}
