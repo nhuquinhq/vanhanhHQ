@@ -2206,9 +2206,10 @@ async function tonKhoData(){if(TONKHO!==undefined)return TONKHO;
 
 /* ===== PVH6 bổ sung: "Tồn kho chi tiết" — file TỒN KHO HQGROUP · tab "Tổng tồn HQ" (tồn theo hạng mục) ===== */
 const BASE_KHO="https://docs.google.com/spreadsheets/d/e/2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5/pub";
-const KHO_GID="1926394974";
-function khoDirectURL(){return BASE_KHO+"?gid="+KHO_GID+"&single=true&output=csv";}
-function khoApiURL(){return "/api/csv?f=kho&gid="+KHO_GID;}
+const KHO_GID="502344740";        /* tab "Tổng tồn HQ" — gid hiện tại (link chị gửi 06/10/2026) */
+const KHO_GID_CU="1926394974";    /* gid cũ của tab này — vẫn thử lại nếu gid mới chưa Đăng lên web */
+function khoDirectURL(g){return BASE_KHO+"?gid="+(g||KHO_GID)+"&single=true&output=csv";}
+function khoApiURL(g){return "/api/csv?f=kho&gid="+(g||KHO_GID);}
 let KHOCT;
 function parseKhoCT(rows){
  if(!rows||rows.length<3)return null;
@@ -2240,6 +2241,8 @@ function parseKhoCT(rows){
 async function khoCTData(){if(KHOCT!==undefined)return KHOCT;
  let K=parseKhoCT(await loadCSV(khoDirectURL()));
  if(!K)K=parseKhoCT(await loadCSV(khoApiURL()));
+ if(!K)K=parseKhoCT(await loadCSV(khoDirectURL(KHO_GID_CU)));   /* gid cũ: phòng khi tab mới chưa publish */
+ if(!K)K=parseKhoCT(await loadCSV(khoApiURL(KHO_GID_CU)));
  KHOCT=K;return KHOCT;}
 /* khối hiển thị "Tồn kho chi tiết" — ghép thêm dưới báo cáo tồn Giftcard cũ của PVH6 */
 function khoRatioCell(it){

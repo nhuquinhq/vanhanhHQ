@@ -22,7 +22,7 @@ module.exports = async (req, res) => {
     ]),
     ton: new Set(["0"]),
     sla: new Set(["1982526665","511745866","1496740945","287243650","423402286"]),
-    kho: new Set(["1926394974"]),
+    kho: new Set(["1926394974","502344740"]),   /* "Tổng tồn HQ": gid cũ + gid hiện tại */
     gc13: new Set(["505929777","1216897209"]),
     glx: new Set(["1473618411"]),
     glx2: new Set(["511652200"]),
