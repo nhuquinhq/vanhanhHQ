@@ -1241,7 +1241,10 @@ const PAGES={
         <div class="grid2" style="grid-template-columns:1.3fr 1fr">${cc("Tồn theo hạng mục (top 12)","w3")}<div class="card"><h3>Bảng tồn theo hạng mục</h3><div class="scroll" style="max-height:260px"><table class="tbl"><thead><tr><th>Hạng mục</th><th class="n">CO tồn</th><th class="n">%</th></tr></thead><tbody>${its.slice(0,20).map(x=>`<tr><td>${x.label}</td><td class="n">${fmtn(x.ton)}</td><td class="n">${pct(x.ton/(tot||1))}</td></tr>`).join('')}</tbody></table></div></div></div>`;
      } else h+=`<div class="note">Chưa đọc được file TỒN KHO HQGROUP — xem trang PVH6 để biết chi tiết lỗi.</div>`;
      /* ---------- 3) PVH9 · Automation / thủ công ---------- */
-     const mi=+A.f.slice(5,7)-1, pm=mi>0?mi-1:null;   /* tháng chứa tuần đang chọn, và tháng liền trước */
+     /* tháng của tuần đang xem = tháng CHIẾM NHIỀU NGÀY NHẤT trong tuần (hoà thì lấy tháng sau):
+        tuần 28/09–04/10 có 4 ngày thuộc T10 nên đi sâu vào T10, không còn bám theo ngày đầu tuần */
+     const dMi={};rangeDays2(A.f,A.t).forEach(k=>{const m=+k.slice(5,7)-1;dMi[m]=(dMi[m]||0)+1;});
+     const mi=+Object.keys(dMi).sort((x,y)=>(dMi[y]-dMi[x])||(y-x))[0], pm=mi>0?mi-1:null;
      h+=box('3 · PVH9 — Tỉ lệ đơn thủ công / tự động','⚠ Nguồn chỉ có số THEO THÁNG — cột chồng so tỉ lệ giữa các tháng, biểu đồ tròn cho tháng T'+pad2(mi+1));
      if(AU){
        const man=AU.man.m,aut=AU.auto.m;
