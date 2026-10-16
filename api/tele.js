@@ -880,8 +880,10 @@ const REPORTS_OFF = process.env.TELE_PVH10 === "1" ? {} : { pvh10: 1 };
    Báo cáo nhập hàng bắn vào topic riêng trong box Phòng vận hành (t.me/c/4428753122/863).
    Muốn đổi mà không sửa code thì khai biến môi trường TELE_BOXES_NHAP trên Vercel. */
 const BOX_MAC_DINH = {
-  /* Phòng vận hành · topic 863  +  Kế toán Kho - Cung ứng · topic 14157 */
-  nhap: "-1004428753122:863,-1002344565165:14157"
+  /* 16/10/2026: dọn khỏi box cũ "Báo cáo Phòng vận hành" (-1004428753122), chuyển sang
+     box "Phòng vận hành 2026" · topic 17. Các box của phòng khác giữ nguyên. */
+  nv: "-1004386381354:17,-1002217556798:16744",            /* + PHÒNG CUNG ỨNG (PCU) */
+  nhap: "-1004386381354:17,-1002344565165:14157"           /* + Kế Toán Kho - Cung Ứng */
 };
 /* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
    Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
