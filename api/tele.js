@@ -1038,6 +1038,19 @@ module.exports = async (req, res) => {
     else if (q.hook === "lenh") out = await goi("setMyCommands", {   /* gõ "/" trong nhóm là thấy gợi ý */
       commands: [{ command: "nap", description: "Số tiền nên nạp cho NCC — vd: /nap bsv, /nap galaxy" }]
     });
+    else if (q.hook === "box") {   /* xem TÊN các box bot đang gửi (+ &id=<chatid> để thử một box mới) */
+      const ds = [];
+      targets().forEach(b => ds.push({ nguon: "env", chat: b.chat, topic: b.thread || null }));
+      Object.keys(BOX_MAC_DINH).forEach(r => parseBoxes(BOX_MAC_DINH[r]).forEach(b => ds.push({ nguon: "bao cao " + r, chat: b.chat, topic: b.thread || null })));
+      if (q.id) ds.push({ nguon: "hoi them", chat: String(q.id), topic: q.topic ? +q.topic : null });
+      out = [];
+      for (const d of ds) {
+        const j = await goi("getChat", { chat_id: d.chat });
+        out.push(Object.assign(d, j && j.ok
+          ? { ten: j.result.title || j.result.username || "", kieu: (j.result.is_forum ? "forum " : "") + j.result.type }
+          : { loi: (j && j.description) || "?" }));
+      }
+    }
     else if (q.hook === "del") out = await goi("deleteWebhook", { drop_pending_updates: true });
     else out = await goi("getWebhookInfo", {});
     res.setHeader("Cache-Control", "no-store");
