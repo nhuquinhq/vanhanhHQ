@@ -15,7 +15,9 @@ const FILES_ALL = {
   ton: "2PACX-1vQToyJFyIIxiDtucrAhxnTVZmjNWF2InPci5r-C75DfkHR6aQbUrmZNBcwDDadNrET82VwxtdjDhITE",
   kho: "2PACX-1vRdHQpyZ6zwGPYrrPX51UWzlHKunxOiHOCofQHSaCK_DCu_7-FZ-gdD-sVDT3t5uoYglVmggXDtziz5",
   /* HQS — BẢNG TỶ GIÁ HÀNG TUẦN: tỷ giá tính giá nhập là hàng "USDT/VND · CO Rate" */
-  fx: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ"
+  fx: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ",
+  /* Team Currency (L5) — tab REPORT_T10: báo cáo bán Currency theo ngày */
+  l5: "2PACX-1vSuqo6KAW939YZkj6wvqQV7nFGUI1kEoxOeAEF1fHLqAMt-d8hxiXbdWQ-LX-o2UWDibxR05YP27vf5"
 };
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 /* Từ T10/2026 năng suất đọc ở file RIÊNG "Báo cáo Năng Suất Xử lý đơn 2026", tab "BC đơn":
@@ -973,7 +975,7 @@ module.exports = async (req, res) => {
         }
         /* &xem=<n>: in nguyên n dòng đầu (kèm số thứ tự cột) — xem khuôn của một tab mới */
         if (!html && rows.length && q.xem) {
-          const n = Math.min(+String(q.xem).replace(/\D/g, "") || 12, 40);
+          const n = Math.min(+String(q.xem).replace(/\D/g, "") || 12, 90);
           rp.push("   " + n + " DONG DAU CO CHU (cot:gia tri)");
           let shown = 0;
           for (let r = 0; r < rows.length && shown < n; r++) {
