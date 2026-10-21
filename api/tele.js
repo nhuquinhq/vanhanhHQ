@@ -870,7 +870,87 @@ async function buildNS(q) {
   return { text: lines.join("\n"), charts };
 }
 
-const REPORTS = { pvh10: buildPVH10, nv: buildNS, nhap: buildNhap };
+/* ---- báo cáo TEAM CURRENCY (L5) — file "Team Currency", tab REPORT_T10 ----
+   Bảng ngang: hàng = chỉ tiêu, cột = ngày (01/10, 02/10…). Cột nhãn bên trái:
+   cột 0 = mã (PL2A · PL1 · GMV · CO · ODS), cột 2 = tên chỉ tiêu, cột 6 = Total.
+   Số trên tab viết kiểu Mỹ (1,839 = một nghìn tám trăm ba chín) nên phải đọc riêng. */
+const GID_L5 = (process.env.L5_GID || "1569645124").trim();
+const FILE_L5 = (process.env.L5_PUB_KEY || FILES_ALL.l5).trim();
+const unum = x => {            /* "1,839" -> 1839 · "15.61%" -> 15.61 · "-215,000" -> -215000 */
+  if (x == null) return 0;
+  const s = ("" + x).replace(/[$%\s]/g, "").replace(/,/g, "");
+  if (!s || s === "-") return 0;
+  const n = parseFloat(s); return isNaN(n) ? 0 : n;
+};
+function parseL5(rows) {
+  if (!rows || rows.length < 10) return null;
+  let dr = -1, best = 0;                       /* hàng NGÀY = hàng có nhiều ô dạng dd/mm nhất */
+  for (let r = 0; r < Math.min(rows.length, 20); r++) {
+    const n = (rows[r] || []).filter(v => /^\d{1,2}\/\d{1,2}$/.test(nrm(v))).length;
+    if (n > best) { best = n; dr = r; }
+  }
+  if (dr < 0 || best < 5) return null;
+  const cot = {}, days = [];
+  (rows[dr] || []).forEach((v, i) => {
+    const m = nrm(v).match(/^(\d{1,2})\/(\d{1,2})$/);
+    if (m) { const k = pad2(+m[2]) + "-" + pad2(+m[1]); if (cot[k] == null) { cot[k] = i; days.push(k); } }
+  });
+  if (days.length < 5) return null;
+  const hang = {};
+  for (let r = dr + 1; r < rows.length; r++) {
+    const row = rows[r] || [], ma = stripD(nrm(row[0])), ten = stripD(nrm(row[2]));
+    if (ma === "pl2a" && /usd/.test(ten) && hang.pl2a == null) hang.pl2a = r;      /* lãi sau bán hàng (USD) */
+    else if (ma === "pl1" && hang.pl1 == null) hang.pl1 = r;                        /* lãi sau chi giá vốn */
+    else if (ma === "gmv" && hang.re == null) hang.re = r;                          /* doanh thu bán hàng = RE */
+    else if (ma === "co" && hang.co == null) hang.co = r;                           /* giá vốn dịch vụ */
+    else if (ma === "ods" && hang.don == null) hang.don = r;                        /* số lượng đơn bán */
+  }
+  if (hang.re == null || hang.co == null || hang.pl1 == null || hang.pl2a == null) return null;
+  const so = (k, d) => { const c = cot[d]; return (c == null || hang[k] == null) ? 0 : unum((rows[hang[k]] || [])[c]); };
+  /* cột 6 là ô Total của sheet — dùng cho lũy kế để khớp đúng số team đang nhìn
+     (cộng tay từng ngày lệch 1–2 $ vì bản xuất CSV đã làm tròn số của mỗi ngày) */
+  const tongFile = k => hang[k] == null ? 0 : unum((rows[hang[k]] || [])[6]);
+  return { days: days.sort(), cot, hang, so, tongFile };
+}
+async function buildL5(q) {
+  const rows = await readTab(GID_L5, FILE_L5);
+  const P = rows ? parseL5(rows) : null;
+  if (!P) return { skip: "khong_doc_duoc_tab_REPORT_team_currency" };
+  let key = reportDay(q).key;
+  const avail = P.days.filter(k => P.so("re", k) || P.so("co", k) || P.so("don", k));
+  if (!avail.length) return { skip: "tab_REPORT_chua_co_so" };
+  if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+  const mm = key.slice(0, 2);
+  const ngay = P.days.filter(k => k.slice(0, 2) === mm && k <= key);   /* lũy kế: từ đầu tháng đến ngày báo cáo */
+  const moiNhat = key === avail[avail.length - 1];   /* báo cáo ngày mới nhất → lấy đúng ô Total của sheet */
+  const tong = k => moiNhat ? P.tongFile(k) : ngay.reduce((a, d) => a + P.so(k, d), 0);
+  const d = k => P.so(k, key);
+  const pc2 = x => (x * 100).toFixed(2).replace(".", ",") + "%";
+  const usd = n => fmt(n) + " $";
+  const re = d("re"), co = d("co"), pl1 = d("pl1"), pl2a = d("pl2a");
+  const L = ["📊 <b>Báo cáo kết quả bán Currency — ngày " + key.slice(3) + "/" + mm + "/2026</b>"];
+  L.push("", "<b>1. Báo cáo tổng nhập hàng</b>");
+  L.push("- CO: " + usd(co));
+  L.push("", "<b>2. Báo cáo bán hàng</b>");
+  L.push("- Số lượng: " + fmt(d("don")) + " đơn");
+  L.push("- RE: " + usd(re));
+  L.push("=> PL1: " + usd(pl1));
+  L.push("=> %PL1/RE: " + (re ? pc2(pl1 / re) : "—"));
+  L.push("");
+  L.push("=> PL2A: " + usd(pl2a));
+  L.push("=> %PL2A/RE: " + (re ? pc2(pl2a / re) : "—"));
+  L.push("", "<b>3. Lũy kế tháng " + (+mm) + "</b>");
+  L.push("- Tổng RE: " + usd(tong("re")));
+  L.push("- Tổng CO: " + usd(tong("co")));
+  L.push("- Tổng PL1: " + usd(tong("pl1")));
+  L.push("- Tổng PL2A: " + usd(tong("pl2a")));
+  /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn */
+  const vn = new Date(Date.now() + 7 * 3600 * 1000);
+  if (key === pad2(vn.getUTCMonth() + 1) + "-" + pad2(vn.getUTCDate()))
+    L.push("", "<i>Số liệu trong ngày tính đến " + pad2(vn.getUTCHours()) + "h" + pad2(vn.getUTCMinutes()) + ".</i>");
+  return { text: L.join("\n") };
+}
+const REPORTS = { pvh10: buildPVH10, nv: buildNS, nhap: buildNhap, l5: buildL5 };
 /* PVH10 (form cũ — đơn thủ công theo game) TẮT từ 02/10/2026: nguồn cũ không còn được cập nhật
    (01/10 chỉ đọc 17 đơn trong khi tab BC đơn ghi gần 600) và tin mới đã có đủ phân loại đơn.
    Bật lại khi cần: đặt biến môi trường TELE_PVH10=1 trên Vercel, không phải sửa code. */
@@ -887,12 +967,15 @@ const BOX_MAC_DINH = {
        nhập hàng (USDT/VNĐ) → "Kế Toán Kho - Cung Ứng" · topic 14157
      Box cũ "Báo cáo Phòng vận hành" và PHÒNG CUNG ỨNG (PCU) đã bỏ, không nhận nữa. */
   nv: "-1004386381354:17",
-  nhap: "-1002344565165:14157"
+  nhap: "-1002344565165:14157",
+  l5: "-1003730000994:2"            /* box Team Currency (L5) · topic 2 */
 };
 /* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
    Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
    hôm nào GitHub nhả job trễ thì vẫn gửi ở lần gõ sau, mỗi ngày đúng một tin. */
-const CHI_KHUNG = { nhap: 18 };
+/* "khuya" = khung 23h nhưng CHỈ nhận lần gõ cửa SAU 0h — lúc đó reportDay tự lùi về hôm trước,
+   nên báo cáo L5 lúc 18h là số trong ngày, còn lần sau 0h là chốt số của ngày hôm trước. */
+const CHI_KHUNG = { nhap: [18], l5: [18, "khuya"] };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
@@ -1081,7 +1164,7 @@ module.exports = async (req, res) => {
     res.status(200).send(rp.join("\n")); return;
   }
   /* r có thể liệt kê nhiều báo cáo: ?r=nv,nhap — mặc định lấy env TELE_REPORTS */
-  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
+  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap,l5")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);
   if (!rs.length || unknown.length) { res.status(400).json({ error: "unknown_report", unknown, reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
@@ -1112,7 +1195,11 @@ module.exports = async (req, res) => {
   for (const r of rs) {
     if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
     /* báo cáo chỉ bắn MỘT khung trong ngày (vd nhập hàng: chỉ khung 18h) — bắn tay vẫn gửi bình thường */
-    if (slotN != null && CHI_KHUNG[r] && CHI_KHUNG[r] !== slotN) { done.push({ report: r, skip: "chi_ban_khung_" + CHI_KHUNG[r] + "h" }); continue; }
+    if (slotN != null && CHI_KHUNG[r]) {
+      const gioVN = new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
+      const hop = CHI_KHUNG[r].some(k => k === "khuya" ? (slotN === 23 && gioVN < 6) : k === slotN);
+      if (!hop) { done.push({ report: r, skip: "ngoai_khung_cua_bao_cao" }); if (q.dry) preview.push("=== " + r + " === (ngoài khung giờ của báo cáo này)"); continue; }
+    }
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
     let markKey = null;
     if (slotN != null && KV_URL && KV_TOKEN) {
