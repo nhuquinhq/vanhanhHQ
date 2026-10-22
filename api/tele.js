@@ -944,9 +944,11 @@ async function buildL5(q) {
   L.push("- Tổng CO: " + usd(tong("co")));
   L.push("- Tổng PL1: " + usd(tong("pl1")));
   L.push("- Tổng PL2A: " + usd(tong("pl2a")));
-  /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn */
+  /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn;
+     lần bắn trưa hôm sau là số đã chốt (sheet đã nhập xong) */
   const vn = new Date(Date.now() + 7 * 3600 * 1000);
-  if (key === pad2(vn.getUTCMonth() + 1) + "-" + pad2(vn.getUTCDate()))
+  if (q.chot === "1") L.push("", "<i>Số chốt của ngày " + key.slice(3) + "/" + mm + ".</i>");
+  else if (key === pad2(vn.getUTCMonth() + 1) + "-" + pad2(vn.getUTCDate()))
     L.push("", "<i>Số liệu trong ngày tính đến " + pad2(vn.getUTCHours()) + "h" + pad2(vn.getUTCMinutes()) + ".</i>");
   return { text: L.join("\n") };
 }
@@ -973,9 +975,11 @@ const BOX_MAC_DINH = {
 /* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
    Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
    hôm nào GitHub nhả job trễ thì vẫn gửi ở lần gõ sau, mỗi ngày đúng một tin. */
-/* "khuya" = khung 23h nhưng CHỈ nhận lần gõ cửa SAU 0h — lúc đó reportDay tự lùi về hôm trước,
-   nên báo cáo L5 lúc 18h là số trong ngày, còn lần sau 0h là chốt số của ngày hôm trước. */
-const CHI_KHUNG = { nhap: [18], l5: [18, "khuya"] };
+/* Khung giờ riêng của từng báo cáo: { gio: <khung 12|18|23> , homQua: true nếu lần bắn đó
+   CHỐT SỐ CỦA NGÀY HÔM TRƯỚC }. Ngoài các khung này thì báo cáo im lặng.
+   L5: 18h báo số đang chạy trong ngày · 12h trưa hôm sau mới chốt số ngày hôm trước
+   (bắn lúc 0h thì sheet còn đang nhập dở nên số thiếu — đã gặp ngày 20 và 21/10). */
+const CHI_KHUNG = { nhap: [{ gio: 18 }], l5: [{ gio: 18 }, { gio: 12, homQua: true }] };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
@@ -1195,10 +1199,14 @@ module.exports = async (req, res) => {
   for (const r of rs) {
     if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
     /* báo cáo chỉ bắn MỘT khung trong ngày (vd nhập hàng: chỉ khung 18h) — bắn tay vẫn gửi bình thường */
+    let qr = q;
     if (slotN != null && CHI_KHUNG[r]) {
-      const gioVN = new Date(Date.now() + 7 * 3600 * 1000).getUTCHours();
-      const hop = CHI_KHUNG[r].some(k => k === "khuya" ? (slotN === 23 && gioVN < 6) : k === slotN);
-      if (!hop) { done.push({ report: r, skip: "ngoai_khung_cua_bao_cao" }); if (q.dry) preview.push("=== " + r + " === (ngoài khung giờ của báo cáo này)"); continue; }
+      const k = CHI_KHUNG[r].find(x => x.gio === slotN);
+      if (!k) { done.push({ report: r, skip: "ngoai_khung_cua_bao_cao" }); if (q.dry) preview.push("=== " + r + " === (ngoài khung giờ của báo cáo này)"); continue; }
+      if (k.homQua) {   /* lần bắn chốt: ép về ngày hôm trước, kèm dấu để tin ghi rõ là số chốt */
+        const hq = new Date(Date.now() + 7 * 3600 * 1000 - 86400000);
+        qr = Object.assign({}, q, { d: hq.getUTCDate() + "/" + (hq.getUTCMonth() + 1), chot: "1" });
+      }
     }
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
     let markKey = null;
@@ -1208,7 +1216,7 @@ module.exports = async (req, res) => {
       if (got !== "OK") { done.push({ report: r, skip: "khung_" + slotN + "h_da_gui" }); continue; }
     }
     let out;
-    try { out = await REPORTS[r](q); }
+    try { out = await REPORTS[r](qr); }
     catch (e) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, ok: false, error: "" + (e && e.message ? e.message : e) }); continue; }
     if (out && out.skip) { if (markKey) await kv(["DEL", markKey]); done.push({ report: r, skip: out.skip }); if (q.dry) preview.push("=== " + r + " === (bỏ qua: " + out.skip + ")"); continue; }
     /* một báo cáo có thể gồm NHIỀU TIN (vd: tin phân loại đơn + tin năng suất nhân viên) */
