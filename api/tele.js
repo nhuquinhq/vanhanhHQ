@@ -979,7 +979,10 @@ const BOX_MAC_DINH = {
    CHỐT SỐ CỦA NGÀY HÔM TRƯỚC }. Ngoài các khung này thì báo cáo im lặng.
    L5: 18h báo số đang chạy trong ngày · 12h trưa hôm sau mới chốt số ngày hôm trước
    (bắn lúc 0h thì sheet còn đang nhập dở nên số thiếu — đã gặp ngày 20 và 21/10). */
-const CHI_KHUNG = { nhap: [{ gio: 18 }], l5: [{ gio: 18 }, { gio: 12, homQua: true }] };
+const CHI_KHUNG = { nhap: [{ gio: 18 }], l5: [{ gio: 18 }, { gio: 8, homQua: true }] };
+/* khung chỉ dùng cho báo cáo nào KHAI RÕ — báo cáo khác đi qua khung này thì im lặng,
+   để thêm khung 8h sáng mà không làm các báo cáo cũ bắn thêm một lần. */
+const KHUNG_RIENG = { 8: 1 };
 function boxesFor(r) {
   const E = (process.env["TELE_BOXES_" + r.toUpperCase()] || "").trim();
   if (E) return parseBoxes(E);
@@ -1174,7 +1177,9 @@ module.exports = async (req, res) => {
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
   let slotN = null, slotBase = null;
   if (q.slot === "auto") {
-    const SLOTS = { 12: 180, 18: 240, 23: 180 }; /* khung 18h nới 4 tiếng — GitHub hay nhả job trễ quanh 21h */
+    /* khung 8h sáng chỉ dành cho báo cáo CHỐT số ngày hôm trước (xem KHUNG_RIENG) —
+       báo cáo thường không bắn ở khung này. Khung 18h nới 4 tiếng vì GitHub hay nhả job trễ quanh 21h. */
+    const SLOTS = { 8: 120, 12: 180, 18: 240, 23: 180 };
     const pad = x => String(x).padStart(2, "0");
     const vn = new Date(Date.now() + 7 * 3600 * 1000);
     const mins = vn.getUTCHours() * 60 + vn.getUTCMinutes();
@@ -1200,10 +1205,12 @@ module.exports = async (req, res) => {
     if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
     /* báo cáo chỉ bắn MỘT khung trong ngày (vd nhập hàng: chỉ khung 18h) — bắn tay vẫn gửi bình thường */
     let qr = q;
-    if (slotN != null && CHI_KHUNG[r]) {
-      const k = CHI_KHUNG[r].find(x => x.gio === slotN);
-      if (!k) { done.push({ report: r, skip: "ngoai_khung_cua_bao_cao" }); if (q.dry) preview.push("=== " + r + " === (ngoài khung giờ của báo cáo này)"); continue; }
-      if (k.homQua) {   /* lần bắn chốt: ép về ngày hôm trước, kèm dấu để tin ghi rõ là số chốt */
+    if (slotN != null) {
+      const ks = CHI_KHUNG[r];
+      const k = ks ? ks.find(x => x.gio === slotN) : null;
+      const ngoai = ks ? !k : !!KHUNG_RIENG[slotN];
+      if (ngoai) { done.push({ report: r, skip: "ngoai_khung_cua_bao_cao" }); if (q.dry) preview.push("=== " + r + " === (ngoài khung giờ của báo cáo này)"); continue; }
+      if (k && k.homQua) {   /* lần bắn chốt: ép về ngày hôm trước, kèm dấu để tin ghi rõ là số chốt */
         const hq = new Date(Date.now() + 7 * 3600 * 1000 - 86400000);
         qr = Object.assign({}, q, { d: hq.getUTCDate() + "/" + (hq.getUTCMonth() + 1), chot: "1" });
       }
