@@ -31,15 +31,24 @@ module.exports = async (req, res) => {
   const f = String((req.query && req.query.f) || "def");
   const gid = String((req.query && req.query.gid) || "");
   if (!FILES[f] || !ALLOW[f] || !ALLOW[f].has(gid)) { res.status(400).send("nguon khong hop le: " + f + "/" + gid); return; }
-  const mk = key => "https://docs.google.com/spreadsheets/d/e/" + key +
-              "/pub?gid=" + gid + "&single=true&output=csv";
+  // Google phục vụ link publish qua CDN nên hay trả lại bản chụp cũ → thêm tham số rác đổi
+  // theo phút để luôn lấy bản mới nhất (bộ đệm của chính trang vẫn giữ ở Cache-Control bên dưới)
+  const mk = (key, moi) => "https://docs.google.com/spreadsheets/d/e/" + key +
+              "/pub?gid=" + gid + "&single=true&output=csv" + (moi ? "&_=" + Math.floor(Date.now() / 60000) : "");
   const bad = t => !t || t.trimStart().slice(0, 200).toLowerCase().startsWith("<") || t.length < 40;
+  const lay = async (key, moi) => {
+    try {
+      const r = await fetch(mk(key, moi), { redirect: "follow", cache: "no-store",
+        headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" } });
+      return await r.text();
+    } catch (e) { return ""; }
+  };
   try {
-    const r = await fetch(mk(FILES[f]), { redirect: "follow" });
-    let text = await r.text();
+    let text = await lay(FILES[f], 1);
+    if (bad(text)) text = await lay(FILES[f], 0);   // Google không chịu tham số lạ → link trơn
     // file "def" mới có thể chưa chứa tab cũ — rơi về file cũ để trang không bị trống
     if (f === "def" && bad(text)) {
-      try { const r2 = await fetch(mk(FILES.def_old), { redirect: "follow" }); const t2 = await r2.text(); if (!bad(t2)) text = t2; } catch (e) {}
+      const t2 = await lay(FILES.def_old, 0); if (!bad(t2)) text = t2;
     }
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", "inline");

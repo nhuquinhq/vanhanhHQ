@@ -101,13 +101,24 @@ async function chartURL(cfg) {
 }
 const pct = x => (x * 100).toFixed(1).replace(".", ",") + "%";
 async function readTab(gid, fileKey) {
-  const url = "https://docs.google.com/spreadsheets/d/e/" + (fileKey || FILE_SLA) + "/pub?gid=" + gid + "&single=true&output=csv";
-  try {
-    const r = await fetch(url, { redirect: "follow" }); if (!r.ok) return null;
+  /* Link publish được Google phục vụ qua CDN nên hay trả lại BẢN CHỤP CŨ: 23/10 lúc 12h56 tab
+     "BC đơn" còn trống cả khối đơn thủ công, 14h05 cùng URL đã có số. Thêm tham số rác đổi theo
+     phút + xin no-cache để luôn lấy bản mới nhất Google có. */
+  const url = "https://docs.google.com/spreadsheets/d/e/" + (fileKey || FILE_SLA) +
+              "/pub?gid=" + gid + "&single=true&output=csv";
+  const lay = async u => {
+    const r = await fetch(u, { redirect: "follow", cache: "no-store",
+      headers: { "Cache-Control": "no-cache", "Pragma": "no-cache" } });
+    if (!r.ok) return null;
     const t = await r.text();
     if (t.trimStart().slice(0, 200).toLowerCase().startsWith("<")) return null;
     const rows = csvParse(t); return rows.length > 1 ? rows : null;
-  } catch (e) { return null; }
+  };
+  try {
+    /* hỏi bản mới trước; Google có ngày đổi ý không chịu tham số lạ thì rơi về link trơn */
+    const moi = await lay(url + "&_=" + Math.floor(Date.now() / 60000));
+    return moi || await lay(url);
+  } catch (e) { try { return await lay(url); } catch (e2) { return null; } }
 }
 /* dò hàng "Ngày" + các cột ngày dd/mm — dùng chung cho các tab dạng báo cáo ngày */
 function dateHeader(rows) {
@@ -489,13 +500,24 @@ async function buildBC(q) {
   const rows = mau ? csvParse(MAU_BC) : await readTab(GID_BC, FILE_BC);
   const P = rows ? parseBC(rows) : null;
   if (!P) return { skip: "khong_doc_duoc_tab_BC_don_kiem_tra_publish_to_web" };
-  let key = reportDay(q).key;
+  const RD = reportDay(q);
+  let key = RD.key;
   const avail = Object.keys(P.byDay).filter(k => P.byDay[k] > 0).sort();
   if (!avail.length) return { skip: "tab_BC_don_chua_co_so" };
   if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
   const mm = key.slice(0, 2), days = avail.filter(k => k.slice(0, 2) === mm && k <= key);
+  /* Ngày đang chạy thì số còn tăng tiếp, mà khối đơn thủ công trên sheet lại được nhập muộn hơn
+     khối tự động → ghi rõ số lấy lúc mấy giờ để không ai đọc nhầm thành số chốt. */
+  const dangTrongNgay = !q.d && q.chot !== "1" && key === RD.key;
+  const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
+  const gioNow = pad2(vnNow.getUTCHours()) + "h" + pad2(vnNow.getUTCMinutes());
+  const ghiChu = q.chot === "1" ? "Số chốt của ngày " + key.slice(3) + "/" + mm + "."
+    : (!dangTrongNgay ? "" : (RD.khuyaVN
+        ? "Số ngày " + key.slice(3) + "/" + mm + " lấy lúc " + gioNow + " — file nguồn có thể còn nhập thêm."
+        : "Số liệu trong ngày tính đến " + gioNow + "."));
   const lines = ["📊 <b>Năng suất xử lý đơn — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   if (mau) lines.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
+  if (ghiChu) lines.push("<i>" + ghiChu + "</i>");
   const dL = P.byDayLoai[key] || {}, dTot = P.byDay[key] || 0;
   const sumCls = (o, cls) => Object.keys(o).filter(k => P.clsOf[k] === cls).reduce((a, k) => a + o[k], 0);
   const tc = sumCls(dL, "Thủ công"), td = sumCls(dL, "Tự động");
@@ -517,6 +539,7 @@ async function buildBC(q) {
   /* TIN 2 — năng suất nhân viên, tách riêng khỏi tin phân loại đơn */
   const l2 = ["👥 <b>Báo cáo đơn thủ công theo nhân viên</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   if (mau) l2.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
+  if (ghiChu) l2.push("<i>" + ghiChu + "</i>");
   if (nguoi.length) {
     l2.push("");
     nguoi.slice(0, 12).forEach(x => {
@@ -524,7 +547,11 @@ async function buildBC(q) {
       l2.push(" • " + x.n + ": <b>" + fmt(x.v) + "</b>" + (gs.length > 1 ? " (" + gs.map(k => short(k) + " " + fmt(x.o[k])).join(" · ") + ")" : " · " + short(gs[0])));
     });
     if (nguoi.length > 12) l2.push(" … và " + (nguoi.length - 12) + " người khác");
-  } else l2.push("", "Hôm nay chưa có đơn thủ công nào.");
+  } else l2.push("", dangTrongNgay && td > 0
+    /* khối tự động đã có số mà khối thủ công còn trống = sheet chưa nhập, KHÔNG phải nhân sự
+       chưa làm gì — nói rõ để không ai hiểu nhầm thành năng suất bằng 0 */
+    ? "⏳ File nguồn chưa cập nhật đơn thủ công của hôm nay — bot báo lại ở khung giờ sau."
+    : "Ngày này chưa có đơn thủ công nào.");
   const tool = listOf("Tự động");
   if (tool.length) {
     const nhieuLoai = new Set(tool.map(x => Object.keys(x.o).filter(k => P.clsOf[k] === "Tự động" && x.o[k])[0])).size > 1;
