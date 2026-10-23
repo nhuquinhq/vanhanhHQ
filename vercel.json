@@ -3,8 +3,8 @@
   "cleanUrls": true,
   "trailingSlash": false,
   "crons": [
-    { "path": "/api/tele", "schedule": "20 5 * * *" },
-    { "path": "/api/tele", "schedule": "20 16 * * *" }
+    { "path": "/api/tele?slot=auto&r=nv,nhap,l5", "schedule": "20 1 * * *" },
+    { "path": "/api/tele?slot=auto&r=nv,nhap,l5", "schedule": "20 11 * * *" }
   ],
   "headers": [
     {

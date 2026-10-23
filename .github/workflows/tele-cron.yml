@@ -1,17 +1,22 @@
 # Lịch bắn báo cáo Telegram — gọi /api/tele trên Vercel
-# Bộ hẹn giờ GitHub trễ vô chừng (có hôm nhả job 12h trưa lúc 3h sáng) nên KHÔNG tin giờ của GitHub:
-# gõ cửa 20 phút/lần quanh mỗi khung (tránh phút :00 hay kẹt tải), server tự xét GIỜ VN với slot=auto —
-# đúng khung 8h/12h/18h/23h mới gửi, mỗi khung chỉ gửi 1 lần (đánh dấu trong KV), ngoài khung im lặng.
-# Khung 8h sáng CHỈ dành cho tin chốt số ngày hôm trước (hiện là báo cáo L5), báo cáo khác đi qua thì im.
+# Bộ hẹn giờ GitHub KHÔNG đáng tin: 21–23/10 khai 33 lần gõ cửa/ngày mà chỉ nhả ~2 job/ngày,
+# lại vào những giờ không hề khai (02h57 · 14h45 · 16h49 · 22h50 giờ VN). Vì thế server KHÔNG
+# bắt đúng giờ nữa: với slot=auto, mỗi lần gõ cửa thuộc về MỐC GẦN NHẤT ĐÃ QUA (8h/12h/18h/23h),
+# mỗi mốc chỉ gửi 1 lần/ngày (đánh dấu trong KV) → tin có thể đến muộn chút nhưng không bị mất.
+# Mốc 8h sáng CHỈ dành cho tin chốt số ngày hôm trước (hiện là báo cáo L5), báo cáo khác đi qua thì im.
 # Giờ cron ghi theo UTC = giờ VN trừ 7
 # File đổi tên từ tele-schedule.yml: GitHub không chịu đăng ký lịch mới trên file cũ (vẫn chạy 3 mốc cũ) — file mới = đăng ký cron mới từ đầu
 name: Ban bao cao Telegram v2
 on:
   schedule:
-    - cron: '3,23,43 1-2 * * *'    # khung 08:00 VN (08:03 → 09:43) — chỉ tin CHỐT số ngày hôm trước
-    - cron: '3,23,43 5-7 * * *'    # khung 12:00 VN (gõ cửa 12:03 → 14:43)
-    - cron: '3,23,43 11-13 * * *'  # khung 18:00 VN (18:03 → 20:43)
-    - cron: '3,23,43 16-18 * * *'  # khung 23:00 VN (23:03 → 01:43)
+    # GitHub bỏ rơi phần lớn lần gõ cửa và nhả job vào giờ không hề khai (xem ghi chú trên),
+    # nên gõ mỗi giờ một lần: server tự xếp lần gõ vào MỐC gần nhất đã qua, mỗi mốc 1 lần/ngày.
+    # Hai mốc quan trọng (08h chốt L5 · 18h nhập hàng) còn được Vercel Cron gõ riêng cho chắc.
+    - cron: '17 * * * *'
+    - cron: '3,23,43 1-2 * * *'    # mốc 08:00 VN — tin CHỐT số ngày hôm trước
+    - cron: '3,23,43 5-7 * * *'    # mốc 12:00 VN
+    - cron: '3,23,43 11-13 * * *'  # mốc 18:00 VN
+    - cron: '3,23,43 16-18 * * *'  # mốc 23:00 VN
   workflow_dispatch:      # bắn tay từ tab Actions: để trống = gửi ngay · gac=auto = qua gác giờ VN (chống trùng khung)
     inputs:
       gac:

@@ -1002,11 +1002,18 @@ const BOX_MAC_DINH = {
 /* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
    Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
    hôm nào GitHub nhả job trễ thì vẫn gửi ở lần gõ sau, mỗi ngày đúng một tin. */
-/* Khung giờ riêng của từng báo cáo: { gio: <khung 12|18|23> , homQua: true nếu lần bắn đó
-   CHỐT SỐ CỦA NGÀY HÔM TRƯỚC }. Ngoài các khung này thì báo cáo im lặng.
-   L5: 18h báo số đang chạy trong ngày · 12h trưa hôm sau mới chốt số ngày hôm trước
-   (bắn lúc 0h thì sheet còn đang nhập dở nên số thiếu — đã gặp ngày 20 và 21/10). */
-const CHI_KHUNG = { nhap: [{ gio: 18 }], l5: [{ gio: 18 }, { gio: 8, homQua: true }] };
+/* Khung giờ riêng của từng báo cáo: { gio: <mốc 8|12|18|23>, homQua: true nếu lần bắn đó
+   CHỐT SỐ CỦA NGÀY HÔM TRƯỚC, dau: tên dấu dùng chung }. Ngoài các mốc này thì báo cáo im lặng.
+   Nhiều mốc cùng một `dau` = mốc sau DỰ PHÒNG cho mốc trước: GitHub không gõ cửa được mốc chính
+   thì mốc dự phòng gửi thay, và đã gửi rồi thì mốc còn lại im — mỗi ngày vẫn đúng 1 tin.
+   Cần dự phòng vì GitHub có ngày chỉ nhả job 2 lần, vào giờ không đoán được.
+   L5: 18h báo số đang chạy trong ngày (dự phòng 23h) · 8h sáng hôm sau chốt số ngày hôm trước
+   (dự phòng 12h) — bắn lúc 0h thì sheet còn nhập dở nên số thiếu (đã gặp ngày 20 và 21/10). */
+const CHI_KHUNG = {
+  nhap: [{ gio: 18, dau: "ngay" }, { gio: 23, dau: "ngay" }],
+  l5: [{ gio: 18, dau: "ngay" }, { gio: 23, dau: "ngay" },
+       { gio: 8, homQua: true, dau: "chot" }, { gio: 12, homQua: true, dau: "chot" }]
+};
 /* khung chỉ dùng cho báo cáo nào KHAI RÕ — báo cáo khác đi qua khung này thì im lặng,
    để thêm khung 8h sáng mà không làm các báo cáo cũ bắn thêm một lần. */
 const KHUNG_RIENG = { 8: 1 };
@@ -1200,16 +1207,16 @@ module.exports = async (req, res) => {
   /* ?soi=1 — soi LỊCH BẮN: giờ VN, khung hiện tại, và dấu "đã gửi" trong KV của mấy ngày gần nhất.
      Dùng để biết báo cáo nào thực sự bắn được khung nào (GitHub hay bỏ rơi lần gõ cửa theo lịch). */
   if (q.soi) {
-    const SL = { 8: 120, 12: 180, 18: 240, 23: 180 };
+    const MOC0 = [8, 12, 18, 23];
     const vn0 = new Date(Date.now() + 7 * 3600 * 1000);
     const mn = vn0.getUTCHours() * 60 + vn0.getUTCMinutes();
-    let sl = null; for (const h in SL) if (mn >= h * 60 && mn < h * 60 + SL[h]) sl = +h;
-    if (sl == null && mn < 120) sl = 23;
-    const hhmm = m => pad2(Math.floor((m % 1440) / 60)) + ":" + pad2(m % 60);
+    let sl = null; for (const h of MOC0) if (mn >= h * 60) sl = h;
+    if (sl == null) sl = 23;
+    const hhmm = m => pad2(Math.floor(((m % 1440) + 1440) % 1440 / 60)) + ":" + pad2(((m % 60) + 60) % 60);
     const L = ["SOI LICH BAN BAO CAO",
-      "gio VN: " + pad2(vn0.getUTCHours()) + ":" + pad2(vn0.getUTCMinutes()) +
-        "  ·  khung hien tai: " + (sl == null ? "NGOAI KHUNG (go cua luc nay se khong gui gi)" : sl + "h"),
-      "cac khung: " + Object.keys(SL).map(h => h + "h = " + hhmm(h * 60) + "→" + hhmm(+h * 60 + SL[h])).join(" · "),
+      "gio VN: " + pad2(vn0.getUTCHours()) + ":" + pad2(vn0.getUTCMinutes()) + "  ·  moc hien tai: " + sl + "h",
+      "cac moc (go cua luc nao cung roi vao mot moc, moi moc 1 lan/ngay): " +
+        MOC0.map((h, i) => h + "h = " + hhmm(h * 60) + "→" + hhmm((MOC0[i + 1] != null ? MOC0[i + 1] : MOC0[0] + 24) * 60 - 1)).join(" · "),
       "bao cao khi URL khong co ?r= : " + (process.env.TELE_REPORTS || "(chua dat → nv,nhap,l5)"),
       "da tat: " + (Object.keys(REPORTS_OFF).join(",") || "khong"),
       "khung rieng tung bao cao: " + JSON.stringify(CHI_KHUNG) + "  ·  khung chi danh cho tin chot: " + JSON.stringify(KHUNG_RIENG),
@@ -1221,8 +1228,8 @@ module.exports = async (req, res) => {
         const d = new Date(vn0.getTime() - i * 86400000);
         const ds = d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
         const co = [];
-        for (const h of Object.keys(SL)) for (const r of Object.keys(REPORTS)) {
-          if (await kv(["GET", "pvh:tele:" + ds + ":" + h + "h:" + r])) co.push(h + "h·" + r);
+        for (const d of MOC0.map(h => h + "h").concat(["ngay", "chot"])) for (const r of Object.keys(REPORTS)) {
+          if (await kv(["GET", "pvh:tele:" + ds + ":" + d + ":" + r])) co.push(d + "·" + r);
         }
         L.push("  " + ds + ": " + (co.length ? co.join("  ") : "KHONG GUI GI"));
       }
@@ -1237,20 +1244,23 @@ module.exports = async (req, res) => {
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
   let slotN = null, slotBase = null;
   if (q.slot === "auto") {
-    /* khung 8h sáng chỉ dành cho báo cáo CHỐT số ngày hôm trước (xem KHUNG_RIENG) —
-       báo cáo thường không bắn ở khung này. Khung 18h nới 4 tiếng vì GitHub hay nhả job trễ quanh 21h. */
-    const SLOTS = { 8: 120, 12: 180, 18: 240, 23: 180 };
+    /* GitHub nhả job theo lịch RẤT thất thường — 3 ngày qua chỉ nhả ~2 lần/ngày vào những giờ
+       mình không hề khai (02h57 · 14h45 · 16h49 · 22h50 · 12h55 giờ VN). Khung giờ hẹp nên gần
+       như mọi lần gõ cửa đều rơi ra ngoài khung → nhập hàng chưa bắn được lần nào, L5 bắn 1 lần.
+       Nay KHÔNG bắt đúng giờ nữa: mỗi lần gõ cửa thuộc về MỐC GẦN NHẤT ĐÃ QUA, mỗi mốc vẫn chỉ
+       gửi 1 lần/ngày (dấu trong KV). Báo cáo có thể đến muộn chút nhưng không bị mất. */
+    const MOC = [8, 12, 18, 23];
     const pad = x => String(x).padStart(2, "0");
     const vn = new Date(Date.now() + 7 * 3600 * 1000);
     const mins = vn.getUTCHours() * 60 + vn.getUTCMinutes();
     let slot = null, base = vn;
-    for (const h in SLOTS) { if (mins >= h * 60 && mins < h * 60 + SLOTS[h]) slot = +h; }
-    if (slot == null && mins < 120) { slot = 23; base = new Date(vn.getTime() - 86400000); } /* 23h kéo sang 0h–2h hôm sau */
+    for (const h of MOC) if (mins >= h * 60) slot = h;
+    if (slot == null) { slot = 23; base = new Date(vn.getTime() - 86400000); } /* 0h–8h = đuôi của mốc 23h hôm trước */
     const gioVN = pad(vn.getUTCHours()) + ":" + pad(vn.getUTCMinutes());
-    if (slot == null) { res.status(200).json({ ok: true, skip: "ngoai_khung_gio", gio_vn: gioVN }); return; }
     if (!KV_URL || !KV_TOKEN) {
-      /* không có KV thì không chống trùng được — chỉ nhận lần gõ trong giờ đầu của khung */
-      if (mins >= slot * 60 + 60 && !(slot === 23 && mins < 120)) { res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return; }
+      /* không có KV thì không chống trùng được — chỉ nhận lần gõ trong 1 giờ đầu sau mốc */
+      const sauMoc = mins - slot * 60; /* mốc 23h: 0h–8h hôm sau ra số âm → cộng lại 1 ngày */
+      if ((sauMoc < 0 ? sauMoc + 1440 : sauMoc) >= 60) { res.status(200).json({ ok: true, skip: "kv_chua_cau_hinh_qua_gio_dau" }); return; }
     }
     slotN = slot; slotBase = base;
   }
@@ -1264,7 +1274,7 @@ module.exports = async (req, res) => {
   for (const r of rs) {
     if (REPORTS_OFF[r]) { done.push({ report: r, skip: "bao_cao_da_tat" }); if (q.dry) preview.push("=== " + r + " === (đã tắt)"); continue; }
     /* báo cáo chỉ bắn MỘT khung trong ngày (vd nhập hàng: chỉ khung 18h) — bắn tay vẫn gửi bình thường */
-    let qr = q;
+    let qr = q, dauKhung = slotN + "h";
     if (slotN != null) {
       const ks = CHI_KHUNG[r];
       const k = ks ? ks.find(x => x.gio === slotN) : null;
@@ -1274,13 +1284,16 @@ module.exports = async (req, res) => {
         const hq = new Date(Date.now() + 7 * 3600 * 1000 - 86400000);
         qr = Object.assign({}, q, { d: hq.getUTCDate() + "/" + (hq.getUTCMonth() + 1), chot: "1" });
       }
+      /* dấu dùng chung cho nhiều mốc (k.dau): mốc chính không gõ cửa được thì mốc dự phòng
+         gửi thay, và khi đã gửi một lần thì mốc còn lại im — mỗi ngày đúng 1 tin. */
+      if (k && k.dau) dauKhung = k.dau;
     }
     /* mỗi báo cáo có dấu riêng cho từng khung giờ → báo cáo này gửi rồi không chặn báo cáo kia */
     let markKey = null;
     if (slotN != null && KV_URL && KV_TOKEN) {
-      markKey = "pvh:tele:" + slotBase.getUTCFullYear() + "-" + pad2(slotBase.getUTCMonth() + 1) + "-" + pad2(slotBase.getUTCDate()) + ":" + slotN + "h:" + r;
+      markKey = "pvh:tele:" + slotBase.getUTCFullYear() + "-" + pad2(slotBase.getUTCMonth() + 1) + "-" + pad2(slotBase.getUTCDate()) + ":" + dauKhung + ":" + r;
       const got = await kv(["SET", markKey, "1", "NX", "EX", 172800]); /* NX: chỉ lần gõ cửa đầu tiên của khung được gửi */
-      if (got !== "OK") { done.push({ report: r, skip: "khung_" + slotN + "h_da_gui" }); continue; }
+      if (got !== "OK") { done.push({ report: r, skip: "khung_" + dauKhung + "_da_gui" }); continue; }
     }
     let out;
     try { out = await REPORTS[r](qr); }
