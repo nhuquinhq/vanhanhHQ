@@ -1197,6 +1197,39 @@ module.exports = async (req, res) => {
     res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
     res.status(200).send(rp.join("\n")); return;
   }
+  /* ?soi=1 — soi LỊCH BẮN: giờ VN, khung hiện tại, và dấu "đã gửi" trong KV của mấy ngày gần nhất.
+     Dùng để biết báo cáo nào thực sự bắn được khung nào (GitHub hay bỏ rơi lần gõ cửa theo lịch). */
+  if (q.soi) {
+    const SL = { 8: 120, 12: 180, 18: 240, 23: 180 };
+    const vn0 = new Date(Date.now() + 7 * 3600 * 1000);
+    const mn = vn0.getUTCHours() * 60 + vn0.getUTCMinutes();
+    let sl = null; for (const h in SL) if (mn >= h * 60 && mn < h * 60 + SL[h]) sl = +h;
+    if (sl == null && mn < 120) sl = 23;
+    const hhmm = m => pad2(Math.floor((m % 1440) / 60)) + ":" + pad2(m % 60);
+    const L = ["SOI LICH BAN BAO CAO",
+      "gio VN: " + pad2(vn0.getUTCHours()) + ":" + pad2(vn0.getUTCMinutes()) +
+        "  ·  khung hien tai: " + (sl == null ? "NGOAI KHUNG (go cua luc nay se khong gui gi)" : sl + "h"),
+      "cac khung: " + Object.keys(SL).map(h => h + "h = " + hhmm(h * 60) + "→" + hhmm(+h * 60 + SL[h])).join(" · "),
+      "bao cao khi URL khong co ?r= : " + (process.env.TELE_REPORTS || "(chua dat → nv,nhap,l5)"),
+      "da tat: " + (Object.keys(REPORTS_OFF).join(",") || "khong"),
+      "khung rieng tung bao cao: " + JSON.stringify(CHI_KHUNG) + "  ·  khung chi danh cho tin chot: " + JSON.stringify(KHUNG_RIENG),
+      "box: " + JSON.stringify(BOX_MAC_DINH),
+      "KV chong trung: " + (KV_URL && KV_TOKEN ? "co" : "KHONG — khong chong trung duoc")];
+    if (KV_URL && KV_TOKEN) {
+      L.push("", "DAU 'DA GUI' TRONG KV (gio VN, 3 ngay gan nhat):");
+      for (let i = 0; i < 3; i++) {
+        const d = new Date(vn0.getTime() - i * 86400000);
+        const ds = d.getUTCFullYear() + "-" + pad2(d.getUTCMonth() + 1) + "-" + pad2(d.getUTCDate());
+        const co = [];
+        for (const h of Object.keys(SL)) for (const r of Object.keys(REPORTS)) {
+          if (await kv(["GET", "pvh:tele:" + ds + ":" + h + "h:" + r])) co.push(h + "h·" + r);
+        }
+        L.push("  " + ds + ": " + (co.length ? co.join("  ") : "KHONG GUI GI"));
+      }
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8"); res.setHeader("Cache-Control", "no-store");
+    res.status(200).send(L.join("\n")); return;
+  }
   /* r có thể liệt kê nhiều báo cáo: ?r=nv,nhap — mặc định lấy env TELE_REPORTS */
   const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap,l5")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);
