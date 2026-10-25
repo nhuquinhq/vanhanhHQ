@@ -947,10 +947,17 @@ async function buildL5(q) {
   const rows = await readTab(GID_L5, FILE_L5);
   const P = rows ? parseL5(rows) : null;
   if (!P) return { skip: "khong_doc_duoc_tab_REPORT_team_currency" };
-  let key = reportDay(q).key;
+  const key = reportDay(q).key;
   const avail = P.days.filter(k => P.so("re", k) || P.so("co", k) || P.so("don", k));
   if (!avail.length) return { skip: "tab_REPORT_chua_co_so" };
-  if (avail.indexOf(key) < 0) { const past = avail.filter(k => k <= key); key = past.length ? past[past.length - 1] : avail[avail.length - 1]; }
+  /* Ngày cần báo chưa có số trên file → BÁO LÀ CHƯA CÓ, tuyệt đối không lấy số ngày khác
+     ra thế (tin 18h47 ngày 25/10 đề "ngày 24/10" làm cả box tưởng là số hôm nay). */
+  if (avail.indexOf(key) < 0) {
+    const gan = avail.filter(k => k <= key).pop() || avail[avail.length - 1];
+    return { text: ["📊 <b>Báo cáo kết quả bán Currency — ngày " + key.slice(3) + "/" + key.slice(0, 2) + "/2026</b>",
+      "", "⚠️ <b>Chưa có số liệu của ngày này trên file.</b>",
+      "<i>Ngày gần nhất đã nhập: " + gan.slice(3) + "/" + gan.slice(0, 2) + ".</i>"].join("\n") };
+  }
   const mm = key.slice(0, 2);
   const ngay = P.days.filter(k => k.slice(0, 2) === mm && k <= key);   /* lũy kế: từ đầu tháng đến ngày báo cáo */
   const moiNhat = key === avail[avail.length - 1];   /* báo cáo ngày mới nhất → lấy đúng ô Total của sheet */
@@ -960,12 +967,6 @@ async function buildL5(q) {
   const usd = n => fmt(n) + " $";
   const re = d("re"), co = d("co"), pl1 = d("pl1"), pl2a = d("pl2a");
   const L = ["📊 <b>Báo cáo kết quả bán Currency — ngày " + key.slice(3) + "/" + mm + "/2026</b>"];
-  /* file chưa nhập số của ngày đáng lẽ phải báo → bot lùi về ngày gần nhất CÓ số.
-     Phải nói rõ, không thì cả box tưởng đây là số hôm nay (đã gặp tin 18h47 ngày 25/10). */
-  const RDk = reportDay(q);
-  if (key !== RDk.key)
-    L.push("⚠️ <i>File chưa có số ngày " + RDk.key.slice(3) + "/" + RDk.key.slice(0, 2) +
-           " — đây là số của ngày gần nhất đã nhập.</i>");
   L.push("", "<b>1. Báo cáo tổng nhập hàng</b>");
   L.push("- CO: " + usd(co));
   L.push("", "<b>2. Báo cáo bán hàng</b>");
