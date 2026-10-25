@@ -509,6 +509,8 @@ async function buildBC(q) {
   /* Ngày đang chạy thì số còn tăng tiếp, mà khối đơn thủ công trên sheet lại được nhập muộn hơn
      khối tự động → ghi rõ số lấy lúc mấy giờ để không ai đọc nhầm thành số chốt. */
   const dangTrongNgay = !q.d && q.chot !== "1" && key === RD.key;
+  /* file chưa nhập số của ngày đáng lẽ phải báo → đã lùi về ngày gần nhất CÓ số; phải nói rõ */
+  const luiNgay = key !== RD.key ? "⚠️ File chưa có số ngày " + RD.key.slice(3) + "/" + RD.key.slice(0, 2) + " — đây là số của ngày gần nhất đã nhập." : "";
   const vnNow = new Date(Date.now() + 7 * 3600 * 1000);
   const gioNow = pad2(vnNow.getUTCHours()) + "h" + pad2(vnNow.getUTCMinutes());
   const ghiChu = q.chot === "1" ? "Số chốt của ngày " + key.slice(3) + "/" + mm + "."
@@ -517,6 +519,7 @@ async function buildBC(q) {
         : "Số liệu trong ngày tính đến " + gioNow + "."));
   const lines = ["📊 <b>Năng suất xử lý đơn — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   if (mau) lines.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
+  if (luiNgay) lines.push("<i>" + luiNgay + "</i>");
   if (ghiChu) lines.push("<i>" + ghiChu + "</i>");
   const dL = P.byDayLoai[key] || {}, dTot = P.byDay[key] || 0;
   const sumCls = (o, cls) => Object.keys(o).filter(k => P.clsOf[k] === cls).reduce((a, k) => a + o[k], 0);
@@ -539,6 +542,7 @@ async function buildBC(q) {
   /* TIN 2 — năng suất nhân viên, tách riêng khỏi tin phân loại đơn */
   const l2 = ["👥 <b>Báo cáo đơn thủ công theo nhân viên</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   if (mau) l2.splice(1, 0, "⚠️ <b>TIN THỬ — số minh hoạ</b>, file nguồn chưa Đăng lên web nên chưa nối số thật");
+  if (luiNgay) l2.push("<i>" + luiNgay + "</i>");
   if (ghiChu) l2.push("<i>" + ghiChu + "</i>");
   if (nguoi.length) {
     l2.push("");
@@ -956,6 +960,12 @@ async function buildL5(q) {
   const usd = n => fmt(n) + " $";
   const re = d("re"), co = d("co"), pl1 = d("pl1"), pl2a = d("pl2a");
   const L = ["📊 <b>Báo cáo kết quả bán Currency — ngày " + key.slice(3) + "/" + mm + "/2026</b>"];
+  /* file chưa nhập số của ngày đáng lẽ phải báo → bot lùi về ngày gần nhất CÓ số.
+     Phải nói rõ, không thì cả box tưởng đây là số hôm nay (đã gặp tin 18h47 ngày 25/10). */
+  const RDk = reportDay(q);
+  if (key !== RDk.key)
+    L.push("⚠️ <i>File chưa có số ngày " + RDk.key.slice(3) + "/" + RDk.key.slice(0, 2) +
+           " — đây là số của ngày gần nhất đã nhập.</i>");
   L.push("", "<b>1. Báo cáo tổng nhập hàng</b>");
   L.push("- CO: " + usd(co));
   L.push("", "<b>2. Báo cáo bán hàng</b>");
