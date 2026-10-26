@@ -1049,7 +1049,7 @@ async function buildL5(q) {
     } else L.push("- Trong ngày: chưa có đơn nào");
     if (thangNS.length) {        /* mỗi nhân sự một dòng cho dễ đọc trên điện thoại */
       L.push("- Lũy kế tháng " + (+mm) + ":");
-      thangNS.forEach(x => L.push(x.ten + " " + fmt(x.v)));
+      thangNS.forEach(x => L.push("• " + x.ten + " " + fmt(x.v)));
     }
   }
   /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn;
