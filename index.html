@@ -1215,7 +1215,7 @@ const PAGES={
                        :('⚠ chưa đọc được bảng tỷ giá tuần — tạm tính '+fmt(FX15)+' đ/USDT · '+f2n(FXIDR15)+' đ/IDR');
        h+=box('1 · Nhập chi tiết — tab "Data Chi tiết"','Mỗi ngày một dòng · giữ nguyên ba nhóm Nhập USDT, Nhập IDR và Nhập VNĐ như trên sheet; số tổng quy VNĐ theo '+fxNote)
         +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab+" · quy VNĐ")}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("Nhập USDT tuần "+A.no,fu(uA),"≈ "+fmt(uAv)+" đ · nhập VNĐ "+fmt(vA)+" đ")}${kpi("Nhập IDR tuần "+A.no,fu(iA),iA?("≈ "+fmt(iAv)+" đ"):"tuần này chưa có số")}${kpi("Nguồn lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
-         <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo nguồn — 3 kỳ (quy VNĐ)","w1")}</div>`
+         <div class="grid2">${cc("CO Nhập theo nguồn — 3 kỳ (quy VNĐ)","w1")}${cc("Tỉ trọng nhập tuần "+A.no+" theo loại tiền (quy VNĐ)","w1b")}</div>`
         +(uRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP USDT — nguyên tệ</div>`
           +tbl(uRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG USDT</b>',a:uA,b:sumR(uRows,'rb'),c:sumR(uRows,'rc')}]),fu,'Đơn vị: USDT (đúng số trên sheet, chưa quy đổi).'):'')
         +(iRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP IDR — nguyên tệ</div>`
@@ -1306,6 +1306,12 @@ const PAGES={
      /* mục PVH10 (năng suất đơn thủ công) tạm bỏ khỏi báo cáo tuần — xem trang PVH10 */
      host.innerHTML=h;
      grp("w1",spRows.map(r=>r.name),spRows);
+     /* tỉ trọng nhập của tuần này theo loại tiền — cả ba đều đã quy về VNĐ nên so được với nhau */
+     if(spRows.length&&spRows[0].tien){
+       const tt=t=>spRows.filter(r=>r.tien===t).reduce((a,r)=>a+r.a,0);
+       const L=[['USDT',tt('USDT'),'#357D71'],['IDR',tt('IDR'),'#8E7CC3'],['VNĐ',tt('VNĐ'),'#C48D60']].filter(x=>x[1]>0);
+       if(L.length)mk("w1b",donut(L.map(x=>x[0]),L.map(x=>x[1]),L.map(x=>x[2]),false,true));
+     }
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        const nhan=x=>(x.pkd&&x.game&&x.pkd!==x.game)?x.pkd+' · '+x.game:(x.label||'—');
        mk("w3",{type:'bar',data:{labels:its.map(nhan),datasets:[{data:its.map(x=>x.ton),backgroundColor:'#357D71'}]},options:hbarOpt()});}
