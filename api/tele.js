@@ -1047,8 +1047,10 @@ async function buildL5(q) {
       L.push("- Trong ngày: <b>" + fmt(ngayNS.reduce((a, x) => a + x.v, 0)) + " đơn</b>");
       ngayNS.forEach(x => L.push("  • " + x.ten + ": " + fmt(x.v)));
     } else L.push("- Trong ngày: chưa có đơn nào");
-    if (thangNS.length) L.push("- Lũy kế tháng " + (+mm) + ": " +
-      thangNS.map(x => x.ten + " " + fmt(x.v)).join(" · "));
+    if (thangNS.length) {        /* mỗi nhân sự một dòng cho dễ đọc trên điện thoại */
+      L.push("- Lũy kế tháng " + (+mm) + ":");
+      thangNS.forEach(x => L.push(x.ten + " " + fmt(x.v)));
+    }
   }
   /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn;
      lần bắn trưa hôm sau là số đã chốt (sheet đã nhập xong) */
