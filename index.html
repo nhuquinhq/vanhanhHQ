@@ -1310,7 +1310,15 @@ const PAGES={
      if(spRows.length&&spRows[0].tien){
        const tt=t=>spRows.filter(r=>r.tien===t).reduce((a,r)=>a+r.a,0);
        const L=[['USDT',tt('USDT'),'#357D71'],['IDR',tt('IDR'),'#8E7CC3'],['VNĐ',tt('VNĐ'),'#C48D60']].filter(x=>x[1]>0);
-       if(L.length)mk("w1b",donut(L.map(x=>x[0]),L.map(x=>x[1]),L.map(x=>x[2]),false,true));
+       if(L.length){
+         /* miếng nhỏ quá thì chữ không nằm vừa trong miếng (IDR, VNĐ chỉ vài %) nên % được ghi
+            luôn ở chú thích bên cạnh, và rê/bấm vào miếng nào cũng hiện đủ số tiền + % của miếng đó */
+         const tg=L.reduce((a,x)=>a+x[1],0),pc=v=>(v/tg*100).toFixed(1).replace('.',',')+'%';
+         const cfg=donut(L.map(x=>x[0]+' · '+pc(x[1])),L.map(x=>x[1]),L.map(x=>x[2]),false,true);
+         cfg.options.plugins.tooltip.callbacks.label=c=>(''+c.label).split(' · ')[0]+': '+fmtn(c.parsed)+' đ · '+pc(c.parsed);
+         cfg.options.plugins.legend.onClick=()=>{};   /* bấm vào chú thích KHÔNG ẩn loại tiền đó (mặc định của Chart.js) */
+         mk("w1b",cfg);
+       }
      }
      if(KC&&KC.items&&KC.items.length){const its=KC.items.filter(x=>x.ton>0).sort((a,b)=>b.ton-a.ton).slice(0,12);
        const nhan=x=>(x.pkd&&x.game&&x.pkd!==x.game)?x.pkd+' · '+x.game:(x.label||'—');
