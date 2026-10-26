@@ -1201,26 +1201,29 @@ const PAGES={
      const NS=[A,B,C].map(r=>p15Series(r.f,r.t));
      let spRows,tA,tB,tC;
      if(NS[0]){
-       spRows=NS[0].map((x,i)=>({name:x.name,usd:x.usd,a:x.tot,b:NS[1][i].tot,c:NS[2][i].tot,
+       spRows=NS[0].map((x,i)=>({name:x.name,tien:x.tien,usd:x.usd,a:x.tot,b:NS[1][i].tot,c:NS[2][i].tot,
          ra:x.raw,rb:NS[1][i].raw,rc:NS[2][i].raw})).filter(r=>r.a||r.b||r.c);
        tA=spRows.reduce((x,r)=>x+r.a,0);tB=spRows.reduce((x,r)=>x+r.b,0);tC=spRows.reduce((x,r)=>x+r.c,0);
        const topSp=[...spRows].sort((x,y)=>y.a-x.a)[0];
        const fu=n=>n?n.toLocaleString('vi-VN',{maximumFractionDigits:2}):'-';
-       const uRows=spRows.filter(r=>r.usd),vRows=spRows.filter(r=>!r.usd);
+       const uRows=spRows.filter(r=>r.tien==='USDT'),iRows=spRows.filter(r=>r.tien==='IDR'),vRows=spRows.filter(r=>r.tien==='VNĐ');
        const sumR=(L,k)=>L.reduce((x,r)=>x+r[k],0);
-       const uA=sumR(uRows,'ra'),vA=sumR(vRows,'ra'),uAv=sumR(uRows,'a');
-       const fxA=fxwRate(A.f);   /* tỷ giá CO của tuần đang xem — chỉ để ghi chú cho dễ đối chiếu */
-       const fxNote=FXW?('tỷ giá CO theo tuần — tuần '+A.no+': '+fmt(fxA)+' đ/USDT (bảng tỷ giá HQS hàng tuần)')
-                       :('⚠ chưa đọc được bảng tỷ giá tuần — tạm tính '+fmt(FX15)+' đ/USDT');
-       h+=box('1 · Nhập chi tiết — tab "Data Chi tiết"','Mỗi ngày một dòng · giữ nguyên hai nhóm Nhập USDT và Nhập VNĐ như trên sheet; số tổng quy VNĐ theo '+fxNote)
-        +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab+" · quy VNĐ")}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("Nhập USDT tuần "+A.no,fu(uA),"≈ "+fmt(uAv)+" đ · nhập VNĐ "+fmt(vA)+" đ")}${kpi("Nguồn lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
+       const uA=sumR(uRows,'ra'),iA=sumR(iRows,'ra'),vA=sumR(vRows,'ra'),uAv=sumR(uRows,'a'),iAv=sumR(iRows,'a');
+       const fxA=fxwRate(A.f),fxI=fxwRateIdr(A.f);   /* tỷ giá CO của tuần đang xem — để ghi chú cho dễ đối chiếu */
+       const f2n=n=>n?n.toLocaleString('vi-VN',{maximumFractionDigits:3}):'-';
+       const fxNote=FXW?('tỷ giá CO theo tuần — tuần '+A.no+': '+fmt(fxA)+' đ/USDT'+(FXW.idr?' · '+f2n(fxI)+' đ/IDR':'')+' (bảng tỷ giá HQS hàng tuần)')
+                       :('⚠ chưa đọc được bảng tỷ giá tuần — tạm tính '+fmt(FX15)+' đ/USDT · '+f2n(FXIDR15)+' đ/IDR');
+       h+=box('1 · Nhập chi tiết — tab "Data Chi tiết"','Mỗi ngày một dòng · giữ nguyên ba nhóm Nhập USDT, Nhập IDR và Nhập VNĐ như trên sheet; số tổng quy VNĐ theo '+fxNote)
+        +`<div class="kpis">${kpi("CO Nhập tuần "+A.no,fmt(tA),A.lab+" · quy VNĐ")}${kpi("So tuần "+B.no,tB?((tA>=tB?'+':'−')+fmt(Math.abs(tA-tB))):'—',tB?chg(tB,tA):'kỳ trước chưa có số')}${kpi("So cùng kỳ tháng trước",tC?((tA>=tC?'+':'−')+fmt(Math.abs(tA-tC))):'—',tC?chg(tC,tA):'kỳ trước chưa có số')}${kpi("Nhập USDT tuần "+A.no,fu(uA),"≈ "+fmt(uAv)+" đ · nhập VNĐ "+fmt(vA)+" đ")}${kpi("Nhập IDR tuần "+A.no,fu(iA),iA?("≈ "+fmt(iAv)+" đ"):"tuần này chưa có số")}${kpi("Nguồn lớn nhất",topSp&&topSp.a?topSp.name:'—',topSp&&topSp.a?fmt(topSp.a)+' đ · '+pct(topSp.a/(tA||1)):'')}</div>
          <div class="grid2" style="grid-template-columns:1fr">${cc("CO Nhập theo nguồn — 3 kỳ (quy VNĐ)","w1")}</div>`
         +(uRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP USDT — nguyên tệ</div>`
           +tbl(uRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG USDT</b>',a:uA,b:sumR(uRows,'rb'),c:sumR(uRows,'rc')}]),fu,'Đơn vị: USDT (đúng số trên sheet, chưa quy đổi).'):'')
+        +(iRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP IDR — nguyên tệ</div>`
+          +tbl(iRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG IDR</b>',a:iA,b:sumR(iRows,'rb'),c:sumR(iRows,'rc')}]),fmtn,'Đơn vị: IDR (đúng số trên sheet, chưa quy đổi).'):'')
         +(vRows.length?`<div class="small" style="margin:14px 4px 6px;font-weight:700">Nhóm NHẬP VNĐ — nguyên tệ</div>`
           +tbl(vRows.map(r=>({name:r.name,a:r.ra,b:r.rb,c:r.rc})).concat([{name:'<b>TỔNG VNĐ</b>',a:vA,b:sumR(vRows,'rb'),c:sumR(vRows,'rc')}]),fmtn,'Đơn vị: VNĐ.'):'')
         +`<div class="small" style="margin:14px 4px 6px;font-weight:700">Tất cả nguồn — quy về VNĐ</div>`
-        +tbl(spRows.map(r=>({name:r.name+(r.usd?' <span class="small">(USDT)</span>':''),a:r.a,b:r.b,c:r.c}))
+        +tbl(spRows.map(r=>({name:r.name+(r.tien!=='VNĐ'?' <span class="small">('+r.tien+')</span>':''),a:r.a,b:r.b,c:r.c}))
             .concat([{name:'<b>TỔNG</b>',a:tA,b:tB,c:tC}]),fmtn,'Đơn vị: VNĐ · USDT quy đổi theo '+fxNote+'. Mỗi ngày dùng tỷ giá của đúng tuần ngày đó nên hai tuần khác nhau có thể khác tỷ giá.');
      }else{
        /* chưa đọc được tab mới (chưa xuất bản / mất mạng) → tạm dùng cách cũ để trang không trống */
@@ -1706,6 +1709,7 @@ function p13Series(fk,tk){
    GIỮ NGUYÊN hai nhóm như trên sheet; chỗ nào cần một con số chung thì quy USDT ra VNĐ theo tỷ giá TẠM TÍNH FX15. */
 const NHAPCT_GID="14100067";
 const FX15=27000;        /* chỉ dùng khi KHÔNG đọc được bảng tỷ giá tuần */
+const FXIDR15=1.45;      /* IDR→VNĐ tạm tính, cũng chỉ dùng khi không đọc được bảng tỷ giá */
 /* ===== TỶ GIÁ THEO TUẦN — file "HQS - BẢNG TỶ GIÁ HÀNG TUẦN", hàng "USDT/VND · CO Rate" =====
    Khuôn: một hàng ghi NGÀY (d/m, mỗi cột một ngày); tỷ giá của cả tuần nằm trong ô gộp
    → kéo giá trị sang phải cho 7 ngày. Giá nhập hàng quy VNĐ dùng đúng hàng CO Rate này. */
@@ -1726,13 +1730,24 @@ function parseFXW(rows){
   const lab=(rows[r]||[]).slice(0,8).map(v=>S(v)).join(' ');
   if(/co\s*rate/.test(lab))rr=r;}
  if(rr<0)return null;
- const row=rows[rr]||[],dates=rows[dr]||[],map={};let cur=0,n=0;
- for(let c=0;c<Math.max(row.length,dates.length);c++){
-  const v=num(row[c]);if(v>1000)cur=v;   /* ô gộp: giá trị nằm ở cột đầu của tuần */
-  const m=N(dates[c]).match(/^(\d{1,2})\/(\d{1,2})$/);
-  if(m&&cur){map[dkey(+m[2]-1,+m[1])]=cur;n++;}}
- if(!n)return null;
- return{map:map,keys:Object.keys(map).sort()};}
+ const dates=rows[dr]||[];
+ /* đọc một hàng tỷ giá: ô gộp nên giá trị chỉ ghi ở cột đầu tuần → kéo sang các ngày còn lại.
+    nho = ngưỡng nhận giá trị (USDT/VND hàng nghìn · IDR/VND chỉ ~1,45 nên lấy mọi số dương) */
+ const lay=(ri,nho)=>{const row=rows[ri]||[],map={};let cur=0,n=0;
+  for(let c=0;c<Math.max(row.length,dates.length);c++){
+   const v=num(row[c]);if(v>nho)cur=v;
+   const m=N(dates[c]).match(/^(\d{1,2})\/(\d{1,2})$/);
+   if(m&&cur){map[dkey(+m[2]-1,+m[1])]=cur;n++;}}
+  return n?map:null;};
+ const map=lay(rr,1000);if(!map)return null;
+ /* hàng "IDR/ VND" phải lấy TRONG khối RATE CO (từ hàng CO Rate trở xuống) — khối RATE REVENUE
+    phía trên cũng có một hàng tên y hệt nhưng là tỷ giá doanh thu, không phải giá vốn */
+ let ir=-1;
+ for(let r=rr+1;r<rows.length&&ir<0;r++){
+  const lab=(rows[r]||[]).slice(0,8).map(v=>S(v)).join(' ');
+  if(/idr\s*\/\s*vnd/.test(lab))ir=r;}
+ const idr=ir<0?null:lay(ir,0);
+ return{map:map,keys:Object.keys(map).sort(),idr:idr,idrKeys:idr?Object.keys(idr).sort():[]};}
 async function fxwData(){if(FXW&&Date.now()-FXWTS<RAW_TTL)return FXW;
  let rows=await loadCSV(FXW_BASE+"?gid="+FXW_GID+"&single=true&output=csv");
  let o=parseFXW(rows);
@@ -1742,7 +1757,11 @@ async function fxwData(){if(FXW&&Date.now()-FXWTS<RAW_TTL)return FXW;
 function fxwRate(k){if(!FXW)return FX15;if(FXW.map[k])return FXW.map[k];
  let best=0;for(const x of FXW.keys){if(x<=k)best=FXW.map[x];else break;}
  return best||FXW.map[FXW.keys[0]]||FX15;}
-const NHAPCT_MAU={"Data Giftcard":"#357D71","Supercell":"#E1B083","Razer Gold":"#B3564F","RBX":"#7FBFB2","Galaxylink":"#D9B25A","OG":"#C48D60","Gamota":"#9BBA74","Doduy":"#C2CB81","Robux":"#638A55"};
+/* tỷ giá IDR→VNĐ của tuần chứa ngày k — hàng "IDR/ VND" trong khối RATE CO */
+function fxwRateIdr(k){if(!FXW||!FXW.idr)return FXIDR15;if(FXW.idr[k])return FXW.idr[k];
+ let best=0;for(const x of FXW.idrKeys){if(x<=k)best=FXW.idr[x];else break;}
+ return best||FXW.idr[FXW.idrKeys[0]]||FXIDR15;}
+const NHAPCT_MAU={"Data Giftcard":"#357D71","Supercell":"#E1B083","Razer Gold":"#B3564F","RBX":"#7FBFB2","Galaxylink":"#D9B25A","OG":"#C48D60","Gamota":"#9BBA74","Doduy":"#C2CB81","Robux":"#638A55","ALG":"#8E7CC3","DON":"#B5A3D6"};
 let NHAPCT,NHAPCTPREV=null,NHAPCTTS=0;
 function parseNhapCT(rows){
  if(!rows||rows.length<6)return null;
@@ -1756,7 +1775,10 @@ function parseNhapCT(rows){
  const names=rows[gr+1]||[],src=[];
  for(let c=1;c<names.length;c++){const n=N(names[c]);if(!n)continue;
   const g=N(band[c])||'Nhập VNĐ';
-  src.push({c,name:n,grp:g,usd:/usdt/.test(S(g)),color:NHAPCT_MAU[n]||'#94a3b8',daily:{}});}
+  /* sheet có 3 băng: Nhập USDT · Nhập IDR · Nhập VNĐ — giữ nguyên tệ của từng băng,
+     băng lạ thì coi là VNĐ (trước đây IDR bị gom nhầm vào VNĐ nên ALG đội số VNĐ lên) */
+  const tien=/usdt/.test(S(g))?'USDT':(/idr/.test(S(g))?'IDR':'VNĐ');
+  src.push({c,name:n,grp:g,tien,usd:tien==='USDT',color:NHAPCT_MAU[n]||'#94a3b8',daily:{}});}
  if(!src.length)return null;
  const days={};
  for(let r=gr+2;r<rows.length;r++){const row=rows[r]||[];const dt=parseDateCell(row[0]);
@@ -1774,8 +1796,8 @@ function parseNhapCT(rows){
  src.filter(s=>Object.keys(s.daily).length).forEach(s=>{
   const g=gom.find(x=>x.khop.test(nenT(s.name)));
   const ten=g?g.ten:s.name;
-  const key=ten+'|'+(s.usd?'u':'v');
-  if(!idx[key]){idx[key]={name:ten,grp:s.grp,usd:s.usd,color:NHAPCT_MAU[ten]||s.color,daily:{}};out.push(idx[key]);}
+  const key=ten+'|'+s.tien;
+  if(!idx[key]){idx[key]={name:ten,grp:s.grp,tien:s.tien,usd:s.usd,color:NHAPCT_MAU[ten]||s.color,daily:{}};out.push(idx[key]);}
   const d=idx[key].daily;Object.keys(s.daily).forEach(k=>d[k]=(d[k]||0)+s.daily[k]);});
  return{src:out,days:ds,fx:FX15};}
 async function nhapCTData(){if(NHAPCT!==undefined&&Date.now()-NHAPCTTS<RAW_TTL)return NHAPCT;
@@ -1788,8 +1810,8 @@ function p15Series(fk,tk){
  const D=NHAPCT;if(!D||!D.src.length)return null;
  return D.src.map(s=>{const daily={};let raw=0,tot=0;
   Object.keys(s.daily).forEach(k=>{if(k<fk||k>tk)return;const v=s.daily[k];raw+=v;
-   const q=s.usd?v*fxwRate(k):v;daily[k]=q;tot+=q;});
-  return{name:s.name,usd:s.usd,grp:s.grp,color:s.color,daily,raw,tot};});}
+   const q=s.tien==='USDT'?v*fxwRate(k):(s.tien==='IDR'?v*fxwRateIdr(k):v);daily[k]=q;tot+=q;});
+  return{name:s.name,tien:s.tien,usd:s.usd,grp:s.grp,color:s.color,daily,raw,tot};});}
 /* PVH13 cần tỷ giá ngày để quy VND — nếu bảng tỷ giá chưa nạp (vào thẳng trang) thì nạp bù */
 async function ensureFX(){if(FXKEYS.length)return;try{const rows=await fetchGid(GIDS.fx,VAL_FX);if(rows)parseFX(rows);}catch(e){}}
 /* PVH13: chế độ xem Tự động / Ngày / Tuần / Tháng — auto bám theo độ dài phạm vi lọc */

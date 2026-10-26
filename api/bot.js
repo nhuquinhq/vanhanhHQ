@@ -66,8 +66,16 @@ const baNgay = P => mayNgay(P, 3);
 const nhan = k => k.slice(3) + "/" + k.slice(0, 2);
 const tenNg = n => n.replace(/^data\s+/i, "");
 
-function traLoiMot(P, rate, s, ks0) {
-  const usd = s.usd;
+/* NCC nhập bằng USDT · IDR (ALG, DON) · VNĐ — giữ nguyên tệ của NCC khi trả lời,
+   chỉ quy về USDT ở bước xếp mức tiêu để dùng chung một thước đo. */
+const DV = { USDT: " USDT", IDR: " IDR" };
+const dvTien = t => DV[t] || " đ";
+const soTien = (t, v) => t === "USDT" ? fu(v) : fmt(v);
+/* bình quân quy ra USDT: IDR → VNĐ → USDT */
+const quyUSDT = (t, v, rate, rIdr, k) => t === "USDT" ? v : v * (t === "IDR" ? rIdr(k) : 1) / rate(k);
+
+function traLoiMot(P, rate, rIdr, s, ks0) {
+  const tien = s.tien || (s.usd ? "USDT" : "VNĐ"), usd = tien === "USDT";
   let ks = ks0, ghiChu = "";
   /* NCC mua theo đợt (Galaxylink, Razer…) có thể 3 ngày liền không phát sinh —
      lúc đó lấy bình quân 7 ngày để con số còn dùng được, và nói rõ là đã nới ra 7 ngày */
@@ -77,18 +85,18 @@ function traLoiMot(P, rate, s, ks0) {
   }
   const so = ks.map(k => s.daily[k] || 0);
   const bq = so.reduce((a, b) => a + b, 0) / (ks.length || 1);
-  const bqUSDT = usd ? bq : bq / rate(ks[ks.length - 1] || "");
+  const bqUSDT = quyUSDT(tien, bq, rate, rIdr, ks[ks.length - 1] || "");
   const R = ngayDu(bqUSDT);
-  const can = usd ? tronLen(bq * R.ngay, 100) : tronLen(bq * R.ngay, 1e6);
-  const dv = usd ? " USDT" : " đ";
+  const can = tronLen(bq * R.ngay, usd ? 100 : 1e6);
+  const dv = dvTien(tien);
   const mm = (ks[ks.length - 1] || "").slice(0, 2);
   const thang = P.days.filter(k => k.slice(0, 2) === mm).reduce((a, k) => a + (s.daily[k] || 0), 0);
   /* mỗi ngày một dòng cho dễ đọc trên điện thoại */
   const L = ["💰 <b>Nạp NCC — " + tenNg(s.name) + "</b>", ""];
   L.push("🗓 " + ks.length + " ngày gần nhất:");
-  ks.forEach((k, i) => L.push(nhan(k) + "  " + (usd ? fu(so[i]) : fmt(so[i]))));
+  ks.forEach((k, i) => L.push(nhan(k) + "  " + soTien(tien, so[i])));
   L.push("");
-  L.push("📊 Bình quân: <b>" + (usd ? fu(bq) : fmt(bq)) + dv + "/ngày</b> · mức tiêu " + R.muc);
+  L.push("📊 Bình quân: <b>" + soTien(tien, bq) + dv + "/ngày</b> · mức tiêu " + R.muc);
   /* so với bình quân THÁNG TRƯỚC (tính trên các ngày tháng đó có số) để thấy xu hướng */
   const pad2 = x => String(x).padStart(2, "0");
   const coSo = k => P.src.reduce((a, x) => a + (x.daily[k] || 0), 0) > 0;
@@ -96,28 +104,29 @@ function traLoiMot(P, rate, s, ks0) {
   if (kTr.length) {
     const bqTr = kTr.reduce((a, k) => a + (s.daily[k] || 0), 0) / kTr.length;
     const xu = !bqTr ? "" : (bq >= bqTr ? " (↑ " : " (↓ ") + (Math.abs(bq - bqTr) / bqTr * 100).toFixed(1).replace(".", ",") + "%)";
-    L.push("🆚 Bình quân tháng " + (+mm - 1) + ": " + (usd ? fu(bqTr) : fmt(bqTr)) + dv + "/ngày" + xu);
+    L.push("🆚 Bình quân tháng " + (+mm - 1) + ": " + soTien(tien, bqTr) + dv + "/ngày" + xu);
   }
-  L.push("👉 <b>Đề xuất nạp: " + (usd ? fmt(can) : fmt(can)) + dv + "</b> (đủ dùng ~" + R.ngay + " ngày)");
-  L.push("📈 Đã nhập tháng " + (+mm) + ": " + (usd ? fu(thang) : fmt(thang)) + dv);
+  L.push("👉 <b>Đề xuất nạp: " + fmt(can) + dv + "</b> (đủ dùng ~" + R.ngay + " ngày)");
+  L.push("📈 Đã nhập tháng " + (+mm) + ": " + soTien(tien, thang) + dv);
   if (ghiChu) L.push(ghiChu);
   if (!bq) L.push("⚠️ 7 ngày gần nhất chưa phát sinh đơn nào — chưa có căn cứ để tính, chị kiểm tra lại tên NCC giúp em.");
   return L.join("\n");
 }
 
-function traLoiTatCa(P, rate, ks, loc) {
+function traLoiTatCa(P, rate, rIdr, ks, loc) {
   const src = loc && loc.length ? loc : P.src;
   const L = ["💰 <b>Gợi ý nạp theo NCC</b> — bình quân " + ks.length + " ngày gần nhất (" + ks.map(nhan).join(" · ") + ")"];
   const ds = src.map(s => {
     const bq = ks.reduce((a, k) => a + (s.daily[k] || 0), 0) / (ks.length || 1);
-    const bqUSDT = s.usd ? bq : bq / rate(ks[ks.length - 1] || "");
+    const tien = s.tien || (s.usd ? "USDT" : "VNĐ");
+    const bqUSDT = quyUSDT(tien, bq, rate, rIdr, ks[ks.length - 1] || "");
     const R = ngayDu(bqUSDT);
-    const can = s.usd ? tronLen(bq * R.ngay, 100) : tronLen(bq * R.ngay, 1e6);
-    return { n: tenNg(s.name), usd: s.usd, bq: bq, bqUSDT: bqUSDT, ngay: R.ngay, can: can };
+    const can = tronLen(bq * R.ngay, tien === "USDT" ? 100 : 1e6);
+    return { n: tenNg(s.name), tien: tien, bq: bq, bqUSDT: bqUSDT, ngay: R.ngay, can: can };
   }).filter(x => x.bq > 0).sort((a, b) => b.bqUSDT - a.bqUSDT);
   if (!ds.length) return "Chưa có số nhập nào trong 3 ngày gần nhất.";
-  ds.forEach(x => L.push(" • <b>" + x.n + "</b>: tiêu " + (x.usd ? fu(x.bq) + " USDT" : fmt(x.bq) + " đ") +
-    "/ngày → nạp <b>" + fmt(x.can) + (x.usd ? " USDT" : " đ") + "</b> (~" + x.ngay + " ngày)"));
+  ds.forEach(x => L.push(" • <b>" + x.n + "</b>: tiêu " + soTien(x.tien, x.bq) + dvTien(x.tien) +
+    "/ngày → nạp <b>" + fmt(x.can) + dvTien(x.tien) + "</b> (~" + x.ngay + " ngày)"));
   L.push("", "<i>Quy tắc: dưới 1.000/ngày nạp 3 ngày · 1.000–2.000 nạp 2 ngày · trên 2.000 nạp hàng ngày.</i>");
   L.push("<i>Hỏi riêng một NCC: “/nap seagm” · “/nap bepbsv” · “/nap trc bsv” · “/nap galaxy” · “/nap og”.</i>");
   return L.join("\n");
@@ -174,7 +183,7 @@ module.exports = async (req, res) => {
     .replace(/\b(nap|nạp|tien|tiền|bao nhieu|bao nhiêu|ncc|cho|can|cần)\b/gi, " ").trim();
   const ds = timNguon(D.P, hoi);
   /* đúng một NCC → trả lời chi tiết · nhiều NCC (vd hỏi "bsv") → liệt kê gọn từng NCC */
-  const loi = ds.length === 1 ? traLoiMot(D.P, D.rate, ds[0], ks) : traLoiTatCa(D.P, D.rate, ks, ds);
+  const loi = ds.length === 1 ? traLoiMot(D.P, D.rate, D.rateIdr, ds[0], ks) : traLoiTatCa(D.P, D.rate, D.rateIdr, ks, ds);
   const j = await tra(loi + (D.coTyGia ? "" : "\n<i>⚠ chưa đọc được bảng tỷ giá tuần, số quy đổi đang tạm tính</i>"));
   res.status(200).json({ ok: !!(j && j.ok), ncc: ds.map(x => x.name), ngay: ks });
 };

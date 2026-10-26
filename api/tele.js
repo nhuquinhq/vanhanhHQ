@@ -630,6 +630,7 @@ async function buildBC(q) {
 const GID_NHAP = (process.env.NHAP_GID || "14100067").trim();
 const FILE_NHAP = (process.env.NHAP_PUB_KEY || FILES_ALL.def).trim();
 const FX_USDT = +(process.env.FX_USDT || 27000) || 27000;  /* chỉ dùng khi KHÔNG đọc được bảng tỷ giá tuần */
+const FX_IDR = +(process.env.FX_IDR || 1.45) || 1.45;      /* IDR→VNĐ tạm tính, cũng chỉ dùng khi không đọc được bảng */
 /* ---- bảng TỶ GIÁ THEO TUẦN (file "HQS - BẢNG TỶ GIÁ HÀNG TUẦN") ----
    Khuôn: một hàng ghi NGÀY (d/m, mỗi cột một ngày), hàng "USDT/VND · CO Rate" ghi tỷ giá
    của cả tuần trong ô gộp → kéo giá trị sang phải cho 7 ngày của tuần đó.
@@ -651,14 +652,38 @@ function parseFXWeek(rows) {
     if (/co\s*rate/.test(lab)) rr = r;
   }
   if (rr < 0) return null;
-  const row = rows[rr] || [], dates = rows[dr] || [], map = {};
-  let cur = 0, n = 0;
-  for (let c = 0; c < Math.max(row.length, dates.length); c++) {
-    const v = vnum(row[c]); if (v > 1000) cur = v;   /* ô gộp: giá trị nằm ở cột đầu của tuần */
-    const m = nrm(dates[c]).match(/^(\d{1,2})\/(\d{1,2})$/);
-    if (m && cur) { map[pad2(+m[2]) + "-" + pad2(+m[1])] = cur; n++; }
+  const dates = rows[dr] || [];
+  /* đọc một hàng tỷ giá: ô gộp nên giá trị chỉ ghi ở cột đầu tuần → kéo sang các ngày còn lại.
+     nho = ngưỡng nhận giá trị (USDT/VND hàng nghìn · IDR/VND chỉ ~1,45 nên lấy mọi số dương) */
+  const lay = (ri, nho) => {
+    const row = rows[ri] || [], map = {}; let cur = 0, n = 0;
+    for (let c = 0; c < Math.max(row.length, dates.length); c++) {
+      const v = vnum(row[c]); if (v > nho) cur = v;
+      const m = nrm(dates[c]).match(/^(\d{1,2})\/(\d{1,2})$/);
+      if (m && cur) { map[pad2(+m[2]) + "-" + pad2(+m[1])] = cur; n++; }
+    }
+    return n ? map : null;
+  };
+  const map = lay(rr, 1000); if (!map) return null;
+  /* hàng "IDR/ VND" phải lấy TRONG khối RATE CO (từ hàng CO Rate trở xuống) — khối RATE REVENUE
+     phía trên cũng có hàng tên y hệt nhưng là tỷ giá doanh thu, không phải giá vốn */
+  let ir = -1;
+  for (let r = rr + 1; r < rows.length && ir < 0; r++) {
+    const lab = (rows[r] || []).slice(0, 8).map(v => stripD(nrm(v))).join(" ");
+    if (/idr\s*\/\s*vnd/.test(lab)) ir = r;
   }
-  return n ? { map, dbg: { dr, rr, nNgay: n } } : null;
+  const idr = ir < 0 ? null : lay(ir, 0);
+  return { map, idr, dbg: { dr, rr, ir, nNgay: Object.keys(map).length } };
+}
+/* tỷ giá của TUẦN chứa ngày k — thiếu ngày thì lấy tuần gần nhất trước đó, không có bảng thì tạm tính */
+function tyGiaTuan(map, tam) {
+  const m = map || {}, ks = Object.keys(m).sort();
+  return k => {
+    if (!ks.length) return tam;
+    if (m[k]) return m[k];
+    const past = ks.filter(x => x <= k);
+    return past.length ? m[past[past.length - 1]] : m[ks[0]];
+  };
 }
 let FXW_CACHE;
 async function fxWeek() {
@@ -679,7 +704,11 @@ function parseNhap(rows) {
   for (let c = 1; c < names.length; c++) {
     const n = nrm(names[c]); if (!n) continue;
     const g = nrm(band[c]) || "Nhập VNĐ";
-    src.push({ c, name: n, grp: g, usd: /usdt/.test(stripD(g)), daily: {} });
+    /* sheet có 3 băng: Nhập USDT · Nhập IDR · Nhập VNĐ — giữ nguyên tệ của từng băng,
+       băng lạ thì coi là VNĐ (trước đây IDR bị gom nhầm vào VNĐ nên ALG đội số VNĐ lên) */
+    const S = stripD(g);
+    const tien = /usdt/.test(S) ? "USDT" : (/idr/.test(S) ? "IDR" : "VNĐ");
+    src.push({ c, name: n, grp: g, tien, usd: tien === "USDT", daily: {} });
   }
   if (!src.length) return null;
   const days = {};
@@ -705,8 +734,8 @@ function gomNguon(src) {
   (src || []).forEach(s => {
     const g = GOM_NGUON.find(x => x.khop.test(nenTen(s.name)));
     const ten = g ? g.ten : s.name.replace(/^data\s+/i, "");
-    const key = ten + "|" + (s.usd ? "u" : "v");
-    if (!idx[key]) { idx[key] = { name: ten, usd: s.usd, daily: {} }; out.push(idx[key]); }
+    const key = ten + "|" + s.tien;
+    if (!idx[key]) { idx[key] = { name: ten, tien: s.tien, usd: s.usd, daily: {} }; out.push(idx[key]); }
     const d = idx[key].daily;
     Object.keys(s.daily).forEach(k => d[k] = (d[k] || 0) + s.daily[k]);
   });
@@ -720,13 +749,12 @@ async function buildNhap(q) {
   /* tỷ giá CO theo TUẦN; ngày nào bảng tỷ giá chưa có thì lấy tỷ giá tuần gần nhất trước đó */
   const FX = await fxWeek();
   const FXK = FX ? Object.keys(FX.map).sort() : [];
-  const rate = k => {
-    if (!FXK.length) return FX_USDT;
-    if (FX.map[k]) return FX.map[k];
-    const past = FXK.filter(x => x <= k);
-    return past.length ? FX.map[past[past.length - 1]] : FX.map[FXK[0]];
-  };
-  const vnd = (s, k) => (s.daily[k] || 0) * (s.usd ? rate(k) : 1);
+  const FXI = FX && FX.idr ? Object.keys(FX.idr).sort() : [];
+  const rate = tyGiaTuan(FX && FX.map, FX_USDT);
+  const rateIdr = tyGiaTuan(FX && FX.idr, FX_IDR);
+  /* quy về VNĐ theo đúng nguyên tệ của nguồn */
+  const quy = (s, k) => s.tien === "USDT" ? rate(k) : (s.tien === "IDR" ? rateIdr(k) : 1);
+  const vnd = (s, k) => (s.daily[k] || 0) * quy(s, k);
   const tongVND = k => P.src.reduce((a, s) => a + vnd(s, k), 0);
   let key = reportDay(q).key;
   const avail = P.days.filter(k => tongVND(k) > 0);
@@ -737,40 +765,51 @@ async function buildNhap(q) {
   const sumK = (s, ks) => ks.reduce((a, k) => a + (s.daily[k] || 0), 0);
   const tenNg = n => n.replace(/^data\s+/i, "");   /* "Data Giftcard" trên sheet → gọi gọn "Giftcard" */
   /* ----- trong ngày ----- */
-  const dU = P.src.filter(s => s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
-  const dV = P.src.filter(s => !s.usd).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
-  const rK = rate(key);
-  const sU = dU.reduce((a, x) => a + x.v, 0), sV = dV.reduce((a, x) => a + x.v, 0), sT = sU * rK + sV;
+  const theoTien = t => P.src.filter(s => s.tien === t).map(s => ({ n: s.name, v: s.daily[key] || 0 })).filter(x => x.v).sort((a, b) => b.v - a.v);
+  const dU = theoTien("USDT"), dI = theoTien("IDR"), dV = theoTien("VNĐ");
+  const rK = rate(key), rI = rateIdr(key);
+  const cong = L => L.reduce((a, x) => a + x.v, 0);
+  const sU = cong(dU), sI = cong(dI), sV = cong(dV), sT = sU * rK + sI * rI + sV;
   const lines = ["💵 <b>Nhập hàng theo ngày — Phòng vận hành</b>", "🗓 Ngày " + key.slice(3) + "/" + mm + "/2026"];
   lines.push("", "🧮 <b>Tổng nhập quy VNĐ: " + fmt(sT) + " đ</b>");
   lines.push("💵 <b>Nhập USDT: " + fu(sU) + "</b>" + (sU ? " ≈ " + fmt(sU * rK) + " đ (" + pct(sU * rK / sT) + ")" : ""));
   lines.push(dU.length ? " • " + dU.map(x => tenNg(x.n) + ": " + fu(x.v)).join(" · ") : " • chưa có số");
+  /* nhóm IDR (ALG, DON…) — giữ nguyên tệ như nhóm USDT, chỉ quy VNĐ ở số tổng */
+  if (dI.length || sI) {
+    lines.push("🇮🇩 <b>Nhập IDR: " + fmt(sI) + "</b>" + (sI ? " ≈ " + fmt(sI * rI) + " đ (" + pct(sI * rI / sT) + ")" : ""));
+    lines.push(dI.length ? " • " + dI.map(x => tenNg(x.n) + ": " + fmt(x.v)).join(" · ") : " • chưa có số");
+  }
   lines.push("🏦 <b>Nhập VNĐ: " + fmt(sV) + " đ</b>" + (sV && sT ? " (" + pct(sV / sT) + ")" : ""));
   lines.push(dV.length ? " • " + dV.map(x => tenNg(x.n) + ": " + fmt(x.v) + " đ").join(" · ") : " • chưa có số");
-  lines.push("Tỷ giá : " + fmt(rK) + " đ/USDT" + (FXK.length ? "" : " ⚠ tạm tính, chưa đọc được bảng tỷ giá tuần"));
+  lines.push("Tỷ giá : " + fmt(rK) + " đ/USDT" + (FXI.length ? " · " + rI.toLocaleString("vi-VN", { maximumFractionDigits: 3 }) + " đ/IDR" : "") +
+             (FXK.length ? "" : " ⚠ tạm tính, chưa đọc được bảng tỷ giá tuần"));
   /* ----- lũy kế tháng ----- */
-  const cU = P.src.filter(s => s.usd).reduce((a, s) => a + sumK(s, days), 0);
-  const cV = P.src.filter(s => !s.usd).reduce((a, s) => a + sumK(s, days), 0);
+  const congTien = t => P.src.filter(s => s.tien === t).reduce((a, s) => a + sumK(s, days), 0);
+  const cU = congTien("USDT"), cI = congTien("IDR"), cV = congTien("VNĐ");
   /* mỗi ngày quy theo tỷ giá của TUẦN ngày đó, không nhân cả tháng bằng một tỷ giá */
-  const cUv = days.reduce((a, k) => a + P.src.filter(s => s.usd).reduce((x, s) => x + (s.daily[k] || 0), 0) * rate(k), 0);
-  const cT = cUv + cV;
+  const quyThang = (t, r) => days.reduce((a, k) => a + P.src.filter(s => s.tien === t).reduce((x, s) => x + (s.daily[k] || 0), 0) * r(k), 0);
+  const cUv = quyThang("USDT", rate), cIv = quyThang("IDR", rateIdr);
+  const cT = cUv + cIv + cV;
   /* BQ chỉ ghi bằng USDT (ở dòng dưới) — không ghi BQ quy VNĐ nữa */
   lines.push("", "📈 <b>Lũy kế tháng " + (+mm) + ": " + fmt(cT) + " đ</b>");
   /* lũy kế giữ NGUYÊN TỆ: USDT ghi bằng USDT, VNĐ ghi bằng đồng — % là tỷ trọng trong tổng quy VNĐ */
   lines.push(" 💵 USDT " + fu(cU) + (cT ? " (" + pct(cUv / cT) + ")" : "") +
              " · BQ " + fu(cU / (days.length || 1)) + " USDT/ngày" +
+             (cI ? " · 🇮🇩 IDR " + fmt(cI) + (cT ? " (" + pct(cIv / cT) + ")" : "") : "") +
              " · 🏦 VNĐ " + fmt(cV) + " đ" + (cT ? " (" + pct(cV / cT) + ")" : ""));
   /* top nguồn trong tháng, quy về VNĐ để xếp chung một thước đo */
-  const topNg = P.src.map(s => ({ n: s.name, usd: s.usd, raw: sumK(s, days),
-      v: days.reduce((a, k) => a + (s.daily[k] || 0) * (s.usd ? rate(k) : 1), 0) }))
+  const topNg = P.src.map(s => ({ n: s.name, tien: s.tien, raw: sumK(s, days),
+      v: days.reduce((a, k) => a + (s.daily[k] || 0) * quy(s, k), 0) }))
     .filter(x => x.v).sort((a, b) => b.v - a.v);
   if (topNg.length) {
     const HUY = ["🥇", "🥈", "🥉", "4.", "5."];
     let daGhiUSDT = false;   /* đơn vị USDT chỉ ghi ở nguồn USDT đầu tiên cho gọn */
     lines.push("", "🏅 <b>Nguồn nhập nhiều nhất tháng " + (+mm) + "</b>");
     lines.push(" " + topNg.slice(0, 5).map((x, i) => {
-      const so = x.usd ? fu(x.raw) + (daGhiUSDT ? "" : " USDT") : fmt(x.v) + " đ";
-      if (x.usd) daGhiUSDT = true;
+      let so;
+      if (x.tien === "USDT") { so = fu(x.raw) + (daGhiUSDT ? "" : " USDT"); daGhiUSDT = true; }
+      else if (x.tien === "IDR") so = fmt(x.raw) + " IDR";
+      else so = fmt(x.v) + " đ";
       return HUY[i] + " " + tenNg(x.n) + " " + so;
     }).join(" · "));
   }
@@ -1375,13 +1414,7 @@ async function docNhap() {
   const P = rows ? parseNhap(rows) : null;
   const FX = await fxWeek();
   const FXK = FX ? Object.keys(FX.map).sort() : [];
-  const rate = k => {
-    if (!FXK.length) return FX_USDT;
-    if (FX.map[k]) return FX.map[k];
-    const past = FXK.filter(x => x <= k);
-    return past.length ? FX.map[past[past.length - 1]] : FX.map[FXK[0]];
-  };
-  return { P: P, rate: rate, coTyGia: !!FXK.length };
+  return { P: P, rate: tyGiaTuan(FX && FX.map, FX_USDT), rateIdr: tyGiaTuan(FX && FX.idr, FX_IDR), coTyGia: !!FXK.length };
 }
 module.exports.docNhap = docNhap;
 module.exports.BOX_MAC_DINH = BOX_MAC_DINH;
