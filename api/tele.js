@@ -993,10 +993,12 @@ function parseL5(rows) {
   /* số đơn XỬ LÝ của từng nhân sự: soNS(d) cho một ngày · tongNS() lấy ô Total của sheet */
   const soNS = d => { const c = cot[d]; return ns.map(x => ({ ten: x.ten, v: c == null ? 0 : unum((rows[x.r] || [])[c]) })); };
   const tongNS = () => ns.map(x => ({ ten: x.ten, v: unum((rows[x.r] || [])[6]) }));
+  const congNS = ds => ns.map(x => ({ ten: x.ten,
+    v: ds.reduce((a, d) => { const c = cot[d]; return a + (c == null ? 0 : unum((rows[x.r] || [])[c])); }, 0) }));
   /* cột 6 là ô Total của sheet — dùng cho lũy kế để khớp đúng số team đang nhìn
      (cộng tay từng ngày lệch 1–2 $ vì bản xuất CSV đã làm tròn số của mỗi ngày) */
   const tongFile = k => hang[k] == null ? 0 : unum((rows[hang[k]] || [])[6]);
-  return { days: days.sort(), cot, hang, so, tongFile, ns, soNS, tongNS };
+  return { days: days.sort(), cot, hang, so, tongFile, ns, soNS, tongNS, congNS };
 }
 async function buildL5(q) {
   const rows = await readTab(GID_L5, FILE_L5);
@@ -1016,7 +1018,10 @@ async function buildL5(q) {
   const mm = key.slice(0, 2);
   const ngay = P.days.filter(k => k.slice(0, 2) === mm && k <= key);   /* lũy kế: từ đầu tháng đến ngày báo cáo */
   const moiNhat = key === avail[avail.length - 1];   /* báo cáo ngày mới nhất → lấy đúng ô Total của sheet */
-  const tong = k => moiNhat ? P.tongFile(k) : ngay.reduce((a, d) => a + P.so(k, d), 0);
+  /* Ô Total của sheet chỉ dùng được khi tab CHỈ có một tháng. Từ T11 tab chứa cả 01/10→10/11
+     nên Total là tổng CẢ HAI tháng — lúc đó phải cộng tay các ngày của đúng tháng đang báo. */
+  const motThang = P.days.every(k => k.slice(0, 2) === mm);
+  const tong = k => (moiNhat && motThang) ? P.tongFile(k) : ngay.reduce((a, d) => a + P.so(k, d), 0);
   const d = k => P.so(k, key);
   const pc2 = x => (x * 100).toFixed(2).replace(".", ",") + "%";
   const usd = n => fmt(n) + " $";
@@ -1041,7 +1046,7 @@ async function buildL5(q) {
      Trong ngày xếp nhiều → ít; lũy kế tháng lấy đúng ô Total của sheet. */
   if (P.ns && P.ns.length) {
     const ngayNS = P.soNS(key).filter(x => x.v).sort((a, b) => b.v - a.v);
-    const thangNS = P.tongNS().filter(x => x.v).sort((a, b) => b.v - a.v);
+    const thangNS = (motThang ? P.tongNS() : P.congNS(ngay)).filter(x => x.v).sort((a, b) => b.v - a.v);
     L.push("", "<b>4. Số đơn xử lý theo nhân sự</b>");
     if (ngayNS.length) {
       L.push("- Trong ngày: <b>" + fmt(ngayNS.reduce((a, x) => a + x.v, 0)) + " đơn</b>");
