@@ -1067,7 +1067,167 @@ async function buildL5(q) {
     L.push("", "<i>Số liệu trong ngày tính đến " + pad2(vn.getUTCHours()) + "h" + pad2(vn.getUTCMinutes()) + ".</i>");
   return { text: L.join("\n") };
 }
-const REPORTS = { pvh10: buildPVH10, nv: buildNS, nhap: buildNhap, l5: buildL5 };
+/* ===== UPDATE GAME TOPUP LOGIN — file "Update Game Topup Login" =====
+   Tab "Follow Update (Auto)" (lịch): hàng nhãn "Năm" và "Ngày" ở cột 3 cho biết mỗi CỘT là một
+   ngày; dưới đó mỗi game một hàng (tên ở cột 3), ô ghi ký hiệu:
+     T = Topup Ví · E = End (chốt số dư, hôm sau mở bản) · P1/P2 = mở bản mới Phase 1/2.
+   Tab "News (Auto)" (điểm tin): mỗi hàng một ngày (cột 0), cột 1 Radar dòng tiền ví,
+   cột 2 Điểm tin & lịch trình, cột 3 Trạng thái đồng bộ. */
+const FILE_UPD = (process.env.UPD_PUB_KEY || FILES_ALL.upd).trim();
+const GID_NEWS = (process.env.UPD_NEWS_GID || "1695083394").trim();
+const GID_FOLLOW = (process.env.UPD_FOLLOW_GID || "1870309430").trim();
+const esc = s => ("" + s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const ngayVN = () => new Date(Date.now() + 7 * 3600 * 1000);
+/* khoá ngày đầy đủ yyyy-mm-dd; ?d=4/11 hoặc ?d=4/11/2026 để bắn thử một ngày bất kỳ */
+function khoaNgay(q) {
+  const vn = ngayVN();
+  const m = q && q.d ? ("" + q.d).match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/) : null;
+  if (m) return (m[3] || vn.getUTCFullYear()) + "-" + pad2(+m[2]) + "-" + pad2(+m[1]);
+  return vn.getUTCFullYear() + "-" + pad2(vn.getUTCMonth() + 1) + "-" + pad2(vn.getUTCDate());
+}
+const ddmm = k => k.slice(8) + "/" + k.slice(5, 7);
+function parseFollow(rows) {
+  if (!rows || rows.length < 5) return null;
+  const nhanCot3 = r => stripD(nrm((rows[r] || [])[3]));
+  let yr = -1, dr = -1;
+  for (let r = 0; r < Math.min(rows.length, 15); r++) {
+    if (yr < 0 && /^nam$/.test(nhanCot3(r))) yr = r;
+    if (dr < 0 && /^ngay$/.test(nhanCot3(r))) dr = r;
+  }
+  if (dr < 0) return null;
+  const yrow = yr >= 0 ? (rows[yr] || []) : [];
+  const cot = {}, ngay = [];
+  (rows[dr] || []).forEach((v, i) => {
+    const m = nrm(v).match(/^(\d{1,2})\/(\d{1,2})$/); if (!m) return;
+    const y = vnum(yrow[i]) || ngayVN().getUTCFullYear();
+    const k = y + "-" + pad2(+m[2]) + "-" + pad2(+m[1]);
+    if (cot[k] == null) { cot[k] = i; ngay.push(k); }
+  });
+  if (ngay.length < 10) return null;
+  const game = [];
+  for (let r = dr + 1; r < rows.length; r++) {
+    const ten = nrm((rows[r] || [])[3]); if (ten) game.push({ ten, r });
+  }
+  if (!game.length) return null;
+  ngay.sort();
+  const o = (g, k) => { const c = cot[k]; return c == null ? "" : nrm((rows[g.r] || [])[c]).toUpperCase(); };
+  return { ngay, cot, game, o, viTri: k => ngay.indexOf(k) };
+}
+function parseNews(rows) {
+  if (!rows || rows.length < 2) return null;
+  const o = {};
+  for (let r = 1; r < rows.length; r++) {
+    const row = rows[r] || [], m = nrm(row[0]).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if (!m) continue;
+    const k = m[3] + "-" + pad2(+m[2]) + "-" + pad2(+m[1]);
+    if (o[k] == null) o[k] = [nrm(row[1]), nrm(row[2]), nrm(row[3])];
+  }
+  return Object.keys(o).length ? o : null;
+}
+/* ô trên sheet viết liền kiểu "• ý này • ý kia" → tách mỗi ý một dòng cho dễ đọc trên điện thoại */
+function tachY(s, toiDa) {
+  const t = nrm(s); if (!t) return [];
+  const ds = t.split(/\s*•\s*/).map(x => x.trim()).filter(Boolean);
+  const L = []; let n = 0;
+  for (const x of ds) {
+    if (n + x.length > toiDa) { L.push(" • …"); break; }
+    L.push(" • " + esc(x)); n += x.length;
+  }
+  return L;
+}
+/* ---- tin HẰNG NGÀY: mốc của hôm nay + điểm tin trong ngày ---- */
+async function buildUpd(q) {
+  const [rF, rN] = await Promise.all([readTab(GID_FOLLOW, FILE_UPD), readTab(GID_NEWS, FILE_UPD)]);
+  const P = rF ? parseFollow(rF) : null, N = rN ? parseNews(rN) : null;
+  if (!P && !N) return { skip: "khong_doc_duoc_file_Update_Game_Topup_Login" };
+  const k = khoaNgay(q);
+  const L = ["🎮 <b>Update Game Topup Login</b>", "🗓 Ngày " + ddmm(k) + "/" + k.slice(0, 4)];
+  let coMoc = false;
+  if (P) {
+    const i = P.viTri(k);
+    const nhom = { P1: [], P2: [], E: [], T: [] };
+    if (i >= 0) P.game.forEach(g => { const v = P.o(g, k); if (nhom[v]) nhom[v].push(g); });
+    /* đợt T là mấy ngày liền nhau → cho biết hôm nay là ngày thứ mấy của đợt */
+    const dotT = g => { let a = i, b = i;
+      while (a - 1 >= 0 && P.o(g, P.ngay[a - 1]) === "T") a--;
+      while (b + 1 < P.ngay.length && P.o(g, P.ngay[b + 1]) === "T") b++;
+      return { thu: i - a + 1, tong: b - a + 1 }; };
+    /* ngày MỞ BẢN kế tiếp (P1/P2) — bỏ qua ngày E vì E chỉ là ngày chốt số dư trước đó */
+    const mocMo = g => {
+      for (let j = i + 1; j < P.ngay.length && j <= i + 60; j++) {
+        const v = P.o(g, P.ngay[j]); if (v === "P1" || v === "P2") return { ma: v, k: P.ngay[j], cach: j - i };
+      }
+      return null; };
+    const sapT = g => {          /* sắp vào đợt T trong 10 ngày tới */
+      for (let j = i + 1; j < P.ngay.length && j <= i + 10; j++)
+        if (P.o(g, P.ngay[j]) === "T") return { k: P.ngay[j], cach: j - i };
+      return null; };
+    const moBan = nhom.P1.concat(nhom.P2);
+    if (moBan.length) { coMoc = true;
+      L.push("", "🚀 <b>HÔM NAY MỞ BẢN MỚI</b> — cao điểm xử lý đơn nạp");
+      moBan.forEach(g => L.push(" • " + esc(g.ten) + " — " + P.o(g, k))); }
+    if (nhom.E.length) { coMoc = true;
+      L.push("", "🔔 <b>HÔM NAY CHỐT SỐ DƯ (ngày E)</b> — mai mở bản, cần sẵn sàng số dư ví");
+      nhom.E.forEach(g => { const s = mocMo(g);
+        L.push(" • " + esc(g.ten) + (s ? " — mở bản " + s.ma + " ngày " + ddmm(s.k) : "")); }); }
+    if (nhom.T.length) { coMoc = true;
+      L.push("", "💳 <b>HÔM NAY LÀ NGÀY TOPUP VÍ</b>");
+      nhom.T.forEach(g => { const d = dotT(g), s = mocMo(g);
+        L.push(" • " + esc(g.ten) + " — ngày " + d.thu + "/" + d.tong +
+          (s ? " · mở bản " + s.ma + " ngày " + ddmm(s.k) : "") +
+          (d.thu === d.tong ? " ⚠️ ngày T cuối, hoàn tất nạp hôm nay" : "")); }); }
+    /* game nào hôm nay chưa có mốc nhưng sắp vào đợt T → nhắc trước để chuẩn bị vốn */
+    const sap = P.game.map(g => ({ g: g, x: sapT(g) })).filter(x => x.x && !P.o(x.g, k));
+    if (i >= 0 && sap.length) {
+      L.push("", "📌 <b>Sắp tới</b>");
+      sap.sort((a, b) => a.x.cach - b.x.cach).forEach(x => { const s = mocMo(x.g);
+        L.push(" • " + esc(x.g.ten) + ": còn " + x.x.cach + " ngày vào đợt T (" + ddmm(x.x.k) + ")" +
+          (s ? " · mở bản " + s.ma + " ngày " + ddmm(s.k) : "")); });
+    }
+  }
+  const tin = N ? N[k] : null;
+  if (tin) {
+    const r = tachY(tin[0], 900), d = tachY(tin[1], 900);
+    if (r.length) { L.push("", "💰 <b>Radar dòng tiền ví (7 ngày tới)</b>"); L.push.apply(L, r); }
+    if (d.length) { L.push("", "📰 <b>Điểm tin &amp; lịch trình game</b>"); L.push.apply(L, d); }
+  }
+  if (!coMoc && !tin) return { skip: "hom_nay_khong_co_moc_va_khong_co_diem_tin" };
+  return { text: L.join("\n") };
+}
+/* ---- tin ĐẦU THÁNG: toàn bộ lịch update của tháng ---- */
+async function buildUpdThang(q) {
+  const rows = await readTab(GID_FOLLOW, FILE_UPD);
+  const P = rows ? parseFollow(rows) : null;
+  if (!P) return { skip: "khong_doc_duoc_tab_Follow_Update" };
+  const k = khoaNgay(q);
+  if (!q.d && +k.slice(8) !== 1) return { skip: "chi_ban_ngay_1_hang_thang" };
+  const ym = k.slice(0, 7), mm = +ym.slice(5);
+  const ngay = P.ngay.filter(x => x.slice(0, 7) === ym);
+  if (!ngay.length) return { skip: "thang_nay_chua_co_lich_tren_sheet" };
+  const L = ["📅 <b>Lịch update game tháng " + mm + "/" + ym.slice(0, 4) + "</b>",
+             "<i>T = ngày Topup Ví · E = chốt số dư · P1/P2 = mở bản mới</i>"];
+  let coGame = false;
+  P.game.forEach(g => {
+    const d = [];
+    for (let j = 0; j < ngay.length; j++) {
+      const v = P.o(g, ngay[j]); if (!v) continue;
+      if (v === "T") {                      /* gộp các ngày T liền nhau thành một khoảng */
+        let e = j; while (e + 1 < ngay.length && P.o(g, ngay[e + 1]) === "T") e++;
+        d.push("🔸 " + ddmm(ngay[j]) + (e > j ? "–" + ddmm(ngay[e]) : "") + " — Topup Ví" +
+               (e > j ? " (" + (e - j + 1) + " ngày)" : ""));
+        j = e;
+      } else if (v === "E") d.push("🔔 " + ddmm(ngay[j]) + " — Chốt số dư (ngày E)");
+      else if (v === "P1" || v === "P2") d.push("🚀 " + ddmm(ngay[j]) + " — Mở bản mới " + v);
+    }
+    if (!d.length) return;
+    coGame = true;
+    L.push("", "🎮 <b>" + esc(g.ten) + "</b>");
+    d.forEach(x => L.push(" " + x));
+  });
+  if (!coGame) return { skip: "thang_nay_khong_game_nao_co_moc" };
+  return { text: L.join("\n") };
+}
+const REPORTS = { pvh10: buildPVH10, nv: buildNS, nhap: buildNhap, l5: buildL5, upd: buildUpd, updthang: buildUpdThang };
 /* PVH10 (form cũ — đơn thủ công theo game) TẮT từ 02/10/2026: nguồn cũ không còn được cập nhật
    (01/10 chỉ đọc 17 đơn trong khi tab BC đơn ghi gần 600) và tin mới đã có đủ phân loại đơn.
    Bật lại khi cần: đặt biến môi trường TELE_PVH10=1 trên Vercel, không phải sửa code. */
@@ -1085,7 +1245,9 @@ const BOX_MAC_DINH = {
      Box cũ "Báo cáo Phòng vận hành" và PHÒNG CUNG ỨNG (PCU) đã bỏ, không nhận nữa. */
   nv: "-1004386381354:17",
   nhap: "-1002344565165:14157",
-  l5: "-1003730000994:2"            /* box Team Currency (L5) · topic 2 */
+  l5: "-1003730000994:2",           /* box Team Currency (L5) · topic 2 */
+  upd: "-1004386381354:231",        /* "Phòng vận hành 2026" · topic 231 Update Game Topup Login */
+  updthang: "-1004386381354:231"
 };
 /* Báo cáo chỉ bắn MỘT khung giờ trong ngày (ngoài khung thì im lặng).
    Nhập hàng: chỉ khung 18h — lịch gõ cửa 18:03 nên tin về trong 18h00–18h30;
@@ -1098,6 +1260,10 @@ const BOX_MAC_DINH = {
    L5: 18h báo số đang chạy trong ngày (dự phòng 23h) · 8h sáng hôm sau chốt số ngày hôm trước
    (dự phòng 12h) — bắn lúc 0h thì sheet còn nhập dở nên số thiếu (đã gặp ngày 20 và 21/10). */
 const CHI_KHUNG = {
+  /* Update Game Topup Login: tin trong ngày bắn buổi sáng để team kịp chuẩn bị vốn/ví
+     (mốc 8h, dự phòng 12h) · tin lịch cả tháng chỉ ra ngày 1 hằng tháng. */
+  upd: [{ gio: 8, dau: "ngay" }, { gio: 12, dau: "ngay" }],
+  updthang: [{ gio: 8, dau: "thang" }, { gio: 12, dau: "thang" }],
   nhap: [{ gio: 18, dau: "ngay" }, { gio: 23, dau: "ngay" }],
   l5: [{ gio: 18, dau: "ngay" }, { gio: 23, dau: "ngay" },
        { gio: 8, homQua: true, dau: "chot" }, { gio: 12, homQua: true, dau: "chot" }]
@@ -1305,7 +1471,7 @@ module.exports = async (req, res) => {
       "gio VN: " + pad2(vn0.getUTCHours()) + ":" + pad2(vn0.getUTCMinutes()) + "  ·  moc hien tai: " + sl + "h",
       "cac moc (go cua luc nao cung roi vao mot moc, moi moc 1 lan/ngay): " +
         MOC0.map((h, i) => h + "h = " + hhmm(h * 60) + "→" + hhmm((MOC0[i + 1] != null ? MOC0[i + 1] : MOC0[0] + 24) * 60 - 1)).join(" · "),
-      "bao cao khi URL khong co ?r= : " + (process.env.TELE_REPORTS || "(chua dat → nv,nhap,l5)"),
+      "bao cao khi URL khong co ?r= : " + (process.env.TELE_REPORTS || "(chua dat → nv,nhap,l5,upd,updthang)"),
       "da tat: " + (Object.keys(REPORTS_OFF).join(",") || "khong"),
       "khung rieng tung bao cao: " + JSON.stringify(CHI_KHUNG) + "  ·  khung chi danh cho tin chot: " + JSON.stringify(KHUNG_RIENG),
       "box: " + JSON.stringify(BOX_MAC_DINH),
@@ -1326,7 +1492,7 @@ module.exports = async (req, res) => {
     res.status(200).send(L.join("\n")); return;
   }
   /* r có thể liệt kê nhiều báo cáo: ?r=nv,nhap — mặc định lấy env TELE_REPORTS */
-  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap,l5")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
+  const rs = ("" + (q.r || process.env.TELE_REPORTS || "nv,nhap,l5,upd,updthang")).toLowerCase().split(/[,;\s]+/).filter((x, i, a) => x && a.indexOf(x) === i);
   const unknown = rs.filter(x => !REPORTS[x]);
   if (!rs.length || unknown.length) { res.status(400).json({ error: "unknown_report", unknown, reports: Object.keys(REPORTS) }); return; }
   /* slot=auto: gác giờ VN — chỉ gửi trong khung [mốc, mốc+3h), mỗi khung 1 lần/ngày */
