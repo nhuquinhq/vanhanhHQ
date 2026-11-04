@@ -17,7 +17,9 @@ const FILES_ALL = {
   /* HQS — BẢNG TỶ GIÁ HÀNG TUẦN: tỷ giá tính giá nhập là hàng "USDT/VND · CO Rate" */
   fx: "2PACX-1vRBzYH7dMHHBU1PhVf368oCNlLhKhGFclc4VuH9nucqShlrk5fxbYtUUBUUAbYXzm7c3nXO6P7Yb9vQ",
   /* Team Currency (L5) — tab REPORT_T10: báo cáo bán Currency theo ngày */
-  l5: "2PACX-1vSuqo6KAW939YZkj6wvqQV7nFGUI1kEoxOeAEF1fHLqAMt-d8hxiXbdWQ-LX-o2UWDibxR05YP27vf5"
+  l5: "2PACX-1vSuqo6KAW939YZkj6wvqQV7nFGUI1kEoxOeAEF1fHLqAMt-d8hxiXbdWQ-LX-o2UWDibxR05YP27vf5",
+  /* Update Game Topup Login — tab "News (Auto)" và "Follow Update (Auto)" */
+  upd: "2PACX-1vRYl694JJAvEPsY8uNOXxsLh626QgOQvJGB7SPNwza5qA6Bg0aCb8zUYEEii_OxfO4eydGWaYz0thbX"
 };
 const GIDS = { tc: "1496740945", gp_ngay: "511745866", ns: "423402286" /* Năng suất Nhân viên */ };
 /* Từ T10/2026 năng suất đọc ở file RIÊNG "Báo cáo Năng Suất Xử lý đơn 2026", tab "BC đơn":
