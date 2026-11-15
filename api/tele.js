@@ -948,11 +948,15 @@ async function buildNS(q) {
    Số trên tab viết kiểu Mỹ (1,839 = một nghìn tám trăm ba chín) nên phải đọc riêng. */
 const GID_L5 = (process.env.L5_GID || "1569645124").trim();
 const FILE_L5 = (process.env.L5_PUB_KEY || FILES_ALL.l5).trim();
-const unum = x => {            /* "1,839" -> 1839 · "15.61%" -> 15.61 · "-215,000" -> -215000 */
+/* "1,839" -> 1839 · "-215,000" -> -215000 · "3640.00%" -> 36.4
+   Ô có dấu % thì giá trị thật là số chia 100 (hàng PL1 trên sheet bị định dạng phần trăm
+   nên xuất ra "3640.00%" cho 36,40 $ — trước đây bot cắt dấu % và báo thành 3.640 $). */
+const unum = x => {
   if (x == null) return 0;
-  const s = ("" + x).replace(/[$%\s]/g, "").replace(/,/g, "");
+  const goc = "" + x, phanTram = goc.indexOf("%") > -1;
+  const s = goc.replace(/[$%\s]/g, "").replace(/,/g, "");
   if (!s || s === "-") return 0;
-  const n = parseFloat(s); return isNaN(n) ? 0 : n;
+  const n = parseFloat(s); return isNaN(n) ? 0 : (phanTram ? n / 100 : n);
 };
 function parseL5(rows) {
   if (!rows || rows.length < 10) return null;
@@ -978,29 +982,32 @@ function parseL5(rows) {
     else if (ma === "ods" && hang.don == null) hang.don = r;                        /* số lượng đơn bán */
   }
   if (hang.re == null || hang.co == null || hang.pl1 == null || hang.pl2a == null) return null;
-  /* khối "Năng suất theo nhân sự": hàng tiêu đề ghi ở cột 0, bên dưới mỗi người một hàng,
-     tên ở cột 3 (giống các hàng con Aion 2 / Chưa biết). Dừng khi hết hàng có tên. */
-  const ns = [];
+  /* Các khối năng suất nhân sự: hàng tiêu đề ghi ở cột 0, bên dưới mỗi người một hàng với
+     tên ở cột 3. Sheet có 2 khối — "Năng suất theo nhân sự (Theo đơn mua NCC)" và
+     "Số đơn hàng NV xử lý (Theo đơn bán)" — nên nhận hết, gắn nhãn mua/bán theo tiêu đề. */
+  const khoiNS = [];
   for (let r = dr + 1; r < rows.length; r++) {
-    if (!/nang\s*suat.*nhan\s*su/.test(stripD(nrm((rows[r] || [])[0])))) continue;
+    const lab = stripD(nrm((rows[r] || [])[0]));
+    if (!/nang\s*suat.*nhan\s*su|so\s*don\s*hang\s*nv/.test(lab)) continue;
+    const ns = [];
     for (let x = r + 1; x < rows.length; x++) {
       const ten = nrm((rows[x] || [])[3]);
       if (!ten) break;                     /* hết khối */
       if (nrm((rows[x] || [])[0])) break;  /* đã sang khối khác */
-      ns.push({ ten, r: x });
+      ns.push({ ten: ten, r: x });
     }
-    break;
+    if (ns.length) khoiNS.push({ nhan: /mua/.test(lab) ? "đơn mua" : (/ban/.test(lab) ? "đơn bán" : ""), ns: ns });
   }
   const so = (k, d) => { const c = cot[d]; return (c == null || hang[k] == null) ? 0 : unum((rows[hang[k]] || [])[c]); };
-  /* số đơn XỬ LÝ của từng nhân sự: soNS(d) cho một ngày · tongNS() lấy ô Total của sheet */
-  const soNS = d => { const c = cot[d]; return ns.map(x => ({ ten: x.ten, v: c == null ? 0 : unum((rows[x.r] || [])[c]) })); };
-  const tongNS = () => ns.map(x => ({ ten: x.ten, v: unum((rows[x.r] || [])[6]) }));
-  const congNS = ds => ns.map(x => ({ ten: x.ten,
-    v: ds.reduce((a, d) => { const c = cot[d]; return a + (c == null ? 0 : unum((rows[x.r] || [])[c])); }, 0) }));
+  /* số đơn xử lý của từng nhân sự trong MỘT khối: một ngày · ô Total của sheet · cộng nhiều ngày */
+  const oNS = (x, d) => { const c = cot[d]; return c == null ? 0 : unum((rows[x.r] || [])[c]); };
+  const soNS = (b, d) => b.ns.map(x => ({ ten: x.ten, v: oNS(x, d) }));
+  const tongNS = b => b.ns.map(x => ({ ten: x.ten, v: unum((rows[x.r] || [])[6]) }));
+  const congNS = (b, ds) => b.ns.map(x => ({ ten: x.ten, v: ds.reduce((a, d) => a + oNS(x, d), 0) }));
   /* cột 6 là ô Total của sheet — dùng cho lũy kế để khớp đúng số team đang nhìn
      (cộng tay từng ngày lệch 1–2 $ vì bản xuất CSV đã làm tròn số của mỗi ngày) */
   const tongFile = k => hang[k] == null ? 0 : unum((rows[hang[k]] || [])[6]);
-  return { days: days.sort(), cot, hang, so, tongFile, ns, soNS, tongNS, congNS };
+  return { days: days.sort(), cot, hang, so, tongFile, khoiNS, soNS, tongNS, congNS };
 }
 async function buildL5(q) {
   const rows = await readTab(GID_L5, FILE_L5);
@@ -1046,10 +1053,10 @@ async function buildL5(q) {
   L.push("- Tổng PL2A: " + usd(tong("pl2a")));
   /* số đơn XỬ LÝ theo nhân sự — khối "Năng suất theo nhân sự" trên sheet.
      Trong ngày xếp nhiều → ít; lũy kế tháng lấy đúng ô Total của sheet. */
-  if (P.ns && P.ns.length) {
-    const ngayNS = P.soNS(key).filter(x => x.v).sort((a, b) => b.v - a.v);
-    const thangNS = (motThang ? P.tongNS() : P.congNS(ngay)).filter(x => x.v).sort((a, b) => b.v - a.v);
-    L.push("", "<b>4. Số đơn xử lý theo nhân sự</b>");
+  (P.khoiNS || []).forEach((b, i) => {
+    const ngayNS = P.soNS(b, key).filter(x => x.v).sort((a, c) => c.v - a.v);
+    const thangNS = (motThang ? P.tongNS(b) : P.congNS(b, ngay)).filter(x => x.v).sort((a, c) => c.v - a.v);
+    L.push("", "<b>" + (4 + i) + ". Số đơn xử lý theo nhân sự" + (b.nhan ? " (" + b.nhan + ")" : "") + "</b>");
     if (ngayNS.length) {
       L.push("- Trong ngày: <b>" + fmt(ngayNS.reduce((a, x) => a + x.v, 0)) + " đơn</b>");
       ngayNS.forEach(x => L.push("  • " + x.ten + ": " + fmt(x.v)));
@@ -1058,7 +1065,7 @@ async function buildL5(q) {
       L.push("- Lũy kế tháng " + (+mm) + ":");
       thangNS.forEach(x => L.push("• " + x.ten + " " + fmt(x.v)));
     }
-  }
+  });
   /* bắn lúc 18h thì ngày báo cáo vẫn đang chạy — nói rõ số mới tính tới lúc bắn;
      lần bắn trưa hôm sau là số đã chốt (sheet đã nhập xong) */
   const vn = new Date(Date.now() + 7 * 3600 * 1000);
